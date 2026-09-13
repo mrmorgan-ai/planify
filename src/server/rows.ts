@@ -8,6 +8,7 @@ import type {
   PhaseNumber,
   Resource,
   State,
+  WorkItem,
 } from '../core/types'
 
 // Mapping between D1 rows and the domain. Pure on purpose: this is where a
@@ -18,6 +19,7 @@ export type ItemRow = {
   name: string
   type: string
   phase: number
+  work_item_id: string | null
   skills: string
   depends_on: string
   baseline_start: string
@@ -32,6 +34,15 @@ export type ItemRow = {
   state: string
   completed_at: string | null
   sort_order: number
+}
+
+export type WorkItemRow = {
+  id: string
+  name: string
+  type: string
+  link: string | null
+  resources: string
+  notes: string
 }
 
 export type PhaseRow = { number: number; name: string; closing_milestone_id: string | null }
@@ -56,6 +67,7 @@ export function toItem(row: ItemRow): Item {
     name: row.name,
     type: row.type as ItemType,
     phase: row.phase as PhaseNumber,
+    workItemId: row.work_item_id === '' ? null : row.work_item_id,
     skills: parseStringArray(row.skills, `${row.id}.skills`),
     dependsOn: parseStringArray(row.depends_on, `${row.id}.depends_on`),
     baselineStartDate: row.baseline_start,
@@ -70,6 +82,20 @@ export function toItem(row: ItemRow): Item {
     state: row.state as State,
     completedAt: row.completed_at,
     sortOrder: row.sort_order,
+  }
+}
+
+export function toWorkItem(row: WorkItemRow): WorkItem {
+  if (!ITEM_TYPES.includes(row.type as ItemType)) {
+    throw new Error(`Work item ${row.id} has an unknown type in the database: ${row.type}`)
+  }
+  return {
+    id: row.id,
+    name: row.name,
+    type: row.type as ItemType,
+    link: row.link === null || row.link === '' ? null : row.link,
+    resources: parseResources(row.resources, `${row.id}.resources`),
+    notes: row.notes,
   }
 }
 

@@ -9,19 +9,21 @@ import {
   toMeta,
   toPhase,
   toSkillDimension,
+  toWorkItem,
   type BlackoutRow,
   type DimensionRow,
   type ItemRow,
   type MetaRow,
   type PhaseRow,
   type SkillRow,
+  type WorkItemRow,
 } from './rows'
 
 export type Env = {
   DB: D1Database
 }
 
-const ITEM_COLUMNS = `id, name, type, phase, skills, depends_on,
+const ITEM_COLUMNS = `id, name, type, phase, work_item_id, skills, depends_on,
   baseline_start, baseline_end, projected_start, projected_end,
   price, link, resources, duration, notes, state, completed_at, sort_order`
 
@@ -31,8 +33,9 @@ const ITEM_COLUMNS = `id, name, type, phase, skills, depends_on,
  * full dependency graph on every call anyway.
  */
 export async function loadAppState(db: D1Database): Promise<AppState> {
-  const [items, phases, blackouts, dimensions, skills, meta] = await db.batch([
+  const [items, workItems, phases, blackouts, dimensions, skills, meta] = await db.batch([
     db.prepare(`SELECT ${ITEM_COLUMNS} FROM items ORDER BY phase, sort_order`),
+    db.prepare('SELECT id, name, type, link, resources, notes FROM work_items ORDER BY id'),
     db.prepare('SELECT number, name, closing_milestone_id FROM phases ORDER BY number'),
     db.prepare('SELECT from_date, to_date, reason FROM blackouts ORDER BY from_date'),
     db.prepare('SELECT name FROM dimensions ORDER BY sort_order'),
@@ -61,6 +64,7 @@ export async function loadAppState(db: D1Database): Promise<AppState> {
     revision: Number(settings.revision ?? '0'),
     seedVersion: settings.seed_version ?? '0',
     roadmap,
+    workItems: ((workItems?.results ?? []) as WorkItemRow[]).map(toWorkItem),
     items: ((items?.results ?? []) as ItemRow[]).map(toItem),
   }
 }

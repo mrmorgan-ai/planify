@@ -46,17 +46,30 @@ The core takes its calendar as an argument — `{ blackouts, timeZone }` — and
 never reads a global. That is the same rule seen from the inside: content comes
 from the database, not from this repository.
 
-## The four views
+## The five views
 
 | View | What it is for |
 |---|---|
-| Dashboard | streak, overdue count, next milestone and pace, plus the skills radar |
-| Backlog | the detail view: one phase at a time, with state, dates, topics and price |
-| Kanban | the day-to-day board — drag between three columns, no limits, no blocking |
+| Dashboard | today, streak, overdue count, next milestone and pace, plus the skills radar |
+| Backlog | the detail view: one phase at a time, with state, editable dates, resources and price |
+| Work items | the roadmap as units — a course with its weeks, a project with its tasks — and how far through each you are |
+| Kanban | the day-to-day board for the active phase, with the week's capacity — no limits, no blocking |
 | Gantt | read-only: the original plan as a faint bar under the current projection |
 
 Backlog and Kanban write the same `state` field. Neither is a separate system,
-and the Gantt only reflects what those two set.
+and the Gantt and the work items only reflect what those two set.
+
+## Work items
+
+Every item is short enough to finish inside a week, so anything bigger — a
+course, a book read across phases, a project — is split into parts. A work item
+groups those parts and stores nothing else: its state, hours and phases are read
+off the parts, so it cannot disagree with them, and the recalculation engine
+never sees it. An item that is not split has no work item and shows as a unit of
+one.
+
+The backlog and the board label a part as "Part 3 of 9 · …" and link to its work
+item; a part with no link of its own shows its work item's.
 
 ## Running it locally
 
@@ -99,7 +112,13 @@ curl -X POST https://<your-domain>/api/reproject  # recompute projections
 
 The upsert updates content and deliberately never touches `state`,
 `completed_at` or the projected dates, so reloading the seed cannot overwrite
-progress.
+progress. Planned dates are editable in the app, so they are left alone too —
+pass `--with-dates` to `tools/seed/to-sql.mjs` when the seed carries a new
+calendar on purpose.
+
+Items and work items the seed no longer contains are deleted, progress and all.
+Splitting an item in two means the old one is gone; leaving it behind would count
+it twice.
 
 ```bash
 npm run seed:export                               # D1 -> seed/roadmap.json
@@ -108,6 +127,10 @@ npm run seed:export                               # D1 -> seed/roadmap.json
 That is the way back. The database is the durable home of the roadmap, so a new
 machine — or a lost disk — recovers the whole seed, including the metadata the
 validator checks it against.
+
+Beyond the graph, the validator holds the plan to what a week can take: no item
+spans more than seven study days, every item carries an hours estimate, no week is
+planned above its declared capacity, and the parts of a work item never overlap.
 
 The strongest rule in the validator is that with nothing completed, the engine
 must project every item exactly onto its own baseline. If a dependency ends on

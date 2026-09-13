@@ -11,6 +11,7 @@ import type {
   PhaseNumber,
   Resource,
   WeeklyHours,
+  WorkItem,
 } from '../../src/core/types'
 
 /**
@@ -38,6 +39,8 @@ export type SeedFile = {
   blackouts: Blackout[]
   dimensions: Dimension[]
   skills: Record<string, Dimension>
+  /** The units items are split from. Optional; an item names its own with `workItemId`. */
+  workItems: WorkItem[]
   items: SeedItem[]
 
   /** Expectations the validator checks the content against. */
@@ -88,6 +91,9 @@ export function readSeedFile(path: URL): SeedFile {
     ),
     dimensions,
     skills,
+    workItems: (file.workItems === undefined ? [] : requireArray(file.workItems, 'workItems')).map(
+      (entry, index) => parseWorkItem(entry, index),
+    ),
     items,
     expectedItemsPerPhase: requireNumberRecord(file.expectedItemsPerPhase, 'expectedItemsPerPhase'),
     phaseWindows: parsePhaseWindows(file.phaseWindows),
@@ -123,6 +129,30 @@ function parsePhase(entry: unknown, index: number): Phase {
     number: number as PhaseNumber,
     name: requireString(value.name, `phases[${index}].name`),
     closingMilestoneId: milestone ?? null,
+  }
+}
+
+function parseWorkItem(entry: unknown, index: number): WorkItem {
+  const value = requireObject(entry, `workItems[${index}]`)
+  const id = requireString(value.id, `workItems[${index}].id`)
+  const where = `workItems[${index}] (${id})`
+
+  const type = requireString(value.type, `${where}.type`)
+  if (!ITEM_TYPES.includes(type as ItemType)) throw new Error(`${where}.type is not valid: ${type}`)
+
+  const link = value.link ?? null
+  if (link !== null && typeof link !== 'string') {
+    throw new Error(`${where}.link must be a string or null`)
+  }
+  if (link === '') throw new Error(`${where}.link is an empty string — use null`)
+
+  return {
+    id,
+    name: requireString(value.name, `${where}.name`),
+    type: type as ItemType,
+    link,
+    resources: parseResources(value.resources, `${where}.resources`),
+    notes: requireString(value.notes ?? '', `${where}.notes`, true),
   }
 }
 
@@ -176,11 +206,17 @@ function parseSeedItem(entry: unknown, index: number): SeedItem {
   }
   if (link === '') throw new Error(`${where}.link is an empty string — use null`)
 
+  const workItemId = value.workItemId ?? null
+  if (workItemId !== null && typeof workItemId !== 'string') {
+    throw new Error(`${where}.workItemId must be a string or null`)
+  }
+
   return {
     id,
     name: requireString(value.name, `${where}.name`),
     type: type as ItemType,
     phase: phase as PhaseNumber,
+    workItemId,
     skills: requireStringArray(value.skills, `${where}.skills`),
     baselineStartDate: requireCivilDate(value.baselineStartDate, `${where}.baselineStartDate`),
     baselineEndDate: requireCivilDate(value.baselineEndDate, `${where}.baselineEndDate`),

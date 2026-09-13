@@ -9,7 +9,9 @@ import {
   ITEM_FILTERS,
   type ItemFilter,
 } from '../core/selectors'
-import type { AppState, CivilDate, Item, State } from '../core/types'
+import type { AppState, CivilDate, Item, Resource, State } from '../core/types'
+import { linksOf, partLabel, type PartLabel } from '../core/workItems'
+import { PartOf } from './PartOf'
 import { PhaseSidebar, type PhaseSelection } from './PhaseSidebar'
 import type { Store } from './useAppState'
 
@@ -29,7 +31,7 @@ const FILTER_LABEL: Record<ItemFilter, string> = {
 
 /**
  * The detail view, and the surface the rest hangs off: the Gantt only reflects
- * what is set here or on the board. One phase at a time, because 65 rows in a
+ * what is set here or on the board. One phase at a time, because a hundred rows in a
  * single scroll is a list you stop reading.
  *
  * Dates are editable here. What you edit is the baseline — the plan — and the
@@ -126,6 +128,8 @@ export function Backlog({
                   open={expanded === item.id}
                   editing={editing === item.id}
                   names={names}
+                  part={partLabel(item, state.workItems, state.items)}
+                  links={linksOf(item, state.workItems)}
                   showPhase={phase === null}
                   onToggle={() => setExpanded(expanded === item.id ? null : item.id)}
                   onEdit={() => setEditing(editing === item.id ? null : item.id)}
@@ -151,6 +155,8 @@ function Row({
   open,
   editing,
   names,
+  part,
+  links,
   showPhase,
   onToggle,
   onEdit,
@@ -164,6 +170,10 @@ function Row({
   open: boolean
   editing: boolean
   names: Map<string, string>
+  /** Which work item this row is a part of, when it is one. */
+  part: PartLabel | null
+  /** Its own links, or its work item's when it carries none. */
+  links: { link: string | null; resources: Resource[] }
   showPhase: boolean
   onToggle: () => void
   onEdit: () => void
@@ -212,6 +222,7 @@ function Row({
             <span className="name">{item.name}</span>
             {showPhase && <span className="phase-tag">phase {item.phase}</span>}
           </div>
+          {part && <PartOf part={part} />}
           {item.skills.length > 0 && (
             <div className="skills">
               {item.skills.map((skill) => (
@@ -258,17 +269,17 @@ function Row({
 
         <td className="col-resources">
           <div className="resources">
-            {item.link && (
-              <a href={item.link} target="_blank" rel="noreferrer">
-                {hostOf(item.link)}
+            {links.link && (
+              <a href={links.link} target="_blank" rel="noreferrer">
+                {hostOf(links.link)}
               </a>
             )}
-            {item.resources.map((resource) => (
+            {links.resources.map((resource) => (
               <a key={resource.url} href={resource.url} target="_blank" rel="noreferrer">
                 {resource.label}
               </a>
             ))}
-            {!item.link && item.resources.length === 0 && <span className="faint">—</span>}
+            {!links.link && links.resources.length === 0 && <span className="faint">—</span>}
           </div>
         </td>
 
@@ -290,6 +301,13 @@ function Row({
               <div className="detail-line">
                 <span className="detail-label">What it is</span>
                 <span className="notes">{item.notes}</span>
+              </div>
+            )}
+
+            {part?.workItem.notes && (
+              <div className="detail-line">
+                <span className="detail-label">Part of</span>
+                <span className="notes">{part.workItem.notes}</span>
               </div>
             )}
 

@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { Item } from '../core/types'
-import { changedItems, toItem, toMeta, toPhase, toSkillDimension, type ItemRow } from './rows'
+import {
+  changedItems,
+  toItem,
+  toMeta,
+  toPhase,
+  toSkillDimension,
+  toWorkItem,
+  type ItemRow,
+} from './rows'
 
 function row(overrides: Partial<ItemRow> = {}): ItemRow {
   return {
@@ -8,6 +16,7 @@ function row(overrides: Partial<ItemRow> = {}): ItemRow {
     name: 'Read the thing',
     type: 'Book',
     phase: 1,
+    work_item_id: null,
     skills: '["Something measurable"]',
     depends_on: '[]',
     baseline_start: '2030-01-01',
@@ -50,6 +59,33 @@ describe('toItem', () => {
     expect(() => toItem(row({ skills: 'not json' }))).toThrow(/valid JSON/)
     expect(() => toItem(row({ skills: '{"a":1}' }))).toThrow(/array of strings/)
     expect(() => toItem(row({ depends_on: '[1,2]' }))).toThrow(/array of strings/)
+  })
+})
+
+describe('work items', () => {
+  it('carries the work item an item belongs to, and reads an empty one as none', () => {
+    expect(toItem(row({ work_item_id: 'the-course' })).workItemId).toBe('the-course')
+    expect(toItem(row({ work_item_id: null })).workItemId).toBeNull()
+    expect(toItem(row({ work_item_id: '' })).workItemId).toBeNull()
+  })
+
+  it('maps a work item row, parsing its resources', () => {
+    const workItem = toWorkItem({
+      id: 'the-course',
+      name: 'The course',
+      type: 'Course',
+      link: '',
+      resources: '[{"label":"Code","url":"https://example.com/code"}]',
+      notes: 'What it is.',
+    })
+    expect(workItem.link).toBeNull()
+    expect(workItem.resources).toEqual([{ label: 'Code', url: 'https://example.com/code' }])
+  })
+
+  it('refuses a work item type the schema should never have allowed', () => {
+    expect(() =>
+      toWorkItem({ id: 'x', name: 'x', type: 'Podcast', link: null, resources: '[]', notes: '' }),
+    ).toThrow(/unknown type/)
   })
 })
 

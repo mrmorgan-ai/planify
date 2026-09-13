@@ -16,6 +16,8 @@ export const ITEM_TYPES: readonly ItemType[] = [
   'Paper',
   'Case study',
   'Project',
+  'Practice',
+  'Exam prep',
 ] as const
 
 /** Used only when the database has no timezone configured. */
