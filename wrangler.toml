@@ -2,11 +2,29 @@ name = "planify"
 compatibility_date = "2026-09-01"
 pages_build_output_dir = "dist"
 
-# Replace database_id with the value printed by `wrangler d1 create planify`.
-# Local development works with the placeholder: `--local` keys its SQLite file
-# off the binding name, not the id.
+# Replace both database_id values with what `wrangler d1 create` printed. Local
+# development works with the placeholders: `--local` keys its SQLite file off the
+# binding name, not the id.
+#
+# The two environments are separate databases on purpose. Preview deployment URLs
+# are public unless an access policy is switched on for them, so a pull request
+# must not be able to read or write the real roadmap. `planify-preview` holds the
+# example seed and nothing personal.
+
 [[d1_databases]]
 binding = "DB"
 database_name = "planify"
 database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "planify"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "planify-preview"
+database_id = "00000000-0000-0000-0000-000000000001"
 migrations_dir = "migrations"
