@@ -10,7 +10,9 @@ import {
   suggestedNext,
   type Context,
 } from '../core/dashboard'
+import { planProgress } from '../core/hours'
 import type { AppState, CivilDate, Item } from '../core/types'
+import { PlanBullet } from './PlanBullet'
 import { Radar } from './Radar'
 
 const SHOWN_IN_PROGRESS = 5
@@ -31,7 +33,7 @@ export function Dashboard({ state }: { state: AppState }) {
   const late = overdueItems(items, today)
   const milestone = nextMilestone(items, roadmap.phases, today)
   const running = inProgress(items)
-  const done = items.filter((item) => item.state === 'done').length
+  const progress = planProgress(items, roadmap.phases.map((phase) => phase.number), today)
   const groups = skillsByDimension(items, roadmap)
 
   return (
@@ -83,10 +85,8 @@ export function Dashboard({ state }: { state: AppState }) {
 
       <section className="block">
         <h2>Progress</h2>
+        <PlanBullet progress={progress} />
         <div className="stats">
-          <Stat label="Roadmap" value={`${done}/${items.length}`}>
-            <Meter ratio={items.length === 0 ? 0 : done / items.length} />
-          </Stat>
 
           <Stat label="Overdue" value={String(late.length)} bad={late.length > 0}>
             {late.length === 0 ? 'nothing past its date' : late[0]!.name}

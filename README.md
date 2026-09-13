@@ -50,7 +50,7 @@ from the database, not from this repository.
 
 | View | What it is for |
 |---|---|
-| Dashboard | today, streak, overdue count, next milestone and pace, plus the skills radar |
+| Dashboard | today, hours done against the hours the plan expected by today, overdue count, next milestone and pace, plus the skills radar |
 | Backlog | the detail view: one phase at a time, with state, editable dates, resources and price |
 | Work items | the roadmap as units — a course with its weeks, a project with its tasks — and how far through each you are |
 | Kanban | the day-to-day board for the active phase, with the week's capacity — no limits, no blocking |
@@ -68,8 +68,13 @@ off the parts, so it cannot disagree with them, and the recalculation engine
 never sees it. An item that is not split has no work item and shows as a unit of
 one.
 
-The backlog and the board label a part as "Part 3 of 9 · …" and link to its work
-item; a part with no link of its own shows its work item's.
+The backlog shows a part's place as "3/9" before its name, and its expanded row
+links to the work item; the board labels the card the same way. A part with no
+link of its own shows its work item's.
+
+An item can also state `doneWhen` — the checkable outcome that makes it finished.
+Practice blocks and exam preparations must, because neither has a natural end
+the way a chapter does; the board prints it on the card.
 
 ## Running it locally
 
@@ -93,8 +98,8 @@ make stop
 
 `make start` refuses to start if either port is taken and names what is holding
 it, rather than racing whatever is already there. The app is on
-`http://127.0.0.1:5173` and the API on `8788`; the footer reports today's date
-and how many items came back from D1.
+`http://127.0.0.1:5173` and the API on `8788`; the footer reports the active
+phase, today's date and how far through the plan's hours you are.
 
 Checks: `npm run typecheck` · `npm test` · `npm run build`. Run them without a
 pipe — piping hides the exit code and a failing gate then looks green.
@@ -130,7 +135,8 @@ validator checks it against.
 
 Beyond the graph, the validator holds the plan to what a week can take: no item
 spans more than seven study days, every item carries an hours estimate, no week is
-planned above its declared capacity, and the parts of a work item never overlap.
+planned above its declared capacity, the parts of a work item never overlap, and
+every practice block and exam preparation says what done means.
 
 The strongest rule in the validator is that with nothing completed, the engine
 must project every item exactly onto its own baseline. If a dependency ends on

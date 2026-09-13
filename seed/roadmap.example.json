@@ -82,7 +82,7 @@
     },
     {
       "id": "practice-week-1",
-      "name": "Practice — week 1",
+      "name": "Practice — rebuild the main idea from memory",
       "type": "Practice",
       "phase": 1,
       "workItemId": "practice-phase-1",
@@ -94,6 +94,7 @@
       "link": null,
       "duration": "3h",
       "notes": "Rebuild the week's main idea from a blank file, then check it against the course.",
+      "doneWhen": "The rebuilt version gives the same result as the course's on two inputs of your own.",
       "sortOrder": 3
     },
     {
@@ -130,7 +131,7 @@
     },
     {
       "id": "practice-week-2",
-      "name": "Practice — week 2",
+      "name": "Practice — break the build and diagnose it",
       "type": "Practice",
       "phase": 1,
       "workItemId": "practice-phase-1",
@@ -142,6 +143,7 @@
       "link": null,
       "duration": "3h",
       "notes": "Break the week's build on purpose and diagnose it from its output alone.",
+      "doneWhen": "Each break is written down with the output line that revealed it.",
       "sortOrder": 6
     },
     {
@@ -174,6 +176,7 @@
       "link": null,
       "duration": "3h",
       "notes": "Takes the exam week's practice block.",
+      "doneWhen": "Every sample question answered, and each miss mapped to where it is covered.",
       "sortOrder": 8
     },
     {

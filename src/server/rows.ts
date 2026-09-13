@@ -31,6 +31,7 @@ export type ItemRow = {
   resources: string
   duration: string
   notes: string
+  done_when: string
   state: string
   completed_at: string | null
   sort_order: number
@@ -79,6 +80,7 @@ export function toItem(row: ItemRow): Item {
     resources: parseResources(row.resources, `${row.id}.resources`),
     duration: row.duration,
     notes: row.notes,
+    doneWhen: row.done_when ?? '',
     state: row.state as State,
     completedAt: row.completed_at,
     sortOrder: row.sort_order,

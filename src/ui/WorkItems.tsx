@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type Ref } from 'react'
-import { Link as RouterLink, useSearchParams } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link as RouterLink } from 'react-router-dom'
 import { estimatedHours } from '../core/hours'
 import type { AppState, ItemType, State } from '../core/types'
 import { unitHours, unitPhases, unitState, unitsOf, type Unit } from '../core/workItems'
+import { scrollToRow, useArrival } from './useArrival'
 
 const STATE_LABEL: Record<State, string> = {
   pending: 'Pending',
@@ -39,29 +40,19 @@ const SECTIONS: ReadonlyArray<{ type: ItemType; label: string }> = [
 export function WorkItems({ state }: { state: AppState }) {
   const [filter, setFilter] = useState<StateFilter>('all')
   const [open, setOpen] = useState<Set<string>>(new Set())
-  const [params, setParams] = useSearchParams()
-  const target = useRef<HTMLTableRowElement | null>(null)
-  const [scrollTo, setScrollTo] = useState<string | null>(null)
 
   const units = unitsOf(state.items, state.workItems)
   const visible = units.filter((unit) => filter === 'all' || unitState(unit.parts) === filter)
 
-  /** `?unit=` is how a backlog row hands its work item over: open it and bring it into view. */
-  const requested = params.get('unit')
-  useEffect(() => {
-    if (!requested) return
-    setFilter('all')
-    setOpen((current) => new Set(current).add(requested))
-    setScrollTo(requested)
-    setParams({}, { replace: true })
-  }, [requested, setParams])
-
-  useEffect(() => {
-    if (scrollTo && target.current) {
-      target.current.scrollIntoView({ block: 'center' })
-      setScrollTo(null)
-    }
-  }, [scrollTo])
+  /** `?unit=` is how a part hands its work item over: open it, bring it into view, highlight it. */
+  const { arrived, missing } = useArrival(
+    'unit',
+    (id) => units.some((unit) => unit.id === id),
+    (id) => {
+      setFilter('all')
+      setOpen((current) => new Set(current).add(id))
+    },
+  )
 
   function toggle(id: string) {
     setOpen((current) => {
@@ -75,6 +66,12 @@ export function WorkItems({ state }: { state: AppState }) {
   return (
     <section className="work-items">
       <h2 className="board-title">Work items</h2>
+
+      {missing && (
+        <p className="notice" role="status">
+          The link pointed at <code>{missing}</code>, which is not in the roadmap any more.
+        </p>
+      )}
 
       <div className="filters">
         {FILTERS.map((candidate) => (
@@ -122,7 +119,7 @@ export function WorkItems({ state }: { state: AppState }) {
                     key={unit.id}
                     unit={unit}
                     open={open.has(unit.id)}
-                    rowRef={scrollTo === unit.id ? target : undefined}
+                    arrived={arrived === unit.id}
                     onToggle={() => toggle(unit.id)}
                   />
                 ))}
@@ -138,14 +135,19 @@ export function WorkItems({ state }: { state: AppState }) {
 function UnitRows({
   unit,
   open,
-  rowRef,
+  arrived,
   onToggle,
 }: {
   unit: Unit
   open: boolean
-  rowRef: Ref<HTMLTableRowElement> | undefined
+  arrived: boolean
   onToggle: () => void
 }) {
+  const row = useRef<HTMLTableRowElement>(null)
+  useEffect(() => {
+    if (arrived) scrollToRow(row.current)
+  }, [arrived])
+
   const current = unitState(unit.parts)
   const hours = unitHours(unit.parts)
   const done = unit.parts.filter((part) => part.state === 'done').length
@@ -154,8 +156,12 @@ function UnitRows({
   return (
     <>
       <tr
-        ref={rowRef}
-        className={[current === 'done' ? 'done' : '', open ? 'open' : ''].join(' ').trim() || undefined}
+        ref={row}
+        className={
+          [current === 'done' ? 'done' : '', open ? 'open' : '', arrived ? 'arrived' : '']
+            .filter(Boolean)
+            .join(' ') || undefined
+        }
       >
         <td className="col-name">
           <div className="name-line">

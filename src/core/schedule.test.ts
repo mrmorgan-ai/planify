@@ -25,6 +25,7 @@ function item(id: string, overrides: Partial<Item> = {}): Item {
     resources: [],
     duration: '',
     notes: '',
+    doneWhen: '',
     state: 'pending',
     completedAt: null,
     sortOrder: 0,

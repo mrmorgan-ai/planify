@@ -11,6 +11,7 @@ import { BOARD_COLUMNS, groupByState, isOverdue, unfinishedDependencies } from '
 import type { Week } from '../core/hours'
 import type { AppState, Item, Phase, State } from '../core/types'
 import { partLabel, type PartLabel } from '../core/workItems'
+import { dateRange } from './format'
 import { PartOf } from './PartOf'
 import type { Store } from './useAppState'
 
@@ -228,7 +229,7 @@ function WeekPanel({
     <div className="week-panel">
       <div className="stat">
         <div className="stat-label">Week</div>
-        <div className="stat-value">{range(week)}</div>
+        <div className="stat-value">{dateRange(week.from, week.to)}</div>
         <div className="stat-note">{started ? 'in progress' : 'the plan starts here'}</div>
       </div>
 
@@ -281,17 +282,6 @@ function Totals({ items, hours }: { items: number; hours: number }) {
   )
 }
 
-/** "Sep 14 – 20", or both months when the week straddles one. */
-function range(week: Week): string {
-  const month = (date: string) =>
-    new Date(`${date}T12:00:00Z`).toLocaleDateString('en', { month: 'short', timeZone: 'UTC' })
-  const day = (date: string) => String(Number(date.slice(8, 10)))
-  const sameMonth = week.from.slice(0, 7) === week.to.slice(0, 7)
-  return sameMonth
-    ? `${month(week.from)} ${day(week.from)} – ${day(week.to)}`
-    : `${month(week.from)} ${day(week.from)} – ${month(week.to)} ${day(week.to)}`
-}
-
 function Card({
   item,
   today,
@@ -337,6 +327,11 @@ function Card({
       </div>
 
       <div className="card-name">{item.name}</div>
+      {item.doneWhen && (
+        <div className="card-done-when">
+          <span className="card-done-label">Done when</span> {item.doneWhen}
+        </div>
+      )}
       {part && <PartOf part={part} />}
 
       {blockers.length > 0 && (

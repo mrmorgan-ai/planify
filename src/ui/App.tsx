@@ -1,7 +1,11 @@
 import { Link, NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import { activeContext } from '../core/dashboard'
+import { planProgress } from '../core/hours'
+import type { AppState } from '../core/types'
 import { Backlog } from './Backlog'
 import { Dashboard } from './Dashboard'
 import { Gantt } from './Gantt'
+import { shortDate } from './format'
 import { Kanban } from './Kanban'
 import { useAppState } from './useAppState'
 import { WorkItems } from './WorkItems'
@@ -21,6 +25,49 @@ function Placeholder({ view }: { view: string }) {
       <p>Not built yet.</p>
     </section>
   )
+}
+
+/**
+ * Where the plan stands, on every screen: the phase you are in, today in the
+ * board's date format, and how much of the plan is done — by hours, because a
+ * 25-minute case study and an 8-hour course are not the same amount of plan.
+ */
+function Status({ state }: { state: AppState }) {
+  const { items, today, roadmap } = state
+  const context = activeContext(today, roadmap, items)
+  const { done, total } = planProgress(
+    items,
+    roadmap.phases.map((phase) => phase.number),
+    today,
+  )
+  const percent = total === 0 ? 0 : Math.round((done / total) * 100)
+
+  return (
+    <>
+      <span>{whereYouAre(state, context)}</span>
+      <span className="footer-sep">·</span>
+      <span>{shortDate(today)}</span>
+      <span className="footer-sep">·</span>
+      <span title={`${round(done)} of ${round(total)} planned hours done`}>
+        Plan {percent}%
+      </span>
+    </>
+  )
+}
+
+function whereYouAre(state: AppState, context: ReturnType<typeof activeContext>): string {
+  if (context.kind === 'phase') return `Phase ${context.phase.number} · ${context.phase.name}`
+  if (context.kind === 'blackout') return context.blackout.reason
+  const start = state.items.reduce<string | null>(
+    (earliest, item) =>
+      earliest === null || item.projectedStartDate < earliest ? item.projectedStartDate : earliest,
+    null,
+  )
+  return start !== null && state.today < start ? `Plan starts ${shortDate(start)}` : 'Plan finished'
+}
+
+function round(hours: number): string {
+  return String(Math.round(hours))
 }
 
 export function App() {
@@ -58,12 +105,13 @@ export function App() {
       </main>
 
       <footer>
-        {error && <span className="bad">{error}</span>}
-        {state && (
-          <span className="muted">
-            today {state.today} · {state.items.length} items
-          </span>
-        )}
+        <span className="credit">
+          Made with <span className="heart" aria-label="love">❤</span> by AI PlayGrounds
+        </span>
+        <span className="footer-status">
+          {error && <span className="bad">{error}</span>}
+          {state && <Status state={state} />}
+        </span>
       </footer>
     </div>
   )

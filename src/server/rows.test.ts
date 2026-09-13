@@ -28,6 +28,7 @@ function row(overrides: Partial<ItemRow> = {}): ItemRow {
     resources: '[]',
     duration: '',
     notes: '',
+    done_when: '',
     state: 'pending',
     completed_at: null,
     sort_order: 1,

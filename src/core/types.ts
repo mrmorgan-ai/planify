@@ -71,6 +71,11 @@ export type Item = {
   duration: string
   /** A plain description of what the item is. No durations, no links. */
   notes: string
+  /**
+   * What finishing it produces, stated so it can be checked — "gradients match
+   * autograd within 1e-6". Empty when the item's end is obvious, like a chapter.
+   */
+  doneWhen: string
 
   state: State
   completedAt: IsoDateTime | null

@@ -1,5 +1,5 @@
 import { addDays, maxDate, minDate, startOfWeek, studyDaysBetween, toEpochDay } from './dates'
-import type { Blackout, CivilDate, Item, WeeklyHours } from './types'
+import type { Blackout, CivilDate, Item, PhaseNumber, WeeklyHours } from './types'
 
 // Hours are read out of the `duration` text an item already carries, rather than
 // stored as a number. The text is the honest record — "~25h, 7 videos" says more
@@ -103,4 +103,43 @@ export function daysLeftInWeek(week: Week, today: CivilDate): number {
   if (today < week.from) return 7
   if (today > week.to) return 0
   return toEpochDay(week.to) - toEpochDay(today) + 1
+}
+
+export type PlanProgress = {
+  /** Hours of the items already done. */
+  done: number
+  /** Hours of the items the plan expected finished before today. */
+  expected: number
+  total: number
+  /** Each phase's share of the total, in phase order — where the plan's stages start and end. */
+  phases: Array<{ phase: PhaseNumber; hours: number; done: number }>
+}
+
+/**
+ * Progress through the plan in hours, against where the plan says you should be.
+ *
+ * Both sides count whole items. Pro-rating the expectation by day while `done`
+ * only moves when an item is finished would put anyone mid-week permanently
+ * behind by the work in their hands. An item is expected once its planned end is
+ * behind today — the same line `isOverdue` draws, so the two never disagree.
+ */
+export function planProgress(
+  items: readonly Item[],
+  phases: readonly PhaseNumber[],
+  today: CivilDate,
+): PlanProgress {
+  const byPhase = phases.map((phase) => {
+    const inPhase = items.filter((item) => item.phase === phase)
+    return {
+      phase,
+      hours: sumHours(inPhase),
+      done: sumHours(inPhase.filter((item) => item.state === 'done')),
+    }
+  })
+  return {
+    done: sumHours(items.filter((item) => item.state === 'done')),
+    expected: sumHours(items.filter((item) => item.baselineEndDate < today)),
+    total: sumHours(items),
+    phases: byPhase,
+  }
 }
