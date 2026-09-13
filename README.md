@@ -117,22 +117,46 @@ already slipped, and the validator says which item.
 ## Cloudflare setup (once, not automated)
 
 `wrangler.toml` and `migrations/` are the infrastructure as code for the Pages
-project and the database. The two things wrangler cannot express are done by hand
-in the dashboard and written down here instead of in Terraform — three resources
-for a single-user app do not pay for their own state file.
+project and the databases. The things wrangler cannot express are done by hand in
+the dashboard and written down here instead of in Terraform — a handful of
+resources for a single-user app do not pay for their own state file.
 
-1. `npx wrangler d1 create planify` — copy the returned id into `wrangler.toml`,
-   replacing the placeholder `database_id`.
-2. `npm run db:migrate` — applies the schema to the remote database.
-3. Create the Pages project (dashboard → Workers & Pages → Pages), connect this
-   repository, build command `npm run build`, output directory `dist`.
-4. Bind the D1 database to the Pages project as `DB`, in both production and
-   preview.
-5. Cloudflare Access → add an application covering the project's domain, with a
-   policy allowing exactly one identity. This is what makes the app private;
-   there is no application-level auth to fall back on.
+1. `npx wrangler d1 create planify` and `npx wrangler d1 create planify-preview`
+   — copy each returned id into `wrangler.toml`, replacing the placeholders.
+2. `npm run db:migrate` — applies the schema to the production database.
+3. Create the Pages project (dashboard → Workers & Pages → Pages) with
+   **direct upload**, named `planify`. Do not connect the Git repository: the
+   deploy workflow uploads the build, and the two would otherwise both publish.
+4. Bind the databases as `DB` in the project's settings — `planify` for
+   production, `planify-preview` for preview.
+5. Cloudflare Access → one application covering the project's domain with a
+   policy allowing exactly one identity, and a second one covering
+   `*.planify.pages.dev` for the preview URLs. This is what makes the app
+   private; there is no application-level auth to fall back on.
 
-Revisit the by-hand decision if a second environment ever appears, or if the
+## Deploying
+
+`.github/workflows/deploy.yml` runs the gates, applies the pending migrations,
+then uploads the build — in that order, because code that reads a column the
+database does not have yet is a broken deployment. A pull request against `main`
+publishes a preview against `planify-preview`; a merge to `main` publishes
+production.
+
+It stays dormant until the repository is told the Cloudflare side exists:
+
+- Secrets `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`, the token scoped to
+  *Cloudflare Pages: Edit* and *D1: Edit* on this account only.
+- Environments `production` and `preview` (Settings → Environments). Adding a
+  required reviewer to `production` turns every merge into a deploy you approve.
+- Variable `DEPLOY_ENABLED` set to `true`. Until then the workflow is skipped, so
+  this file can be merged before any of the above is in place.
+
+Preview deployment URLs are public by default, which is why preview is bound to
+its own database and why step 5 covers `*.pages.dev` as well as the real domain.
+
+`npm run deploy` is still there for a manual push from a laptop.
+
+Revisit the by-hand decision if a third environment ever appears, or if the
 project has to be recreated from scratch.
 
 ## License

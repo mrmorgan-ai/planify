@@ -1,12 +1,13 @@
 name: ci
 
-# Manual only while the repository is still being built out. To turn automatic
-# runs back on, restore the push and pull_request triggers below.
+# Manual by default, plus callable from deploy.yml so the gates are defined once
+# and the deploy cannot run without them. To turn automatic runs back on, restore
+# the push trigger below.
 on:
   workflow_dispatch:
+  workflow_call:
   # push:
   #   branches: ['**']
-  # pull_request:
 
 jobs:
   check:
