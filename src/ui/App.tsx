@@ -7,6 +7,7 @@ import { Dashboard } from './Dashboard'
 import { Gantt } from './Gantt'
 import { shortDate } from './format'
 import { Kanban } from './Kanban'
+import { Session } from './Session'
 import { useAppState } from './useAppState'
 import { WorkItems } from './WorkItems'
 
@@ -87,6 +88,7 @@ export function App() {
             </NavLink>
           ))}
         </nav>
+        <Session />
       </header>
 
       <main>
