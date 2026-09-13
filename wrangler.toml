@@ -14,17 +14,17 @@ pages_build_output_dir = "dist"
 [[d1_databases]]
 binding = "DB"
 database_name = "planify"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "4471b6bd-4ba1-4b23-937e-906d3b536090"
 migrations_dir = "migrations"
 
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "planify"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "4471b6bd-4ba1-4b23-937e-906d3b536090"
 migrations_dir = "migrations"
 
 [[env.preview.d1_databases]]
 binding = "DB"
 database_name = "planify-preview"
-database_id = "00000000-0000-0000-0000-000000000001"
+database_id = "0d0af9d3-1c93-454f-9957-80796774045f"
 migrations_dir = "migrations"
