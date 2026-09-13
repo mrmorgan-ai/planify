@@ -5,6 +5,7 @@ import {
   hoursInWeek,
   inWeek,
   isLastWeekOfMonth,
+  planProgress,
   sumHours,
   weekOf,
   withoutEstimate,
@@ -29,6 +30,7 @@ function item(id: string, overrides: Partial<Item> = {}): Item {
     resources: [],
     duration: '',
     notes: '',
+    doneWhen: '',
     state: 'pending',
     completedAt: null,
     sortOrder: 1,
@@ -237,5 +239,32 @@ describe('hoursInWeek', () => {
     })
 
     expect(hoursInWeek([exact], week, [])).toBeCloseTo(9)
+  })
+})
+
+describe('planProgress', () => {
+  const items = [
+    item('read', { phase: 1, duration: '~2h', baselineEndDate: '2030-02-10', state: 'done' }),
+    item('build', { phase: 1, duration: '~4h', baselineEndDate: '2030-02-17' }),
+    item('exam', { phase: 2, duration: '~2h', baselineEndDate: '2030-02-24' }),
+    item('guess', { phase: 2, duration: '' }),
+  ]
+
+  it('counts done hours, total hours, and the hours planned to be finished before today', () => {
+    const progress = planProgress(items, [1, 2], '2030-02-18')
+    expect(progress.done).toBe(2)
+    expect(progress.total).toBe(8)
+    expect(progress.expected).toBe(6)
+  })
+
+  it('does not expect an item on the day it is planned to end', () => {
+    expect(planProgress(items, [1, 2], '2030-02-17').expected).toBe(2)
+  })
+
+  it('splits the total and the done hours by phase, in phase order', () => {
+    expect(planProgress(items, [1, 2], '2030-02-18').phases).toEqual([
+      { phase: 1, hours: 6, done: 2 },
+      { phase: 2, hours: 2, done: 0 },
+    ])
   })
 })

@@ -246,6 +246,16 @@ describe.each(availableSeeds())('$label', ({ seed }) => {
     })
   })
 
+  describe('outcomes', () => {
+    it('states what done means for every practice block and every exam preparation', () => {
+      // Neither has a natural end the way a chapter does. Without a stated
+      // outcome, done means the hours were spent, not that anything was learned.
+      for (const item of items.filter((i) => i.type === 'Practice' || i.type === 'Exam prep')) {
+        expect(item.doneWhen.trim(), `${item.id} has no doneWhen`).not.toBe('')
+      }
+    })
+  })
+
   describe('hours', () => {
     it('gives every item an hours estimate in its duration', () => {
       // An item with no estimate counts as zero in every weekly total, which is

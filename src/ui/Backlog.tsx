@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link as RouterLink } from 'react-router-dom'
 import { STATES } from '../core/constants'
 import {
   hasSlipped,
@@ -11,7 +11,7 @@ import {
 } from '../core/selectors'
 import type { AppState, CivilDate, Item, Resource, State } from '../core/types'
 import { linksOf, partLabel, type PartLabel } from '../core/workItems'
-import { PartOf } from './PartOf'
+import { scrollToRow, useArrival } from './useArrival'
 import { PhaseSidebar, type PhaseSelection } from './PhaseSidebar'
 import type { Store } from './useAppState'
 
@@ -49,24 +49,23 @@ export function Backlog({
   const [phase, setPhase] = useState<PhaseSelection>(state.roadmap.phases[0]?.number ?? null)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
-  const [params, setParams] = useSearchParams()
 
   /**
-   * `?item=` is how the Gantt hands a row over. Opening it means switching to its
-   * phase, clearing the filter that might hide it, and expanding it — then
-   * dropping the parameter, so a later reload does not reopen it.
+   * `?item=` is how the Gantt and the work items hand a row over. Opening it
+   * means switching to its phase, clearing the filter that might hide it and
+   * expanding it; the row then scrolls itself into view and is highlighted.
    */
-  const requested = params.get('item')
-  useEffect(() => {
-    if (!requested) return
-    const target = state.items.find((item) => item.id === requested)
-    if (target) {
+  const { arrived, missing } = useArrival(
+    'item',
+    (id) => state.items.some((item) => item.id === id),
+    (id) => {
+      const target = state.items.find((item) => item.id === id)
+      if (!target) return
       setPhase(target.phase)
       setFilter('all')
       setExpanded(target.id)
-    }
-    setParams({}, { replace: true })
-  }, [requested, state.items, setParams])
+    },
+  )
 
   const inPhase = state.items.filter((item) => phase === null || item.phase === phase)
   const visible = inPhase
@@ -85,6 +84,12 @@ export function Backlog({
       />
 
       <div className="items-pane">
+        {missing && (
+          <p className="notice" role="status">
+            The link pointed at <code>{missing}</code>, which is not in the roadmap any more.
+          </p>
+        )}
+
         <div className="filters">
           {ITEM_FILTERS.map((candidate) => (
             <button
@@ -114,7 +119,6 @@ export function Backlog({
                 <th className="col-date">End</th>
                 <th className="col-edit" />
                 <th className="col-resources">Resources</th>
-                <th className="col-price">Price</th>
               </tr>
             </thead>
             <tbody>
@@ -126,6 +130,7 @@ export function Backlog({
                   floor={state.roadmap.startDate}
                   busy={pendingId === item.id}
                   open={expanded === item.id}
+                  arrived={arrived === item.id}
                   editing={editing === item.id}
                   names={names}
                   part={partLabel(item, state.workItems, state.items)}
@@ -153,6 +158,7 @@ function Row({
   floor,
   busy,
   open,
+  arrived,
   editing,
   names,
   part,
@@ -168,6 +174,8 @@ function Row({
   floor: CivilDate | ''
   busy: boolean
   open: boolean
+  /** Just reached through a link: scroll to it and highlight it. */
+  arrived: boolean
   editing: boolean
   names: Map<string, string>
   /** Which work item this row is a part of, when it is one. */
@@ -182,13 +190,23 @@ function Row({
 }) {
   const late = isOverdue(item, today)
   const slipped = hasSlipped(item)
-  const rowClass = [late ? 'overdue' : '', item.state === 'done' ? 'done' : '', open ? 'open' : '']
+  const row = useRef<HTMLTableRowElement>(null)
+  useEffect(() => {
+    if (arrived) scrollToRow(row.current)
+  }, [arrived])
+
+  const rowClass = [
+    late ? 'overdue' : '',
+    item.state === 'done' ? 'done' : '',
+    open ? 'open' : '',
+    arrived ? 'arrived' : '',
+  ]
     .filter(Boolean)
     .join(' ')
 
   return (
     <>
-      <tr className={rowClass || undefined}>
+      <tr ref={row} className={rowClass || undefined}>
         <td className="col-state">
           <select
             value={item.state}
@@ -219,19 +237,14 @@ function Row({
             >
               {open ? '▾' : '▸'}
             </button>
+            {part && (
+              <span className="part-count" title={`Part ${part.index} of ${part.total} · ${part.workItem.name}`}>
+                {part.index}/{part.total}
+              </span>
+            )}
             <span className="name">{item.name}</span>
             {showPhase && <span className="phase-tag">phase {item.phase}</span>}
           </div>
-          {part && <PartOf part={part} />}
-          {item.skills.length > 0 && (
-            <div className="skills">
-              {item.skills.map((skill) => (
-                <span key={skill} className="skill">
-                  {skill}
-                </span>
-              ))}
-            </div>
-          )}
         </td>
 
         {editing ? (
@@ -282,14 +295,12 @@ function Row({
             {!links.link && links.resources.length === 0 && <span className="faint">—</span>}
           </div>
         </td>
-
-        <td className="col-price">{item.price}</td>
       </tr>
 
       {open && (
-        <tr className="detail">
+        <tr className={arrived ? 'detail arrived' : 'detail'}>
           <td colSpan={2} />
-          <td colSpan={6}>
+          <td colSpan={5}>
             {item.duration && (
               <div className="detail-line">
                 <span className="detail-label">Duration</span>
@@ -304,10 +315,48 @@ function Row({
               </div>
             )}
 
-            {part?.workItem.notes && (
+            {item.doneWhen && (
+              <div className="detail-line">
+                <span className="detail-label">Done when</span>
+                <span className="notes">{item.doneWhen}</span>
+              </div>
+            )}
+
+            {part && (
               <div className="detail-line">
                 <span className="detail-label">Part of</span>
-                <span className="notes">{part.workItem.notes}</span>
+                <span className="notes">
+                  <RouterLink
+                    className="part-link"
+                    to={`/work-items?unit=${encodeURIComponent(part.workItem.id)}`}
+                  >
+                    {part.workItem.name}
+                  </RouterLink>{' '}
+                  <span className="faint">
+                    · part {part.index} of {part.total}
+                  </span>
+                  {part.workItem.notes && <div>{part.workItem.notes}</div>}
+                </span>
+              </div>
+            )}
+
+            {item.skills.length > 0 && (
+              <div className="detail-line">
+                <span className="detail-label">Skills</span>
+                <span className="skills">
+                  {item.skills.map((skill) => (
+                    <span key={skill} className="skill">
+                      {skill}
+                    </span>
+                  ))}
+                </span>
+              </div>
+            )}
+
+            {item.price && (
+              <div className="detail-line">
+                <span className="detail-label">Price</span>
+                <span className="notes">{item.price}</span>
               </div>
             )}
 

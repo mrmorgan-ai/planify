@@ -83,7 +83,7 @@ const roadmap = {
   ),
   items: query(
     `SELECT id, name, type, phase, work_item_id, skills, depends_on, baseline_start, baseline_end,
-            price, link, resources, duration, notes, sort_order
+            price, link, resources, duration, notes, done_when, sort_order
      FROM items ORDER BY phase, sort_order`,
   ).map((row) => ({
     id: row.id,
@@ -100,6 +100,7 @@ const roadmap = {
     resources: JSON.parse(row.resources === '' ? '[]' : row.resources),
     duration: row.duration,
     notes: row.notes,
+    doneWhen: row.done_when ?? '',
     sortOrder: row.sort_order,
   })),
 }

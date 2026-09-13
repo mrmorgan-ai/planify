@@ -77,10 +77,30 @@ main {
 }
 
 footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   padding: 0.6rem 1.25rem;
   border-top: 1px solid var(--line);
-  font-size: 0.95rem;
+  font-size: 0.88rem;
+  color: var(--muted);
   background: var(--panel);
+}
+
+.heart {
+  color: var(--bad);
+}
+
+.footer-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.footer-sep {
+  color: var(--faint);
 }
 
 .muted {
@@ -283,12 +303,6 @@ tr.done a {
   color: var(--bad);
 }
 
-.col-price {
-  width: 9rem;
-  color: var(--muted);
-  font-size: 0.88rem;
-}
-
 .col-edit {
   width: 3.6rem;
 }
@@ -430,7 +444,30 @@ select:disabled {
   font-size: 0.8rem;
 }
 
-/* A row that is one part of a larger unit says so, and links to the unit. */
+/* A part shows where it sits in its unit as a counter, the way the Gantt does;
+   the unit's name and link live in the expanded detail. */
+.part-count {
+  flex: 0 0 auto;
+  margin: 0 0.35rem 0 0.3rem;
+  color: var(--faint);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.detail .skills {
+  margin: 0;
+}
+
+.col-name a.part-link {
+  color: var(--accent);
+  border-bottom: none;
+}
+
+.col-name a.part-link:hover {
+  text-decoration: underline;
+}
+
+/* A card that is one part of a larger unit says so, and links to the unit. */
 .part-of {
   margin-top: 0.2rem;
   margin-left: 1.3rem;
@@ -450,6 +487,42 @@ select:disabled {
 
 .card .part-of {
   margin-left: 0;
+}
+
+/* Arriving through a link: the row lights up and fades back, so the eye finds it
+   without hunting. The length matches HIGHLIGHT_MS in useArrival.ts. */
+@keyframes arrive {
+  0%,
+  35% {
+    background-color: rgb(124 156 246 / 0.24);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+tr.arrived > td {
+  animation: arrive 2400ms ease-out;
+}
+
+tr.arrived > td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  tr.arrived > td {
+    animation: none;
+    background-color: rgb(124 156 246 / 0.14);
+  }
+}
+
+.notice {
+  margin: 0 0 0.9rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--warn);
+  border-radius: 6px;
+  color: var(--warn);
+  font-size: 0.88rem;
 }
 
 .planned {
@@ -525,7 +598,6 @@ tr.detail td {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.6rem;
-  max-width: 44rem;
   margin-bottom: 1.1rem;
 }
 
@@ -683,6 +755,22 @@ tr.detail td {
   color: var(--faint);
   font-size: 0.82rem;
   font-variant-numeric: tabular-nums;
+}
+
+/* The outcome a practice block or an exam preparation has to produce, on the card
+   itself: that is where the work is picked up during the week. */
+.card-done-when {
+  margin-top: 0.3rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.card-done-label {
+  color: var(--faint);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .card-note {
@@ -849,6 +937,132 @@ tr.detail td {
   color: var(--muted);
   font-size: 0.82rem;
   line-height: 1.35;
+}
+
+/* Plan progress as a bullet graph. The track is a lighter step of the fill's own
+   hue, the phases are cut by 2px surface gaps, and the target is drawn in text
+   ink so it never reads as a status. */
+.plan {
+  margin-bottom: 0.6rem;
+  padding: 0.6rem 0.7rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.plan-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.55rem;
+}
+
+.plan-value {
+  margin-top: 0.15rem;
+  font-size: 1.45rem;
+}
+
+.plan-of {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.plan-pace {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.plan-pace.bad {
+  color: var(--bad);
+}
+
+.plan-pace.good {
+  color: var(--good);
+}
+
+.bullet {
+  position: relative;
+  padding: 4px 0 0;
+}
+
+.bullet-track {
+  display: flex;
+  gap: 2px;
+  height: 12px;
+}
+
+.bullet-phase {
+  flex-basis: 0;
+  min-width: 4px;
+  overflow: hidden;
+  background: rgb(124 156 246 / 0.18);
+}
+
+.bullet-phase:first-child {
+  border-radius: 4px 0 0 4px;
+}
+
+.bullet-phase:last-child {
+  border-radius: 0 4px 4px 0;
+}
+
+.bullet-fill {
+  height: 100%;
+  background: var(--accent);
+}
+
+.bullet-target {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 20px;
+  margin-left: -1px;
+  background: var(--text);
+  border-radius: 1px;
+}
+
+.bullet-phases {
+  display: flex;
+  gap: 2px;
+  margin-top: 0.25rem;
+  color: var(--faint);
+  font-size: 0.8rem;
+}
+
+.bullet-phases span {
+  flex-basis: 0;
+  min-width: 4px;
+  text-align: center;
+}
+
+.bullet-legend {
+  display: flex;
+  gap: 1rem;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.bullet-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.bullet-key-fill {
+  width: 14px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.bullet-key-target {
+  width: 2px;
+  height: 12px;
+  background: var(--text);
 }
 
 .phase-bars {

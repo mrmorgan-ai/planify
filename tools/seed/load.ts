@@ -226,6 +226,7 @@ function parseSeedItem(entry: unknown, index: number): SeedItem {
     resources: parseResources(value.resources, `${where}.resources`),
     duration: requireString(value.duration ?? '', `${where}.duration`, true),
     notes: requireString(value.notes, `${where}.notes`, true),
+    doneWhen: requireString(value.doneWhen ?? '', `${where}.doneWhen`, true),
     sortOrder,
   }
 }

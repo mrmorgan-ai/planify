@@ -25,7 +25,7 @@ export type Env = {
 
 const ITEM_COLUMNS = `id, name, type, phase, work_item_id, skills, depends_on,
   baseline_start, baseline_end, projected_start, projected_end,
-  price, link, resources, duration, notes, state, completed_at, sort_order`
+  price, link, resources, duration, notes, done_when, state, completed_at, sort_order`
 
 /**
  * Reads the whole world in one batch. The roadmap is small enough that paging or

@@ -62,14 +62,14 @@ for (const item of seed.items) {
   statements.push(`INSERT INTO items (
   id, name, type, phase, work_item_id, skills, depends_on,
   baseline_start, baseline_end, projected_start, projected_end,
-  price, link, resources, duration, notes, sort_order
+  price, link, resources, duration, notes, done_when, sort_order
 ) VALUES (
   ${text(item.id)}, ${text(item.name)}, ${text(item.type)}, ${item.phase},
   ${nullable(item.workItemId)}, ${json(item.skills)}, ${json(item.dependsOn)},
   ${text(item.baselineStartDate)}, ${text(item.baselineEndDate)},
   ${text(item.baselineStartDate)}, ${text(item.baselineEndDate)},
   ${text(item.price)}, ${nullable(item.link)}, ${json(item.resources)},
-  ${text(item.duration)}, ${text(item.notes)}, ${item.sortOrder}
+  ${text(item.duration)}, ${text(item.notes)}, ${text(item.doneWhen ?? '')}, ${item.sortOrder}
 )
 ON CONFLICT(id) DO UPDATE SET
   name = excluded.name,
@@ -82,7 +82,8 @@ ON CONFLICT(id) DO UPDATE SET
   link = excluded.link,
   resources = excluded.resources,
   duration = excluded.duration,
-  notes = excluded.notes,${
+  notes = excluded.notes,
+  done_when = excluded.done_when,${
     withDates
       ? `
   baseline_start = excluded.baseline_start,
