@@ -5,14 +5,14 @@ name: deploy
 # is a broken deployment. Run from a pull request it publishes a preview against
 # the preview database; run from main it publishes production.
 #
-# Manual for now. To deploy every pull request and every merge to main, restore
-# the push and pull_request triggers below. Either way it stays dormant until the
-# repository variable DEPLOY_ENABLED is set to 'true'.
+# Runs on every push to main, and by hand. To also deploy a preview for every pull
+# request, restore the pull_request trigger below. Either way it stays dormant
+# until the repository variable DEPLOY_ENABLED is set to 'true'.
 on:
   workflow_dispatch:
   workflow_call:
-  # push:
-  #   branches: [main]
+  push:
+    branches: [main]
   # pull_request:
   #   branches: [main]
 
