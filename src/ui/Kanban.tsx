@@ -10,6 +10,8 @@ import {
 import { BOARD_COLUMNS, groupByState, isOverdue, unfinishedDependencies } from '../core/selectors'
 import type { Week } from '../core/hours'
 import type { AppState, Item, Phase, State } from '../core/types'
+import { partLabel, type PartLabel } from '../core/workItems'
+import { PartOf } from './PartOf'
 import type { Store } from './useAppState'
 
 const COLUMN_LABEL: Record<State, string> = {
@@ -117,6 +119,7 @@ export function Kanban({ state, pendingId, changeState }: Store & { state: AppSt
                   item={item}
                   today={state.today}
                   blockers={unfinishedDependencies(item, state.items)}
+                  part={partLabel(item, state.workItems, state.items)}
                   busy={pendingId === item.id}
                   onDragStart={() => setDragging(item)}
                   onDragEnd={() => {
@@ -190,6 +193,7 @@ function Split({
                 item={item}
                 today={state.today}
                 blockers={unfinishedDependencies(item, state.items)}
+                part={partLabel(item, state.workItems, state.items)}
                 busy={pendingId === item.id}
                 onDragStart={() => onDragStart(item)}
                 onDragEnd={onDragEnd}
@@ -292,6 +296,7 @@ function Card({
   item,
   today,
   blockers,
+  part,
   busy,
   onDragStart,
   onDragEnd,
@@ -299,6 +304,7 @@ function Card({
   item: Item
   today: string
   blockers: Item[]
+  part: PartLabel | null
   busy: boolean
   onDragStart: () => void
   onDragEnd: () => void
@@ -331,6 +337,7 @@ function Card({
       </div>
 
       <div className="card-name">{item.name}</div>
+      {part && <PartOf part={part} />}
 
       {blockers.length > 0 && (
         <div

@@ -430,6 +430,28 @@ select:disabled {
   font-size: 0.8rem;
 }
 
+/* A row that is one part of a larger unit says so, and links to the unit. */
+.part-of {
+  margin-top: 0.2rem;
+  margin-left: 1.3rem;
+  font-size: 0.82rem;
+}
+
+.part-of a,
+.col-name .part-of a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: none;
+}
+
+.part-of a:hover {
+  text-decoration: underline;
+}
+
+.card .part-of {
+  margin-left: 0;
+}
+
 .planned {
   color: var(--warn);
   font-size: 0.82rem;
@@ -1074,7 +1096,14 @@ tr.detail td {
   text-overflow: ellipsis;
 }
 
-/* The jump to the backlog only shows on the row you are pointing at, so 65 of
+.gantt-part {
+  flex: 0 0 auto;
+  color: var(--faint);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The jump to the backlog only shows on the row you are pointing at, so a hundred of
    them do not compete with the names. Faded rather than hidden: a
    visibility:hidden element cannot take focus, which would put this link out of
    reach of the keyboard entirely. */
@@ -1242,4 +1271,104 @@ tr.detail td {
   margin: 0.7rem 0 0;
   color: var(--warn);
   font-size: 0.82rem;
+}
+
+/* Work items */
+
+.work-items {
+  max-width: 72rem;
+}
+
+.unit-section {
+  margin-bottom: 1.6rem;
+}
+
+.unit-section-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+table.units .name-line {
+  gap: 0.45rem;
+}
+
+.disclosure-spacer {
+  flex: 0 0 27px;
+}
+
+.col-phases {
+  width: 7rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.col-progress {
+  width: 10rem;
+}
+
+.progress-count {
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.col-hours {
+  width: 9rem;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.col-unit-state {
+  width: 7.5rem;
+}
+
+.state-tag {
+  font-size: 0.82rem;
+  color: var(--faint);
+}
+
+.state-tag.in_progress {
+  color: var(--accent);
+}
+
+.state-tag.done {
+  color: var(--good);
+}
+
+tr.part td {
+  background: var(--panel);
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
+}
+
+.part-line {
+  padding-left: 1.9rem;
+}
+
+.part-index {
+  flex: 0 0 1.4rem;
+  color: var(--faint);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+
+tr.part .name {
+  font-size: 0.95rem;
+}
+
+.unit-jump {
+  width: 1.3rem;
+  height: 1.3rem;
+  font-size: 0.78rem;
+  text-decoration: none;
+}
+
+.col-name a.unit-jump {
+  border-bottom: 1px solid var(--line);
+}
+
+.unit-notes {
+  margin-top: 0;
+  padding-left: 1.9rem;
 }

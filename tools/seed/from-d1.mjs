@@ -71,8 +71,18 @@ const roadmap = {
        ORDER BY d.sort_order, s.name`,
     ).map((row) => [row.name, row.dimension]),
   ),
+  workItems: query('SELECT id, name, type, link, resources, notes FROM work_items ORDER BY id').map(
+    (row) => ({
+      id: row.id,
+      name: row.name,
+      type: row.type,
+      link: row.link ?? null,
+      resources: JSON.parse(row.resources === '' ? '[]' : row.resources),
+      notes: row.notes,
+    }),
+  ),
   items: query(
-    `SELECT id, name, type, phase, skills, depends_on, baseline_start, baseline_end,
+    `SELECT id, name, type, phase, work_item_id, skills, depends_on, baseline_start, baseline_end,
             price, link, resources, duration, notes, sort_order
      FROM items ORDER BY phase, sort_order`,
   ).map((row) => ({
@@ -80,6 +90,7 @@ const roadmap = {
     name: row.name,
     type: row.type,
     phase: row.phase,
+    workItemId: row.work_item_id ?? null,
     skills: JSON.parse(row.skills),
     baselineStartDate: row.baseline_start,
     baselineEndDate: row.baseline_end,
@@ -97,6 +108,7 @@ const out = new URL('../../seed/roadmap.json', import.meta.url)
 writeFileSync(out, `${JSON.stringify(roadmap, null, 2)}\n`)
 
 console.log(
-  `seed/roadmap.json — ${roadmap.items.length} items, ${roadmap.phases.length} phases, ` +
+  `seed/roadmap.json — ${roadmap.items.length} items, ${roadmap.workItems.length} work items, ` +
+    `${roadmap.phases.length} phases, ` +
     `${Object.keys(roadmap.skills).length} skills, from ${target.slice(2)} D1`,
 )

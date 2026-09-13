@@ -10,6 +10,7 @@ import {
 } from '../core/dates'
 import { isLastWeekOfMonth } from '../core/hours'
 import type { AppState, Blackout, CivilDate, Item, PhaseNumber } from '../core/types'
+import { partLabel } from '../core/workItems'
 
 /**
  * A day column stretches to fill the track and only scrolls once it would get
@@ -123,13 +124,23 @@ export function Gantt({ state }: { state: AppState }) {
 
           <div className="gantt-rows">
             <div className="gantt-names" style={{ height }}>
-              {shown.map((item) => (
+              {shown.map((item) => {
+                const part = partLabel(item, state.workItems, items)
+                return (
                 <div
                   key={item.id}
                   className={focused === item.id ? 'gantt-name focused' : 'gantt-name'}
                   onMouseOver={() => setFocused(item.id)}
                   onMouseOut={() => setFocused(null)}
                 >
+                  {part && (
+                    <span
+                      className="gantt-part"
+                      title={`Part ${part.index} of ${part.total} · ${part.workItem.name}`}
+                    >
+                      {part.index}/{part.total}
+                    </span>
+                  )}
                   <span className="gantt-name-text" title={item.name}>
                     {item.name}
                   </span>
@@ -142,7 +153,8 @@ export function Gantt({ state }: { state: AppState }) {
                     ↗
                   </RouterLink>
                 </div>
-              ))}
+                )
+              })}
             </div>
 
             <div className="gantt-track" style={{ width, height }}>

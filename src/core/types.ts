@@ -21,6 +21,10 @@ export type ItemType =
   | 'Paper'
   | 'Case study'
   | 'Project'
+  /** The weekly block that applies what the week covered. */
+  | 'Practice'
+  /** Exam guides, practice questions and practice exams — kept apart from the exam. */
+  | 'Exam prep'
 
 export type PhaseNumber = 1 | 2 | 3 | 4 | 5 | 6
 
@@ -42,6 +46,9 @@ export type Item = {
   type: ItemType
   phase: PhaseNumber
   skills: string[]
+
+  /** The unit this item is one part of, or null when it stands on its own. */
+  workItemId: string | null
 
   /** The original plan. Never recalculated. */
   baselineStartDate: CivilDate
@@ -70,6 +77,25 @@ export type Item = {
 
   /** Curated order within a phase, for the backlog. */
   sortOrder: number
+}
+
+/**
+ * A unit of work split into parts: a course cut by week, a book read across
+ * phases, a project in numbered tasks. It groups and nothing else — no dates, no
+ * state, no dependencies of its own. All of that is read off its parts, so it can
+ * never disagree with them, and the engine does not know it exists.
+ *
+ * An item with no work item is its own unit of one; it is not stored twice.
+ */
+export type WorkItem = {
+  id: string
+  name: string
+  type: ItemType
+  /** Where the whole unit lives, when its parts share one link. */
+  link: string | null
+  resources: Resource[]
+  /** What the unit is as a whole — for a project, what done means. */
+  notes: string
 }
 
 export type Phase = {
@@ -123,5 +149,6 @@ export type AppState = {
   /** Which seed the database was loaded from — the answer to "is this the roadmap I just edited?". */
   seedVersion: string
   roadmap: Roadmap
+  workItems: WorkItem[]
   items: Item[]
 }

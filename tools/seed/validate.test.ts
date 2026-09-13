@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { isBlackoutDay, studyDaysBetween } from '../../src/core/dates'
+import { addDays, isBlackoutDay, startOfWeek, studyDaysBetween } from '../../src/core/dates'
+import { estimatedHours, hoursInWeek, weekOf } from '../../src/core/hours'
 import { recomputeProjections, topologicalOrder } from '../../src/core/schedule'
+import { partsOf } from '../../src/core/workItems'
 import { asItems, availableSeeds } from './load'
 
 // Runs against every seed file present: the tracked example always — which is
@@ -115,12 +117,12 @@ describe.each(availableSeeds())('$label', ({ seed }) => {
       }
     })
 
-    it('straddles every blackout with at least one span, so the Gantt reads it as a pause', () => {
-      for (const blackout of seed.blackouts) {
-        const straddling = items.filter(
-          (item) => item.baselineStartDate < blackout.from && item.baselineEndDate > blackout.to,
-        )
-        expect(straddling.length, blackout.reason).toBeGreaterThanOrEqual(1)
+    it('never spans more than one week of study days, so every item can be finished in a week', () => {
+      for (const item of items) {
+        expect(
+          studyDaysBetween(item.baselineStartDate, item.baselineEndDate, seed.blackouts),
+          `${item.id} is too long to finish in a week — split it into parts`,
+        ).toBeLessThanOrEqual(7)
       }
     })
   })
@@ -178,17 +180,13 @@ describe.each(availableSeeds())('$label', ({ seed }) => {
       }
     })
 
-    it('chains the project tasks of a phase strictly, one after another', () => {
-      for (const phase of seed.phases) {
-        const tasks = items
-          .filter((item) => item.phase === phase.number && item.type === 'Project')
-          .sort((a, b) => a.sortOrder - b.sortOrder)
-
-        tasks.forEach((task, index) => {
-          if (index === 0) return
-          const previous = tasks[index - 1]
-          expect(previous, task.id).toBeDefined()
-          expect(task.dependsOn, task.id).toContain(previous?.id)
+    it('chains the parts of a project strictly, one after another', () => {
+      for (const workItem of seed.workItems.filter((candidate) => candidate.type === 'Project')) {
+        const parts = partsOf(workItem.id, items)
+        parts.forEach((part, index) => {
+          const previous = parts[index - 1]
+          if (!previous) return
+          expect(part.dependsOn, `${part.id} does not follow ${previous.id}`).toContain(previous.id)
         })
       }
     })
@@ -202,6 +200,78 @@ describe.each(availableSeeds())('$label', ({ seed }) => {
             milestone?.phase,
           )
         }
+      }
+    })
+  })
+
+  describe('work items', () => {
+    const workItemIds = new Set(seed.workItems.map((workItem) => workItem.id))
+
+    it('has unique ids, in kebab-case, that never reuse an item id', () => {
+      expect(workItemIds.size).toBe(seed.workItems.length)
+      for (const workItem of seed.workItems) {
+        expect(workItem.id, workItem.id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/)
+        expect(byId.has(workItem.id), `${workItem.id} is both an item and a work item`).toBe(false)
+      }
+    })
+
+    it('only names work items that exist', () => {
+      for (const item of items) {
+        if (item.workItemId === null) continue
+        expect(workItemIds.has(item.workItemId), `${item.id} -> ${item.workItemId}`).toBe(true)
+      }
+    })
+
+    it('splits every work item into at least two parts', () => {
+      // A unit of one is what a standalone item already is. A work item with a
+      // single part says the same thing twice, and one with none is a heading
+      // over nothing.
+      for (const workItem of seed.workItems) {
+        expect(partsOf(workItem.id, items).length, workItem.id).toBeGreaterThanOrEqual(2)
+      }
+    })
+
+    it('runs the parts of a work item one after another, never overlapping', () => {
+      for (const workItem of seed.workItems) {
+        const parts = partsOf(workItem.id, items)
+        parts.forEach((part, index) => {
+          const previous = parts[index - 1]
+          if (!previous) return
+          expect(
+            part.baselineStartDate > previous.baselineEndDate,
+            `${part.id} starts before ${previous.id} ends — check the dates or the sort order`,
+          ).toBe(true)
+        })
+      }
+    })
+  })
+
+  describe('hours', () => {
+    it('gives every item an hours estimate in its duration', () => {
+      // An item with no estimate counts as zero in every weekly total, which is
+      // how a week gets planned past its capacity without anything showing it.
+      for (const item of items) {
+        expect(estimatedHours(item), `${item.id} has no hours in "${item.duration}"`).not.toBeNull()
+      }
+    })
+
+    it('never schedules a week above the capacity it declares', () => {
+      const capacity = seed.weeklyHours
+      if (!capacity) return
+      const first = items.reduce(
+        (earliest, item) => (item.baselineStartDate < earliest ? item.baselineStartDate : earliest),
+        items[0]?.baselineStartDate ?? '',
+      )
+      const last = items.reduce(
+        (latest, item) => (item.baselineEndDate > latest ? item.baselineEndDate : latest),
+        '',
+      )
+      for (let monday = startOfWeek(first); monday <= last; monday = addDays(monday, 7)) {
+        const week = weekOf(monday, capacity)
+        const scheduled = hoursInWeek(items, week, seed.blackouts)
+        // A hundredth of an hour of slack for the pro-rating's floating point.
+        expect(scheduled, `week of ${monday}: ${scheduled.toFixed(2)}h in ${week.hours}h`)
+          .toBeLessThanOrEqual(week.hours + 0.01)
       }
     })
   })

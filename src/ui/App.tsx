@@ -4,10 +4,12 @@ import { Dashboard } from './Dashboard'
 import { Gantt } from './Gantt'
 import { Kanban } from './Kanban'
 import { useAppState } from './useAppState'
+import { WorkItems } from './WorkItems'
 
 const VIEWS = [
   { path: '/dashboard', label: 'Dashboard' },
   { path: '/backlog', label: 'Backlog' },
+  { path: '/work-items', label: 'Work items' },
   { path: '/kanban', label: 'Kanban' },
   { path: '/gantt', label: 'Gantt' },
 ] as const
@@ -49,6 +51,7 @@ export function App() {
             <Route path="/gantt" element={<Gantt state={state} />} />
             <Route path="/backlog" element={<Backlog {...store} state={state} />} />
             <Route path="/kanban" element={<Kanban {...store} state={state} />} />
+            <Route path="/work-items" element={<WorkItems state={state} />} />
             <Route path="*" element={<Placeholder view="Not found" />} />
           </Routes>
         )}

@@ -21,6 +21,7 @@ function item(id: string, overrides: Partial<Item> = {}): Item {
     type: 'Course',
     phase: 1,
     skills: [],
+    workItemId: null,
     baselineStartDate: '2030-02-04',
     baselineEndDate: '2030-02-10',
     projectedStartDate: '2030-02-04',
