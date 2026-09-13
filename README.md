@@ -1,192 +1,139 @@
 # Planify
 
-A tracker for a long study roadmap: items grouped in phases, with real
-dependencies between them and automatic date recalculation when something slips.
-Single user, no accounts.
+A tracker for a long study roadmap. Items are grouped in phases, carry real
+dependencies between them, and their dates are recalculated automatically when
+something finishes early or late.
 
-It shows the original plan and the live projection on the same bar, so the
+It draws the original plan and the live projection on the same bar, so the
 question it answers is "am I ahead or behind today?" rather than "what were the
 dates again?".
 
-## The app is open, the roadmap is not
+## What it does
 
-This repository carries the application: the recalculation engine, the API, the
-web app and the validator. It deliberately carries no roadmap content — no
-items, no phase names, no dates, no non-study periods, no skill map. All of that
-is personal, so it lives in the D1 database and in a gitignored seed file.
-
-`seed/roadmap.example.json` is tracked. It is a small fake roadmap that
-documents the file's shape and is what CI validates the rules against without
-ever seeing the real one.
-
-## Stack
-
-React + Vite on Cloudflare Pages, the API as Pages Functions, Cloudflare D1
-(serverless SQLite) for persistence. Access control is Cloudflare Access at the
-platform level, so there is no login code here.
-
-## Layout
-
-```
-src/core/               pure TypeScript: types, dates, recalculation engine
-src/server/             backend helpers that touch the clock
-src/ui/                 the React app
-functions/api/          route handlers, one file per endpoint
-tools/seed/             validator, SQL emitter, and the export back from D1
-migrations/             D1 schema, applied with wrangler
-seed/roadmap.json       the roadmap — gitignored, never committed
-```
-
-`src/core/` is compiled by both `tsconfig.json` (DOM libs, for the UI) and
-`tsconfig.worker.json` (Workers types, for the API). That is deliberate: it makes
-the compiler enforce that the core stays platform-neutral, which is what lets the
-engine be tested with plain fixtures.
-
-The core takes its calendar as an argument — `{ blackouts, timeZone }` — and
-never reads a global. That is the same rule seen from the inside: content comes
-from the database, not from this repository.
+- **Plans in phases and weeks.** Every item has a planned start and end, an hours
+  estimate and the skills it covers. Weekly capacity is declared, so the app can
+  say how full a week is.
+- **Recalculates dates.** Marking an item done, or editing a planned date,
+  recomputes every projection through the dependency graph. Declared pauses are
+  skipped, so a bar that crosses one is cut at the pause and resumes after it.
+- **Never blocks.** Dependencies move dates; they never stop you starting or
+  finishing anything. Work done out of order is flagged, not refused.
+- **Groups work into units.** Anything longer than a week is split into parts —
+  a course by week, a book by chapter, a project by task — and the parts are
+  grouped under a work item that shows the unit's progress as a whole.
+- **States what done means.** An item can carry a checkable outcome ("the
+  benchmark table is written and explained"), shown on the board where the work
+  is picked up.
 
 ## The five views
 
 | View | What it is for |
 |---|---|
-| Dashboard | today, hours done against the hours the plan expected by today, overdue count, next milestone and pace, plus the skills radar |
-| Backlog | the detail view: one phase at a time, with state, editable dates, resources and price |
-| Work items | the roadmap as units — a course with its weeks, a project with its tasks — and how far through each you are |
-| Kanban | the day-to-day board for the active phase, with the week's capacity — no limits, no blocking |
-| Gantt | read-only: the original plan as a faint bar under the current projection |
+| Dashboard | Today and what is in progress; hours done against the hours the plan expected by today, overdue items, next milestone and pace; a skills radar with its dimensions |
+| Backlog | One phase at a time, one line per item: state, dates you can edit, resources. Expanding a row shows duration, description, outcome, skills, price and dependencies |
+| Work items | The roadmap as units rather than dates — each course, book, project or exam with its parts, its phases and how far through it you are |
+| Kanban | The active phase as a board, with the current week's available and scheduled hours, and items split into this week and later |
+| Gantt | One phase at a time, by day: the plan under the projection, pauses and reduced-capacity weeks shaded, dependencies on hover |
 
-Backlog and Kanban write the same `state` field. Neither is a separate system,
-and the Gantt and the work items only reflect what those two set.
+The backlog and the board write the same state. The dashboard, the work items
+and the Gantt only reflect it. Links between views land on the row they point
+at and highlight it.
 
-## Work items
+## Stack
 
-Every item is short enough to finish inside a week, so anything bigger — a
-course, a book read across phases, a project — is split into parts. A work item
-groups those parts and stores nothing else: its state, hours and phases are read
-off the parts, so it cannot disagree with them, and the recalculation engine
-never sees it. An item that is not split has no work item and shows as a unit of
-one.
+React and Vite for the web app, Cloudflare Pages Functions for the API, and
+Cloudflare D1 (SQLite) for storage. The recalculation engine is plain
+TypeScript with no platform dependencies, tested with fixtures.
 
-The backlog shows a part's place as "3/9" before its name, and its expanded row
-links to the work item; the board labels the card the same way. A part with no
-link of its own shows its work item's.
+## Layout
 
-An item can also state `doneWhen` — the checkable outcome that makes it finished.
-Practice blocks and exam preparations must, because neither has a natural end
-the way a chapter does; the board prints it on the card.
+```
+src/core/        types, civil dates, the recalculation engine, hours, work items, dashboard metrics
+src/server/      database rows ↔ domain, and the read/write cycle
+src/ui/          the React app
+functions/api/   API routes, one file per endpoint
+migrations/      database schema
+tools/seed/      seed validator, seed → SQL, and database → seed
+seed/            roadmap.example.json, the reference shape of a roadmap
+```
+
+`src/core/` is compiled both for the browser and for the Workers runtime, which
+keeps it free of anything platform-specific.
 
 ## Running it locally
 
-First time:
+Requirements: Node 24 and npm.
 
 ```bash
 npm install
-cp seed/roadmap.example.json seed/roadmap.json   # or export the real one, below
-npm run seed:validate
-npm run seed:sql
-npm run db:migrate:local
+cp seed/roadmap.example.json seed/roadmap.json    # start from the example roadmap
+npm run seed:validate                             # check it against every rule
+npm run seed:sql                                  # seed → build/seed.sql
+npm run db:migrate:local                          # create the local database
 npx wrangler d1 execute planify --local --file build/seed.sql
 ```
 
-After that:
+Then:
 
 ```bash
-make start                                        # both processes, then waits until they answer
+make start      # builds, migrates, starts the API on :8788 and the app on :5173
 make stop
 ```
 
-`make start` refuses to start if either port is taken and names what is holding
-it, rather than racing whatever is already there. The app is on
-`http://127.0.0.1:5173` and the API on `8788`; the footer reports the active
-phase, today's date and how far through the plan's hours you are.
+Open `http://127.0.0.1:5173`. `make start` refuses to start if a port is taken
+and names what holds it.
 
-Checks: `npm run typecheck` · `npm test` · `npm run build`. Run them without a
-pipe — piping hides the exit code and a failing gate then looks green.
+## The roadmap file
 
-## The seed
-
-Content flows in one direction for a load and the other for a restore.
+A roadmap is one JSON file: its phases, declared pauses, weekly capacity, skill
+map, work items and items. `seed/roadmap.example.json` shows every field in use.
 
 ```bash
-npm run seed:validate                             # every rule, on every seed file present
-npm run seed:sql                                  # -> build/seed.sql (upsert)
-npx wrangler d1 execute planify --file build/seed.sql --remote
-curl -X POST https://<your-domain>/api/reproject  # recompute projections
+npm run seed:validate                       # every rule, on every seed file present
+npm run seed:sql                            # → build/seed.sql (an upsert)
+node tools/seed/to-sql.mjs --with-dates     # same, also overwriting planned dates
+npm run seed:export:local                   # local database → seed/roadmap.json
 ```
 
-The upsert updates content and deliberately never touches `state`,
-`completed_at` or the projected dates, so reloading the seed cannot overwrite
-progress. Planned dates are editable in the app, so they are left alone too —
-pass `--with-dates` to `tools/seed/to-sql.mjs` when the seed carries a new
-calendar on purpose.
+After loading a seed, `POST /api/reproject` recomputes the projections.
 
-Items and work items the seed no longer contains are deleted, progress and all.
-Splitting an item in two means the old one is gone; leaving it behind would count
-it twice.
+Loading is an upsert. Progress (state, completion dates, projections) is never
+touched, and neither are planned dates unless `--with-dates` is passed, because
+they can be edited in the app. Items and work items no longer in the file are
+deleted.
+
+### What the validator checks
+
+- **Shape**: unique ids, curated order, links, timezone, phase numbering, item counts per phase.
+- **Dates**: nothing starts or ends inside a pause, every item stays in its phase window, and no item spans more than seven study days.
+- **Graph**: dependencies exist and form no cycle; every phase waits on the previous phase's closing milestone; each milestone waits on its whole phase; project tasks follow each other strictly.
+- **Work items**: every item's work item exists, each has at least two parts, and parts never overlap.
+- **Hours and outcomes**: every item has an hours estimate, no week is planned above its capacity, and practice and exam-preparation items state what done means.
+- **Skills**: every skill belongs to a dimension, and every dimension is used.
+- **The plan is born on time**: with nothing done, the engine projects every item exactly onto its planned dates.
+
+## API
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `/api/state` | The whole roadmap with today's date |
+| PATCH | `/api/items/:id/state` | Set `pending`, `in_progress` or `done`, and recompute |
+| PATCH | `/api/items/:id/dates` | Move an item's planned dates, and recompute |
+| POST | `/api/reproject` | Recompute every projection |
+| GET | `/api/health` | Liveness |
+
+Every write returns the whole new state.
+
+## Checks
 
 ```bash
-npm run seed:export                               # D1 -> seed/roadmap.json
+npm run typecheck
+npm test
+npm run build
 ```
 
-That is the way back. The database is the durable home of the roadmap, so a new
-machine — or a lost disk — recovers the whole seed, including the metadata the
-validator checks it against.
-
-Beyond the graph, the validator holds the plan to what a week can take: no item
-spans more than seven study days, every item carries an hours estimate, no week is
-planned above its declared capacity, the parts of a work item never overlap, and
-every practice block and exam preparation says what done means.
-
-The strongest rule in the validator is that with nothing completed, the engine
-must project every item exactly onto its own baseline. If a dependency ends on
-or after the baseline start of something that waits on it, the plan would be born
-already slipped, and the validator says which item.
-
-## Cloudflare setup (once, not automated)
-
-`wrangler.toml` and `migrations/` are the infrastructure as code for the Pages
-project and the databases. The things wrangler cannot express are done by hand in
-the dashboard and written down here instead of in Terraform — a handful of
-resources for a single-user app do not pay for their own state file.
-
-1. `npx wrangler d1 create planify` and `npx wrangler d1 create planify-preview`
-   — copy each returned id into `wrangler.toml`, replacing the placeholders.
-2. `npm run db:migrate` — applies the schema to the production database.
-3. Create the Pages project (dashboard → Workers & Pages → Pages) with
-   **direct upload**, named `planify`. Do not connect the Git repository: the
-   deploy workflow uploads the build, and the two would otherwise both publish.
-4. Bind the databases as `DB` in the project's settings — `planify` for
-   production, `planify-preview` for preview.
-5. Cloudflare Access → one application covering the project's domain with a
-   policy allowing exactly one identity, and a second one covering
-   `*.planify.pages.dev` for the preview URLs. This is what makes the app
-   private; there is no application-level auth to fall back on.
-
-## Deploying
-
-`.github/workflows/deploy.yml` runs the gates, applies the pending migrations,
-then uploads the build — in that order, because code that reads a column the
-database does not have yet is a broken deployment. A pull request against `main`
-publishes a preview against `planify-preview`; a merge to `main` publishes
-production.
-
-It stays dormant until the repository is told the Cloudflare side exists:
-
-- Secrets `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`, the token scoped to
-  *Cloudflare Pages: Edit* and *D1: Edit* on this account only.
-- Environments `production` and `preview` (Settings → Environments). Adding a
-  required reviewer to `production` turns every merge into a deploy you approve.
-- Variable `DEPLOY_ENABLED` set to `true`. Until then the workflow is skipped, so
-  this file can be merged before any of the above is in place.
-
-Preview deployment URLs are public by default, which is why preview is bound to
-its own database and why step 5 covers `*.pages.dev` as well as the real domain.
-
-`npm run deploy` is still there for a manual push from a laptop.
-
-Revisit the by-hand decision if a third environment ever appears, or if the
-project has to be recreated from scratch.
+Run them without a pipe: piping hides the exit code, and a failing check then
+looks like a passing one.
 
 ## License
 
