@@ -1,118 +1,103 @@
-# tech-planner — development entry points.
-#
-# Everything runs through `uv`. There is no pip, no requirements.txt and no
-# hand-managed venv: `uv run` creates and syncs the environment on demand, so
-# every target below works from a fresh clone with only `uv` installed.
-#
-# Recipes stay to one command per line on purpose. macOS ships GNU Make 3.81,
-# which predates `.ONESHELL`, so multi-line shell constructs are not portable
-# here — anything longer than a line lives in scripts/ instead.
+SHELL := /bin/bash
+API_PORT ?= 8788
+WEB_PORT ?= 5173
+RUN_DIR := .dev
 
-UV      ?= uv
-RUN     := $(UV) run
-PLANNER := $(RUN) tech-planner
-CONFIG  ?= config/settings.py
+# Two processes: the API runs in the real Workers runtime against a local D1
+# file, and Vite serves the web app and proxies /api to it, so the browser stays
+# single-origin exactly as it will in production.
 
-# Where `make api` listens. Localhost only — the API has no authentication and
-# drives your Claude Code subscription.
-PORT    ?= 8787
+.PHONY: start stop
 
-# The requirement used by `make plan`. Override it:
-#   make plan REQ="Add rate limiting to the public API"
-# Planning knobs, all optional: CADENCE=annual|quarterly|sprint, SPRINT="Sprint 13",
-# BUFFER=1.25, CAPACITY=48.
-CADENCE  ?=
-SPRINT   ?=
-BUFFER   ?=
-CAPACITY ?=
-PLAN_ARGS = $(if $(CADENCE),--cadence $(CADENCE)) $(if $(SPRINT),--sprint "$(SPRINT)") $(if $(BUFFER),--buffer $(BUFFER)) $(if $(CAPACITY),--capacity $(CAPACITY))
+# start: build, migrate the local database, and run the API and the web app.
+start:
+	@mkdir -p $(RUN_DIR)
+	@for port in $(API_PORT) $(WEB_PORT); do \
+		if lsof -nP -iTCP:$$port -sTCP:LISTEN >/dev/null 2>&1; then \
+			echo "port $$port is already in use:"; \
+			lsof -nP -iTCP:$$port -sTCP:LISTEN | tail -n +2 | sed 's/^/  /'; \
+			echo "run 'make stop' if it is ours, or free it yourself if it is not."; \
+			exit 1; \
+		fi; \
+	done
+	@echo "→ building the web assets"
+	@npm run build >/dev/null
+	@echo "→ applying migrations to the local database"
+	@npx wrangler d1 migrations apply planify --local >/dev/null 2>&1
+	@echo "→ starting the API on $(API_PORT)"
+	@npx wrangler pages dev --port $(API_PORT) > $(RUN_DIR)/api.log 2>&1 & echo $$! > $(RUN_DIR)/api.pid
+	@echo "→ starting the web app on $(WEB_PORT)"
+	@npx vite --port $(WEB_PORT) --strictPort > $(RUN_DIR)/web.log 2>&1 & echo $$! > $(RUN_DIR)/web.pid
+	@ready=1; \
+	for i in $$(seq 1 60); do \
+		curl -s --max-time 2 http://127.0.0.1:$(API_PORT)/api/health >/dev/null 2>&1 && { ready=0; break; }; \
+		sleep 1; \
+	done; \
+	if [ $$ready -ne 0 ]; then \
+		echo "the API never answered on $(API_PORT). Last lines of $(RUN_DIR)/api.log:"; \
+		tail -n 15 $(RUN_DIR)/api.log | sed 's/^/  /'; \
+		exit 1; \
+	fi
+	@ready=1; \
+	for i in $$(seq 1 60); do \
+		curl -s --max-time 2 -o /dev/null http://127.0.0.1:$(WEB_PORT)/ && { ready=0; break; }; \
+		sleep 1; \
+	done; \
+	if [ $$ready -ne 0 ]; then \
+		echo "the web app never answered on $(WEB_PORT). Last lines of $(RUN_DIR)/web.log:"; \
+		tail -n 15 $(RUN_DIR)/web.log | sed 's/^/  /'; \
+		exit 1; \
+	fi
+	@items=$$(curl -s --max-time 5 http://127.0.0.1:$(API_PORT)/api/health | sed -n 's/.*"items":\([0-9]*\).*/\1/p'); \
+	echo; \
+	if [ "$$items" = "0" ] || [ -z "$$items" ]; then \
+		echo "the database has no items yet. Load a roadmap with:"; \
+		echo "  npm run seed:sql && npx wrangler d1 execute planify --local --file build/seed.sql"; \
+	else \
+		echo "$$items items loaded"; \
+	fi
+	@echo "app  http://127.0.0.1:$(WEB_PORT)"
+	@echo "api  http://127.0.0.1:$(API_PORT)/api/state"
+	@echo "logs $(RUN_DIR)/api.log · $(RUN_DIR)/web.log"
 
-REQ ?= Add a health check endpoint at /healthz that reports database connectivity and returns 200 or 503. Keep it to one Epic, one Feature, one User Story.
-
-.DEFAULT_GOAL := help
-.PHONY: help install config check rules policy prompt doctor \
-        plan plan-yes api api-dev capacity sessions session clean reset
-
-## ---------------------------------------------------------------------------
-## Getting started
-## ---------------------------------------------------------------------------
-
-help: ## Show this help
-	@echo "tech-planner"
-	@echo ""
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-11s\033[0m %s\n", $$1, $$2}'
-	@echo ""
-	@echo "  CONFIG=$(CONFIG)"
-	@echo "  Override the requirement:  make plan REQ=\"...\""
-
-install: ## Create the environment and install the project
-	$(UV) sync
-
-config: ## Create config/settings.py from the example, if absent
-	@test -f $(CONFIG) && echo "$(CONFIG) already exists — leaving it alone" || (cp config/settings.example.py $(CONFIG) && echo "created $(CONFIG) — fill in your backend details")
-
-## ---------------------------------------------------------------------------
-## Checking the logic
-##
-## These spawn no agent and contact nothing. They are the fast loop: they
-## exercise the parts that hold the guarantees, without spending a model call
-## or touching a work-tracking board. `doctor` is the slow one — it starts the
-## real runtime.
-## ---------------------------------------------------------------------------
-
-check: ## Fast offline check: modules import, config valid, approval gate intact
-	@$(RUN) python scripts/check.py $(CONFIG)
-	@$(MAKE) --no-print-directory rules
-
-rules: ## Show what the planning rules catch on a deliberately bad plan
-	@$(RUN) python scripts/rules_demo.py
-
-policy: ## Show what each pass may do — the approval gate, resolved
-	@$(PLANNER) --config $(CONFIG) policy
-
-prompt: ## Show the assembled system prompt the agent receives
-	@$(PLANNER) --config $(CONFIG) prompt
-
-doctor: ## Start the real runtime and report what it can reach (slow)
-	@$(PLANNER) --config $(CONFIG) doctor
-
-## ---------------------------------------------------------------------------
-## Running it
-## ---------------------------------------------------------------------------
-
-plan: ## Plan REQ and stop at the approval prompt
-	@$(PLANNER) --config $(CONFIG) plan $(PLAN_ARGS) "$(REQ)"
-
-plan-yes: ## Plan REQ and create the items unprompted — this writes to the backend
-	@$(PLANNER) --config $(CONFIG) plan $(PLAN_ARGS) "$(REQ)" --yes
-
-api: ## Serve the HTTP API on 127.0.0.1 for the web app
-	@$(RUN) tech-planner-api --config $(CONFIG) --port $(PORT)
-
-api-dev: ## Same, restarting on code changes. A reload kills any live run.
-	@$(RUN) tech-planner-api --config $(CONFIG) --port $(PORT) --reload
-
-capacity: ## Show or set per-sprint capacity: make capacity SPRINT="Sprint 13" CAPACITY=48
-	@$(PLANNER) --config $(CONFIG) capacity $(if $(SPRINT),"$(SPRINT)") $(CAPACITY)
-
-sessions: ## List past planning sessions
-	@$(PLANNER) --config $(CONFIG) sessions
-
-session: ## Show one session's stored record: make session ID=<uuid>
-	@test -n "$(ID)" || (echo "usage: make session ID=<session-uuid>"; exit 1)
-	@cat .tech-planner/sessions/$(ID).json
-
-## ---------------------------------------------------------------------------
-## Housekeeping
-## ---------------------------------------------------------------------------
-
-clean: ## Remove caches and the agent's scratch workspace
-	@find . -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
-	@find . -type d -name '*.egg-info' -prune -exec rm -rf {} + 2>/dev/null || true
-	@rm -rf .pytest_cache .ruff_cache .mypy_cache
-	@find workspace -mindepth 1 ! -name .gitkeep -delete 2>/dev/null || true
-	@echo "cleaned"
-
-reset: clean ## Also delete every saved planning session
-	@rm -rf .tech-planner
-	@echo "sessions deleted"
+# stop: stop only what start launched. Never a broad pkill: a development
+# machine usually has other servers running, and some of them are on these
+# ports.
+stop:
+	@stopped=0; \
+	for entry in api:$(API_PORT) web:$(WEB_PORT); do \
+		name=$${entry%%:*}; port=$${entry##*:}; \
+		file=$(RUN_DIR)/$$name.pid; \
+		[ -f "$$file" ] || continue; \
+		pid=$$(cat $$file); \
+		if kill -0 $$pid 2>/dev/null; then \
+			if ps -p $$pid -o command= | grep -qE 'wrangler|vite'; then \
+				pkill -P $$pid 2>/dev/null || true; \
+				kill $$pid 2>/dev/null || true; \
+				echo "stopped $$name (pid $$pid)"; \
+				stopped=1; \
+			else \
+				echo "pid $$pid is no longer ours — leaving it alone"; \
+			fi; \
+		fi; \
+		rm -f $$file; \
+	done; \
+	[ $$stopped -eq 1 ] || echo "nothing of ours was running"
+	@# Vite ignores SIGTERM, so a child can outlive the parent we just killed.
+	@# The port is the honest check, and only a process from this project's
+	@# node_modules is ever escalated to SIGKILL.
+	@for port in $(API_PORT) $(WEB_PORT); do \
+		for i in 1 2 3 4 5; do \
+			lsof -nP -iTCP:$$port -sTCP:LISTEN >/dev/null 2>&1 || break; \
+			sleep 1; \
+		done; \
+		lsof -nP -iTCP:$$port -sTCP:LISTEN >/dev/null 2>&1 || continue; \
+		holder=$$(lsof -nP -iTCP:$$port -sTCP:LISTEN -t | head -1); \
+		if ps -p $$holder -o command= | grep -q "$(CURDIR)/node_modules"; then \
+			kill -9 $$holder 2>/dev/null || true; \
+			echo "port $$port needed SIGKILL (pid $$holder)"; \
+		else \
+			echo "port $$port is held by a process we did not start:"; \
+			ps -p $$holder -o pid=,command= | cut -c1-120 | sed 's/^/  /'; \
+		fi; \
+	done
