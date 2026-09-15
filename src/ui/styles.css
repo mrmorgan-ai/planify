@@ -767,9 +767,58 @@ tr.detail td {
   margin-bottom: 0.3rem;
 }
 
+/* The name is the control that opens the card: the whole line is the target, so
+   the detail can be reached with a finger and not only with a 24px arrow. */
 .card-name {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
   font-size: 1rem;
   line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+}
+
+.card-name .disclosure {
+  width: 1.4rem;
+  height: 1.4rem;
+  margin-right: 0.4rem;
+  font-size: 0.82rem;
+}
+
+.card-name:hover .disclosure,
+.card-name[aria-expanded='true'] .disclosure {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* In a column this narrow the label cannot hold a sixth of the width, so the
+   detail stacks instead of sitting in two columns as it does in the backlog. */
+.card .item-detail {
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--line);
+}
+
+.card .item-detail .detail-line {
+  flex-direction: column;
+  gap: 0.1rem;
+  margin-top: 0.5rem;
+}
+
+.card .item-detail .detail-label {
+  flex: none;
+  padding-top: 0;
+}
+
+.card .item-detail .skills {
+  margin-left: 0;
 }
 
 .card-date {
