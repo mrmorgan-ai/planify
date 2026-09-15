@@ -21,8 +21,15 @@ const MIN_DAY = 14
 const MAX_DAY = 48
 /** Must match .gantt-row in the stylesheet, or the two columns drift apart. */
 const ROW = 30
-/** Must match .gantt-names in the stylesheet: the frozen column's own width. */
-const NAMES = 336
+/**
+ * The frozen column's width lives in the stylesheet, where a narrow screen can
+ * shrink it, and is read back here: the two have to agree, and one of them has
+ * to own the number.
+ */
+function namesWidth(): number {
+  const declared = getComputedStyle(document.documentElement).getPropertyValue('--gantt-names')
+  return Number.parseInt(declared, 10) || 336
+}
 const PAD_DAYS = 3
 
 type Scope = PhaseNumber | null
@@ -57,7 +64,7 @@ export function Gantt({ state }: { state: AppState }) {
   const [scope, setScope] = useState<Scope>(() => activePhase(state))
   const [focused, setFocused] = useState<string | null>(null)
   const frame = useRef<HTMLDivElement>(null)
-  const available = useTrackWidth(frame)
+  const { names, width: available } = useTrackWidth(frame)
 
   const { items, today, roadmap } = state
   const shown = useMemo(
@@ -116,7 +123,7 @@ export function Gantt({ state }: { state: AppState }) {
       </ul>
 
       <div className="gantt-frame" ref={frame}>
-        <div className="gantt-inner" style={{ width: NAMES + width }}>
+        <div className="gantt-inner" style={{ width: names + width }}>
           <div className="gantt-header">
             <div className="gantt-corner" />
             <Scale span={span} day={day} capacity={roadmap.weeklyHours.lastWeekOfMonth} />
@@ -441,12 +448,17 @@ function bands(span: Span, blackouts: readonly Blackout[]): Band[] {
  * silently falls back to its minimum day width. In this layout the frame only
  * changes width when the window does.
  */
-function useTrackWidth(ref: React.RefObject<HTMLDivElement | null>): number {
-  const [width, setWidth] = useState(0)
+function useTrackWidth(ref: React.RefObject<HTMLDivElement | null>): {
+  names: number
+  width: number
+} {
+  const [size, setSize] = useState({ names: 336, width: 0 })
 
   const measure = useCallback(() => {
     const element = ref.current
-    if (element) setWidth(element.clientWidth - NAMES)
+    if (!element) return
+    const names = namesWidth()
+    setSize({ names, width: element.clientWidth - names })
   }, [ref])
 
   useLayoutEffect(() => {
@@ -455,7 +467,7 @@ function useTrackWidth(ref: React.RefObject<HTMLDivElement | null>): number {
     return () => window.removeEventListener('resize', measure)
   }, [measure])
 
-  return width
+  return size
 }
 
 /**

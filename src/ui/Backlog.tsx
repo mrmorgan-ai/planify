@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link as RouterLink } from 'react-router-dom'
 import { STATES } from '../core/constants'
 import {
   hasSlipped,
@@ -11,6 +10,7 @@ import {
 } from '../core/selectors'
 import type { AppState, CivilDate, Item, Resource, State } from '../core/types'
 import { linksOf, partLabel, type PartLabel } from '../core/workItems'
+import { hostOf, ItemDetail } from './ItemDetail'
 import { scrollToRow, useArrival } from './useArrival'
 import { PhaseSidebar, type PhaseSelection } from './PhaseSidebar'
 import type { Store } from './useAppState'
@@ -209,6 +209,7 @@ function Row({
       <tr ref={row} className={rowClass || undefined}>
         <td className="col-state">
           <select
+            className={`state-select ${item.state}`}
             value={item.state}
             disabled={busy}
             aria-label={`State of ${item.name}`}
@@ -301,73 +302,7 @@ function Row({
         <tr className={arrived ? 'detail arrived' : 'detail'}>
           <td colSpan={2} />
           <td colSpan={5}>
-            {item.duration && (
-              <div className="detail-line">
-                <span className="detail-label">Duration</span>
-                <span>{item.duration}</span>
-              </div>
-            )}
-
-            {item.notes && (
-              <div className="detail-line">
-                <span className="detail-label">What it is</span>
-                <span className="notes">{item.notes}</span>
-              </div>
-            )}
-
-            {item.doneWhen && (
-              <div className="detail-line">
-                <span className="detail-label">Done when</span>
-                <span className="notes">{item.doneWhen}</span>
-              </div>
-            )}
-
-            {part && (
-              <div className="detail-line">
-                <span className="detail-label">Part of</span>
-                <span className="notes">
-                  <RouterLink
-                    className="part-link"
-                    to={`/work-items?unit=${encodeURIComponent(part.workItem.id)}`}
-                  >
-                    {part.workItem.name}
-                  </RouterLink>{' '}
-                  <span className="faint">
-                    · part {part.index} of {part.total}
-                  </span>
-                  {part.workItem.notes && <div>{part.workItem.notes}</div>}
-                </span>
-              </div>
-            )}
-
-            {item.skills.length > 0 && (
-              <div className="detail-line">
-                <span className="detail-label">Skills</span>
-                <span className="skills">
-                  {item.skills.map((skill) => (
-                    <span key={skill} className="skill">
-                      {skill}
-                    </span>
-                  ))}
-                </span>
-              </div>
-            )}
-
-            {item.price && (
-              <div className="detail-line">
-                <span className="detail-label">Price</span>
-                <span className="notes">{item.price}</span>
-              </div>
-            )}
-
-            <div className="detail-line">
-              <span className="detail-label">Depends on</span>
-              <span className="depends">
-                {item.dependsOn.length === 0
-                  ? 'nothing — it can be started at any time'
-                  : item.dependsOn.map((id) => names.get(id) ?? id).join(' · ')}
-              </span>
-            </div>
+            <ItemDetail item={item} part={part} links={links} names={names} />
           </td>
         </tr>
       )}
@@ -448,15 +383,6 @@ function DateEditor({
       </td>
     </>
   )
-}
-
-/** The domain, so a link says where it goes instead of saying "open". */
-function hostOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '')
-  } catch {
-    return 'link'
-  }
 }
 
 function signed(days: number): string {

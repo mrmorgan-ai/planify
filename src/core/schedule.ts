@@ -7,6 +7,7 @@ import {
   studyDaysBetween,
   toCivilDate,
 } from './dates'
+import { estimatedHours } from './hours'
 import type { CivilDate, IsoDateTime, Item, ScheduleOptions, State } from './types'
 
 /**
@@ -127,6 +128,10 @@ export function recomputeProjections(items: readonly Item[], options: ScheduleOp
  * Moves one item to a new state and reprojects everything. Keeps the invariant
  * the schema enforces: `done` carries a `completedAt`, anything else does not.
  * Re-marking an item done keeps its original date.
+ *
+ * Finishing an item also fills in its hours, so nobody has to declare the last
+ * hour of something they just finished. Moving it back out of `done` leaves them
+ * where they are: the work was really done, and the state says the rest.
  */
 export function applyStateChange(
   items: readonly Item[],
@@ -139,12 +144,45 @@ export function applyStateChange(
 
   const updated = items.map((item) => {
     if (item.id !== id) return item
+    const estimate = estimatedHours(item)
     return {
       ...item,
       state: next,
       completedAt: next === 'done' ? (item.completedAt ?? now) : null,
+      hoursDone: next === 'done' && estimate !== null ? estimate : item.hoursDone,
     }
   })
+
+  return recomputeProjections(updated, options)
+}
+
+/**
+ * Declares how many hours of an item are already spent.
+ *
+ * Progress is information, not a decision: declaring hours never moves the item
+ * to another state, the same way a dependency never blocks one. It is clamped to
+ * the estimate, because "6 of 4 hours" is a typo rather than an achievement, and
+ * refused outright when there is no estimate to be part of — an exam has hours
+ * you sit, not hours you accumulate.
+ *
+ * Dates do not depend on hours, but the projections are recomputed anyway: one
+ * write path, one guarantee about what comes back.
+ */
+export function applyHoursDone(
+  items: readonly Item[],
+  id: string,
+  hours: number,
+  options: ScheduleOptions,
+): Item[] {
+  const target = items.find((item) => item.id === id)
+  if (!target) throw new Error(`No item with id ${id}`)
+
+  const estimate = estimatedHours(target)
+  if (estimate === null) throw new Error(`${id} has no hours estimate to declare against`)
+  if (!Number.isFinite(hours) || hours < 0) throw new Error(`Hours must be zero or more`)
+
+  const declared = Math.min(hours, estimate)
+  const updated = items.map((item) => (item.id === id ? { ...item, hoursDone: declared } : item))
 
   return recomputeProjections(updated, options)
 }

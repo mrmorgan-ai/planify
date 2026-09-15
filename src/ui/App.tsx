@@ -45,8 +45,10 @@ function Status({ state }: { state: AppState }) {
 
   return (
     <>
-      <span>{whereYouAre(state, context)}</span>
-      <span className="footer-sep">·</span>
+      {/* The phase is the first thing to go on a phone: it is the longest line
+          in the footer and the board already says it. */}
+      <span className="footer-where">{whereYouAre(state, context)}</span>
+      <span className="footer-sep footer-where">·</span>
       <span>{shortDate(today)}</span>
       <span className="footer-sep">·</span>
       <span title={`${round(done)} of ${round(total)} planned hours done`}>

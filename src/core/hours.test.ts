@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   daysLeftInWeek,
   estimatedHours,
+  progressHours,
   hoursInWeek,
   inWeek,
   isLastWeekOfMonth,
@@ -33,6 +34,7 @@ function item(id: string, overrides: Partial<Item> = {}): Item {
     doneWhen: '',
     state: 'pending',
     completedAt: null,
+    hoursDone: 0,
     sortOrder: 1,
     ...overrides,
   }
@@ -242,6 +244,25 @@ describe('hoursInWeek', () => {
   })
 })
 
+describe('progressHours', () => {
+  it('counts the hours declared on an unfinished item', () => {
+    expect(progressHours(item('a', { duration: '~4h', hoursDone: 1.5 }))).toBe(1.5)
+  })
+
+  it('counts a finished item in full, whatever was declared along the way', () => {
+    expect(progressHours(item('a', { duration: '~4h', hoursDone: 1, state: 'done' }))).toBe(4)
+  })
+
+  it('never counts more than the estimate', () => {
+    expect(progressHours(item('a', { duration: '~4h', hoursDone: 9 }))).toBe(4)
+  })
+
+  it('counts nothing without an estimate — there is nothing to be part of', () => {
+    expect(progressHours(item('a', { duration: '', hoursDone: 3 }))).toBe(0)
+    expect(progressHours(item('a', { duration: '', hoursDone: 3, state: 'done' }))).toBe(0)
+  })
+})
+
 describe('planProgress', () => {
   const items = [
     item('read', { phase: 1, duration: '~2h', baselineEndDate: '2030-02-10', state: 'done' }),
@@ -259,6 +280,16 @@ describe('planProgress', () => {
 
   it('does not expect an item on the day it is planned to end', () => {
     expect(planProgress(items, [1, 2], '2030-02-17').expected).toBe(2)
+  })
+
+  it('counts hours declared on what is still in hand', () => {
+    const declared = [
+      items[0]!,
+      item('build', { phase: 1, duration: '~4h', hoursDone: 3, state: 'in_progress' }),
+      items[2]!,
+      items[3]!,
+    ]
+    expect(planProgress(declared, [1, 2], '2030-02-18').done).toBe(5)
   })
 
   it('splits the total and the done hours by phase, in phase order', () => {
