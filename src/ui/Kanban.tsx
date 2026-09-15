@@ -1,4 +1,4 @@
-import { useState, type DragEvent } from 'react'
+import { useState, type DragEvent, type ReactNode } from 'react'
 import {
   estimatedHours,
   hoursInWeek,
@@ -9,9 +9,10 @@ import {
 } from '../core/hours'
 import { BOARD_COLUMNS, groupByState, isOverdue, unfinishedDependencies } from '../core/selectors'
 import type { Week } from '../core/hours'
-import type { AppState, Item, Phase, State } from '../core/types'
-import { partLabel, type PartLabel } from '../core/workItems'
+import type { AppState, Item, Phase, Resource, State } from '../core/types'
+import { linksOf, partLabel, type PartLabel } from '../core/workItems'
 import { dateRange } from './format'
+import { ItemDetail } from './ItemDetail'
 import { PartOf } from './PartOf'
 import type { Store } from './useAppState'
 
@@ -37,6 +38,8 @@ const COLUMN_LABEL: Record<State, string> = {
 export function Kanban({ state, pendingId, changeState }: Store & { state: AppState }) {
   const [dragging, setDragging] = useState<Item | null>(null)
   const [over, setOver] = useState<State | null>(null)
+  /** One card open at a time: the board stays a board and not a list of essays. */
+  const [expanded, setExpanded] = useState<string | null>(null)
 
   const phase = activePhase(state)
   const items = state.items.filter((item) => phase === null || item.phase === phase.number)
@@ -52,6 +55,32 @@ export function Kanban({ state, pendingId, changeState }: Store & { state: AppSt
   const week = weekOf(anchor, capacity)
   const started = anchor === state.today
   const thisWeek = new Set(inWeek(items, week).map((item) => item.id))
+  const names = new Map(state.items.map((item) => [item.id, item.name]))
+
+  /**
+   * One place builds a card, so the two groups inside Pending and the other two
+   * columns cannot drift apart, and the groups do not have to carry every
+   * callback down as a prop.
+   */
+  const card = (item: Item) => (
+    <Card
+      key={item.id}
+      item={item}
+      today={state.today}
+      blockers={unfinishedDependencies(item, state.items)}
+      part={partLabel(item, state.workItems, state.items)}
+      links={linksOf(item, state.workItems)}
+      names={names}
+      open={expanded === item.id}
+      busy={pendingId === item.id}
+      onToggle={() => setExpanded((current) => (current === item.id ? null : item.id))}
+      onDragStart={() => setDragging(item)}
+      onDragEnd={() => {
+        setDragging(null)
+        setOver(null)
+      }}
+    />
+  )
 
   /**
    * The dropped id comes from the drag payload, not from React state: the
@@ -106,29 +135,10 @@ export function Kanban({ state, pendingId, changeState }: Store & { state: AppSt
                 thisWeek={thisWeek}
                 week={week}
                 state={state}
-                pendingId={pendingId}
-                onDragStart={setDragging}
-                onDragEnd={() => {
-                  setDragging(null)
-                  setOver(null)
-                }}
+                card={card}
               />
             ) : (
-              columns[column].map((item) => (
-                <Card
-                  key={item.id}
-                  item={item}
-                  today={state.today}
-                  blockers={unfinishedDependencies(item, state.items)}
-                  part={partLabel(item, state.workItems, state.items)}
-                  busy={pendingId === item.id}
-                  onDragStart={() => setDragging(item)}
-                  onDragEnd={() => {
-                    setDragging(null)
-                    setOver(null)
-                  }}
-                />
-              ))
+              columns[column].map(card)
             )}
           </div>
         ))}
@@ -147,17 +157,13 @@ function Split({
   thisWeek,
   week,
   state,
-  pendingId,
-  onDragStart,
-  onDragEnd,
+  card,
 }: {
   items: Item[]
   thisWeek: Set<string>
   week: Week
   state: AppState
-  pendingId: string | null
-  onDragStart: (item: Item) => void
-  onDragEnd: () => void
+  card: (item: Item) => ReactNode
 }) {
   const now = items.filter((item) => thisWeek.has(item.id))
   const later = items.filter((item) => !thisWeek.has(item.id))
@@ -188,18 +194,7 @@ function Split({
           {group.length === 0 ? (
             <p className="column-empty">{empty}</p>
           ) : (
-            group.map((item) => (
-              <Card
-                key={item.id}
-                item={item}
-                today={state.today}
-                blockers={unfinishedDependencies(item, state.items)}
-                part={partLabel(item, state.workItems, state.items)}
-                busy={pendingId === item.id}
-                onDragStart={() => onDragStart(item)}
-                onDragEnd={onDragEnd}
-              />
-            ))
+            group.map(card)
           )}
         </div>
       ))}
@@ -287,7 +282,11 @@ function Card({
   today,
   blockers,
   part,
+  links,
+  names,
+  open,
   busy,
+  onToggle,
   onDragStart,
   onDragEnd,
 }: {
@@ -295,7 +294,11 @@ function Card({
   today: string
   blockers: Item[]
   part: PartLabel | null
+  links: { link: string | null; resources: Resource[] }
+  names: Map<string, string>
+  open: boolean
   busy: boolean
+  onToggle: () => void
   onDragStart: () => void
   onDragEnd: () => void
 }) {
@@ -306,7 +309,7 @@ function Card({
 
   return (
     <article
-      className={[ 'card', busy ? 'busy' : '', outOfOrder ? 'out-of-order' : '' ]
+      className={[ 'card', busy ? 'busy' : '', outOfOrder ? 'out-of-order' : '', open ? 'open' : '' ]
         .filter(Boolean)
         .join(' ')}
       draggable={!busy}
@@ -326,13 +329,27 @@ function Card({
         </span>
       </div>
 
-      <div className="card-name">{item.name}</div>
-      {item.doneWhen && (
+      <button
+        type="button"
+        className="card-name"
+        aria-expanded={open}
+        aria-label={`Details of ${item.name}`}
+        onClick={onToggle}
+      >
+        <span className="disclosure" aria-hidden="true">
+          {open ? '\u25be' : '\u25b8'}
+        </span>
+        {item.name}
+      </button>
+
+      {item.doneWhen && !open && (
         <div className="card-done-when">
           <span className="card-done-label">Done when</span> {item.doneWhen}
         </div>
       )}
-      {part && <PartOf part={part} />}
+      {part && !open && <PartOf part={part} />}
+
+      {open && <ItemDetail item={item} part={part} links={links} names={names} showResources />}
 
       {blockers.length > 0 && (
         <div
