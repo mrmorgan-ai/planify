@@ -23,6 +23,7 @@ function item(id: string, overrides: Partial<Item> = {}): Item {
     doneWhen: '',
     state: 'pending',
     completedAt: null,
+    hoursDone: 0,
     sortOrder: 1,
     ...overrides,
   }

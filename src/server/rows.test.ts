@@ -31,6 +31,7 @@ function row(overrides: Partial<ItemRow> = {}): ItemRow {
     done_when: '',
     state: 'pending',
     completed_at: null,
+    hours_done: 0,
     sort_order: 1,
     ...overrides,
   }
@@ -127,6 +128,7 @@ describe('changedItems', () => {
     expect(changedItems([base], [{ ...base, state: 'in_progress' }])).toHaveLength(1)
     expect(changedItems([base], [{ ...base, completedAt: '2030-01-05T12:00:00Z' }])).toHaveLength(1)
     expect(changedItems([base], [{ ...base, projectedEndDate: '2030-01-09' }])).toHaveLength(1)
+    expect(changedItems([base], [{ ...base, hoursDone: 2 }])).toHaveLength(1)
   })
 
   it('ignores fields the engine never writes', () => {

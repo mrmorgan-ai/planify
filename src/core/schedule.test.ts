@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { applyBaselineDates, applyStateChange, recomputeProjections, topologicalOrder } from './schedule'
+import {
+  applyBaselineDates,
+  applyHoursDone,
+  applyStateChange,
+  recomputeProjections,
+  topologicalOrder,
+} from './schedule'
 import type { Blackout, Item, ScheduleOptions } from './types'
 
 // A synthetic calendar and timezone: the real ones are roadmap content and live
@@ -28,6 +34,7 @@ function item(id: string, overrides: Partial<Item> = {}): Item {
     doneWhen: '',
     state: 'pending',
     completedAt: null,
+    hoursDone: 0,
     sortOrder: 0,
     ...overrides,
   }
@@ -304,5 +311,54 @@ describe('applyBaselineDates', () => {
     expect(() => applyBaselineDates(chain, 'ghost', '2030-01-07', '2030-01-11', OPTIONS)).toThrow(
       /No item with id/,
     )
+  })
+})
+
+
+describe('applyHoursDone', () => {
+  const items = [
+    item('a', { duration: '~4h' }),
+    item('exam', { duration: '', baselineStartDate: '2030-02-11', baselineEndDate: '2030-02-12' }),
+  ]
+
+  it('declares the hours spent', () => {
+    expect(find(applyHoursDone(items, 'a', 2.5, OPTIONS), 'a').hoursDone).toBe(2.5)
+  })
+
+  it('leaves the state alone: progress is information, not a decision', () => {
+    expect(find(applyHoursDone(items, 'a', 4, OPTIONS), 'a').state).toBe('pending')
+  })
+
+  it('clamps to the estimate', () => {
+    expect(find(applyHoursDone(items, 'a', 99, OPTIONS), 'a').hoursDone).toBe(4)
+  })
+
+  it('refuses an item with no estimate', () => {
+    expect(() => applyHoursDone(items, 'exam', 2, OPTIONS)).toThrow(/no hours estimate/)
+  })
+
+  it('refuses negative hours and an unknown id', () => {
+    expect(() => applyHoursDone(items, 'a', -1, OPTIONS)).toThrow(/zero or more/)
+    expect(() => applyHoursDone(items, 'nope', 1, OPTIONS)).toThrow(/No item with id/)
+  })
+})
+
+describe('applyStateChange and hours', () => {
+  const items = [item('a', { duration: '~4h' }), item('exam', { duration: '' })]
+
+  it('fills in the hours of an item marked done', () => {
+    const result = applyStateChange(items, 'a', 'done', '2030-02-17T18:00:00-05:00', OPTIONS)
+    expect(find(result, 'a').hoursDone).toBe(4)
+  })
+
+  it('keeps declared hours when an item leaves done', () => {
+    const done = applyStateChange(items, 'a', 'done', '2030-02-17T18:00:00-05:00', OPTIONS)
+    const reopened = applyStateChange(done, 'a', 'in_progress', '2030-02-18T18:00:00-05:00', OPTIONS)
+    expect(find(reopened, 'a').hoursDone).toBe(4)
+  })
+
+  it('leaves an item without an estimate at zero', () => {
+    const result = applyStateChange(items, 'exam', 'done', '2030-02-17T18:00:00-05:00', OPTIONS)
+    expect(find(result, 'exam').hoursDone).toBe(0)
   })
 })

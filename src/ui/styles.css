@@ -9,8 +9,18 @@
   --line: #2c2f3a;
   --good: #4ade80;
   --bad: #f87171;
-  --warn: #fbbf24;
+  /* Orange warns, yellow means in progress. One hue, one meaning: when both
+     were amber, "started" and "over capacity" read as the same signal. */
+  --warn: #fb923c;
+  --running: #fbbf24;
   --accent: #7c9cf6;
+  /* The Gantt's frozen name column. Read back by the chart, which has to size
+     its scrolling track around it. */
+  --gantt-names: 336px;
+  /* The three states, wherever they are drawn. */
+  --state-pending: var(--faint);
+  --state-in-progress: var(--running);
+  --state-done: var(--good);
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 16px;
 }
@@ -27,11 +37,12 @@ body {
 
 /* A definite height, not a minimum: the views that want to fill the screen can
    only do so if the column they sit in knows how tall it is. The page itself no
-   longer scrolls — main does. */
+   longer scrolls — main does. Dynamic viewport units, because on a phone the
+   browser's own bars eat into 100vh and the footer ends up under them. */
 .app {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100dvh;
 }
 
 header {
@@ -152,9 +163,11 @@ footer {
 
 /* Phase sidebar */
 
+/* `auto` and not a fixed column: folding the list has to give the width back to
+   the items, which a fixed track cannot do. */
 .backlog {
   display: grid;
-  grid-template-columns: 15.5rem minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 1.5rem;
   align-items: start;
 }
@@ -163,8 +176,52 @@ footer {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+  width: 15.5rem;
   position: sticky;
   top: 0;
+}
+
+.phases.closed {
+  width: auto;
+  max-width: 15.5rem;
+}
+
+.phases-toggle {
+  display: flex;
+  align-items: center;
+  padding: 0.35rem 0.4rem;
+  border: 0;
+  background: none;
+  color: var(--faint);
+  font: inherit;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: left;
+  cursor: pointer;
+}
+
+.phases-toggle:hover {
+  color: var(--text);
+}
+
+.phases-toggle .disclosure {
+  width: 1.4rem;
+  height: 1.4rem;
+  font-size: 0.82rem;
+}
+
+.phases.closed .phases-toggle {
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.phase-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
 }
 
 .phase-link {
@@ -418,6 +475,26 @@ select:disabled {
   opacity: 0.5;
 }
 
+/* The state is the first thing read on a row, so it carries its colour rather
+   than only its word. The word stays: colour alone is not a label. */
+select.state-select {
+  border-left-width: 4px;
+}
+
+select.state-select.pending {
+  border-left-color: var(--state-pending);
+}
+
+select.state-select.in_progress {
+  border-left-color: var(--state-in-progress);
+  color: var(--state-in-progress);
+}
+
+select.state-select.done {
+  border-left-color: var(--state-done);
+  color: var(--state-done);
+}
+
 /* A bordered square rather than a bare arrow: the control has to look like one
    before anyone will try it. Sized past the 24px that reads as tappable. */
 .disclosure {
@@ -659,9 +736,58 @@ tr.detail td {
   color: var(--faint);
 }
 
+.column.in_progress .column-name {
+  color: var(--state-in-progress);
+}
+
+.column.done .column-name {
+  color: var(--state-done);
+}
+
 .column-name,
 .group-name {
   font-weight: 600;
+}
+
+/* The fold controls: bare buttons that keep the heading's own look, because a
+   heading that turns into a button should still read as a heading. */
+.column-toggle,
+.group-toggle {
+  display: flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.column-toggle:hover,
+.group-toggle:hover {
+  color: var(--text);
+}
+
+.column-toggle .disclosure,
+.group-toggle .disclosure {
+  width: 1.3rem;
+  height: 1.3rem;
+  margin-right: 0.4rem;
+  font-size: 0.75rem;
+}
+
+.column.collapsed {
+  min-height: 0;
+}
+
+.column.collapsed .column-head,
+.group.collapsed .group-head {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 
 .group + .group {
@@ -744,9 +870,18 @@ tr.detail td {
 .card {
   padding: 0.5rem 0.6rem;
   border: 1px solid var(--line);
+  border-left: 3px solid var(--state-pending);
   border-radius: 8px;
   background: var(--bg);
   cursor: grab;
+}
+
+.card.in_progress {
+  border-left-color: var(--state-in-progress);
+}
+
+.card.done {
+  border-left-color: var(--state-done);
 }
 
 .card:active {
@@ -767,9 +902,98 @@ tr.detail td {
   margin-bottom: 0.3rem;
 }
 
+/* The name is the control that opens the card: the whole line is the target, so
+   the detail can be reached with a finger and not only with a 24px arrow. */
 .card-name {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
   font-size: 1rem;
   line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+}
+
+.card-name .disclosure {
+  width: 1.4rem;
+  height: 1.4rem;
+  margin-right: 0.4rem;
+  font-size: 0.82rem;
+}
+
+.card-name:hover .disclosure,
+.card-name[aria-expanded='true'] .disclosure {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* Hours spent, against the estimate: a bar on a closed card, a field on an open
+   one. Reading the number needs no interaction; changing it does. */
+.card-progress {
+  margin-top: 0.4rem;
+}
+
+.card-progress-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.card-progress-label {
+  color: var(--faint);
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+}
+
+.card-progress-edit input {
+  width: 4.5rem;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.88rem;
+}
+
+.card-progress-total {
+  margin-right: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+/* In a column this narrow the label cannot hold a sixth of the width, so the
+   detail stacks instead of sitting in two columns as it does in the backlog. */
+.card .item-detail {
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--line);
+}
+
+.card .item-detail .detail-line {
+  flex-direction: column;
+  gap: 0.1rem;
+  margin-top: 0.5rem;
+}
+
+.card .item-detail .detail-label {
+  flex: none;
+  padding-top: 0;
+}
+
+.card .item-detail .skills {
+  margin-left: 0;
 }
 
 .card-date {
@@ -1220,7 +1444,7 @@ tr.detail td {
 }
 
 .legend-running {
-  background: var(--accent);
+  background: var(--state-in-progress);
 }
 
 .legend-done {
@@ -1238,7 +1462,7 @@ tr.detail td {
 }
 
 .legend-reduced {
-  background: rgb(251 191 36 / 0.16);
+  background: rgb(251 146 60 / 0.16);
 }
 
 .legend-today {
@@ -1289,8 +1513,8 @@ tr.detail td {
   position: sticky;
   left: 0;
   z-index: 5;
-  flex: 0 0 336px;
-  width: 336px;
+  flex: 0 0 var(--gantt-names);
+  width: var(--gantt-names);
   background: var(--panel);
   border-right: 1px solid var(--line);
 }
@@ -1303,8 +1527,8 @@ tr.detail td {
   position: sticky;
   left: 0;
   z-index: 2;
-  flex: 0 0 336px;
-  width: 336px;
+  flex: 0 0 var(--gantt-names);
+  width: var(--gantt-names);
   background: var(--panel);
   border-right: 1px solid var(--line);
 }
@@ -1467,7 +1691,7 @@ tr.detail td {
 }
 
 .gantt-bar.running {
-  background: var(--accent);
+  background: var(--state-in-progress);
 }
 
 .gantt-bar.done {
@@ -1565,11 +1789,11 @@ table.units .name-line {
 }
 
 .state-tag.in_progress {
-  color: var(--accent);
+  color: var(--state-in-progress);
 }
 
 .state-tag.done {
-  color: var(--good);
+  color: var(--state-done);
 }
 
 tr.part td {
@@ -1607,4 +1831,227 @@ tr.part .name {
 .unit-notes {
   margin-top: 0;
   padding-left: 1.9rem;
+}
+
+
+/* Small screens
+   ----------------------------------------------------------------------------
+   Two widths and one input kind. 1024px is where the phase list and the three
+   board columns stop fitting beside the work; 640px is where a seven-column
+   table stops being a table. Touch is asked about separately, because a tablet
+   is wide and still has no mouse. */
+
+/* Dragging a card needs a mouse. Where there is none, the card's own selector
+   is the way to move it, so it appears on touch and nowhere else. */
+.card-state {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .card-state {
+    display: block;
+    margin-top: 0.5rem;
+  }
+
+  .card {
+    cursor: default;
+  }
+}
+
+@media (max-width: 1024px) {
+  .backlog {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+
+  /* Above the items instead of beside them, and not stuck to the top: a sticky
+     list that spans the width would cover what it filters. */
+  .phases,
+  .phases.closed {
+    width: auto;
+    max-width: none;
+    position: static;
+  }
+
+  .board {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .profile {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .week-panel {
+    grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  /* Half the screen cannot go to names when the bars are the point. The chart
+     reads this value back, so both sides shrink together. */
+  :root {
+    --gantt-names: 150px;
+  }
+
+  main {
+    padding: 0.8rem;
+  }
+
+  header {
+    gap: 0.6rem;
+    padding: 0.6rem 0.8rem;
+  }
+
+  /* The five views scroll sideways rather than wrapping into a second row that
+     pushes the work off the screen. */
+  nav {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  nav a {
+    padding: 0.35rem 0.5rem;
+    white-space: nowrap;
+  }
+
+  .session-email {
+    display: none;
+  }
+
+  /* The footer keeps the credit, the day and the plan figure. The phase is the
+     board's job, and here it was the line that wrapped. */
+  .footer-where {
+    display: none;
+  }
+
+  footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.2rem;
+  }
+
+  .today-date {
+    font-size: 1.3rem;
+  }
+
+  .today-head {
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .today-streak {
+    align-items: flex-start;
+  }
+
+  /* The item table becomes one card per item: same markup, same state, laid out
+     as lines instead of columns. The header row has nothing left to label. */
+  table.items thead {
+    display: none;
+  }
+
+  table.items,
+  table.items tbody,
+  table.items tr,
+  table.items td {
+    display: block;
+  }
+
+  table.items tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem 0.6rem;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem 0.6rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+
+  table.items td {
+    width: auto;
+    min-width: 0;
+    padding: 0;
+    border-bottom: 0;
+  }
+
+  .col-name {
+    order: 1;
+    flex: 1 0 100%;
+  }
+
+  .col-state {
+    order: 2;
+    flex: 0 0 9rem;
+  }
+
+  .col-type {
+    order: 3;
+  }
+
+  /* The planned start adds a date without adding a decision; what is asked on a
+     phone is when the item is due. The start is still in the detail. */
+  .col-date:nth-of-type(4) {
+    display: none;
+  }
+
+  .col-date:nth-of-type(5)::before {
+    content: 'ends';
+    color: var(--faint);
+  }
+
+  /* Inline, so the word and the date read as one phrase instead of stacking. */
+  .col-date {
+    display: flex;
+    align-items: baseline;
+    gap: 0.3rem;
+    order: 4;
+    font-size: 0.88rem;
+  }
+
+  .col-edit {
+    order: 5;
+    margin-left: auto;
+  }
+
+  .col-resources {
+    order: 6;
+    flex: 1 0 100%;
+  }
+
+  .resources {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+
+  /* The detail spans the card: its first cell only exists to line up with the
+     state and type columns, which are no longer columns. */
+  tr.detail {
+    margin-top: -0.5rem;
+    border-top: 0;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
+
+  tr.detail td:first-child {
+    display: none;
+  }
+
+  .detail-line {
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+
+  .detail-label {
+    flex: none;
+    padding-top: 0;
+  }
+
+  .skills {
+    margin-left: 0;
+  }
 }

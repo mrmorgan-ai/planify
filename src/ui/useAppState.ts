@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { AppState, State } from '../core/types'
-import { fetchState, setItemDates, setItemState } from './api'
+import { fetchState, setItemDates, setItemHours, setItemState } from './api'
 
 export type Store = {
   state: AppState | null
@@ -10,6 +10,8 @@ export type Store = {
   changeState: (id: string, next: State) => Promise<void>
   /** Moves an item's baseline. Resolves true when the server accepted it. */
   changeDates: (id: string, start: string, end: string) => Promise<boolean>
+  /** Declares hours spent on an item. Resolves true when the server accepted it. */
+  changeHours: (id: string, hours: number) => Promise<boolean>
 }
 
 /**
@@ -62,7 +64,21 @@ export function useAppState(): Store {
     }
   }, [])
 
-  return { state, error, pendingId, changeState, changeDates }
+  const changeHours = useCallback(async (id: string, hours: number) => {
+    setPendingId(id)
+    setError(null)
+    try {
+      setState(await setItemHours(id, hours))
+      return true
+    } catch (cause: unknown) {
+      setError(messageOf(cause))
+      return false
+    } finally {
+      setPendingId(null)
+    }
+  }, [])
+
+  return { state, error, pendingId, changeState, changeDates, changeHours }
 }
 
 function messageOf(cause: unknown): string {

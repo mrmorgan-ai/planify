@@ -25,6 +25,26 @@ export function estimatedHours(item: Item): number | null {
   return match[3]!.toLowerCase().startsWith('min') ? value / 60 : value
 }
 
+/**
+ * The hours of an item that count as done.
+ *
+ * A finished item counts its whole estimate, whatever was declared along the
+ * way: finished is finished. An unfinished one counts what was declared, never
+ * more than the estimate. With no estimate there is nothing to be part of, so it
+ * counts nothing — which is also why the board offers no field to declare on it.
+ */
+export function progressHours(item: Item): number {
+  const estimate = estimatedHours(item)
+  if (estimate === null) return 0
+  if (item.state === 'done') return estimate
+  return Math.min(Math.max(item.hoursDone, 0), estimate)
+}
+
+/** Declared or finished hours across a list. */
+export function sumProgressHours(items: readonly Item[]): number {
+  return items.reduce((total, item) => total + progressHours(item), 0)
+}
+
 /** Hours across a list, ignoring what carries no estimate. */
 export function sumHours(items: readonly Item[]): number {
   return items.reduce((total, item) => total + (estimatedHours(item) ?? 0), 0)
@@ -106,7 +126,7 @@ export function daysLeftInWeek(week: Week, today: CivilDate): number {
 }
 
 export type PlanProgress = {
-  /** Hours of the items already done. */
+  /** Hours done: whole items finished, plus the hours declared on the rest. */
   done: number
   /** Hours of the items the plan expected finished before today. */
   expected: number
@@ -118,10 +138,11 @@ export type PlanProgress = {
 /**
  * Progress through the plan in hours, against where the plan says you should be.
  *
- * Both sides count whole items. Pro-rating the expectation by day while `done`
- * only moves when an item is finished would put anyone mid-week permanently
- * behind by the work in their hands. An item is expected once its planned end is
- * behind today — the same line `isOverdue` draws, so the two never disagree.
+ * What is done counts finished items in full and, on the rest, the hours
+ * declared on them: the work in hand is real work, and a bar that only moved on
+ * completion left a week's effort invisible until its last day. The expectation
+ * still counts whole items — an item is expected once its planned end is behind
+ * today, the same line `isOverdue` draws, so the two never disagree.
  */
 export function planProgress(
   items: readonly Item[],
@@ -133,11 +154,11 @@ export function planProgress(
     return {
       phase,
       hours: sumHours(inPhase),
-      done: sumHours(inPhase.filter((item) => item.state === 'done')),
+      done: sumProgressHours(inPhase),
     }
   })
   return {
-    done: sumHours(items.filter((item) => item.state === 'done')),
+    done: sumProgressHours(items),
     expected: sumHours(items.filter((item) => item.baselineEndDate < today)),
     total: sumHours(items),
     phases: byPhase,
