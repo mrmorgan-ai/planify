@@ -24,6 +24,9 @@ dates again?".
 - **States what done means.** An item can carry a checkable outcome ("the
   benchmark table is written and explained"), shown on the board where the work
   is picked up.
+- **Tracks hours, not only ticks.** Hours spent can be declared on an item while
+  it is still open, so progress moves with the work rather than only when
+  something is finished.
 
 ## The five views
 
@@ -119,6 +122,7 @@ deleted.
 | GET | `/api/state` | The whole roadmap with today's date |
 | PATCH | `/api/items/:id/state` | Set `pending`, `in_progress` or `done`, and recompute |
 | PATCH | `/api/items/:id/dates` | Move an item's planned dates, and recompute |
+| PATCH | `/api/items/:id/hours` | Declare the hours spent so far, without changing the state |
 | POST | `/api/reproject` | Recompute every projection |
 | GET | `/api/health` | Liveness |
 

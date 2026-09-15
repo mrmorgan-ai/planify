@@ -79,6 +79,12 @@ export type Item = {
 
   state: State
   completedAt: IsoDateTime | null
+  /**
+   * Hours spent so far, declared by hand. Never larger than the estimate, and
+   * meaningless without one — see `progressHours` in hours.ts, which is what
+   * every count should go through.
+   */
+  hoursDone: number
 
   /** Curated order within a phase, for the backlog. */
   sortOrder: number

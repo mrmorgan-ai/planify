@@ -1,4 +1,5 @@
 import { Link as RouterLink } from 'react-router-dom'
+import { estimatedHours, progressHours } from '../core/hours'
 import type { Item, Resource } from '../core/types'
 import type { PartLabel } from '../core/workItems'
 
@@ -14,6 +15,7 @@ export function ItemDetail({
   links,
   names,
   showResources = false,
+  showProgress = true,
 }: {
   item: Item
   /** Which work item this item is a part of, when it is one. */
@@ -24,8 +26,12 @@ export function ItemDetail({
   names: Map<string, string>
   /** The backlog keeps resources in their own column; the board has no column. */
   showResources?: boolean
+  /** The board declares hours right below this, so it does not want them twice. */
+  showProgress?: boolean
 }) {
   const hasLinks = links.link !== null || links.resources.length > 0
+  const estimate = estimatedHours(item)
+  const done = progressHours(item)
 
   return (
     <div className="item-detail">
@@ -33,6 +39,15 @@ export function ItemDetail({
         <div className="detail-line">
           <span className="detail-label">Duration</span>
           <span>{item.duration}</span>
+        </div>
+      )}
+
+      {showProgress && estimate !== null && done > 0 && (
+        <div className="detail-line">
+          <span className="detail-label">Hours done</span>
+          <span>
+            {trim(done)} of {trim(estimate)}h
+          </span>
         </div>
       )}
 
@@ -123,6 +138,10 @@ export function ItemDetail({
       </div>
     </div>
   )
+}
+
+function trim(hours: number): string {
+  return Number.isInteger(hours) ? String(hours) : hours.toFixed(1)
 }
 
 /** The domain, so a link says where it goes instead of saying "open". */
