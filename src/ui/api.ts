@@ -40,3 +40,12 @@ export function setItemDates(
     body: JSON.stringify({ baselineStartDate, baselineEndDate }),
   })
 }
+
+/** Declares hours spent. Progress only: the item's state does not move. */
+export function setItemHours(id: string, hours: number): Promise<AppState> {
+  return call(`/api/items/${encodeURIComponent(id)}/hours`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ hours }),
+  })
+}

@@ -209,6 +209,7 @@ function Row({
       <tr ref={row} className={rowClass || undefined}>
         <td className="col-state">
           <select
+            className={`state-select ${item.state}`}
             value={item.state}
             disabled={busy}
             aria-label={`State of ${item.name}`}

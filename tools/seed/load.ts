@@ -15,12 +15,13 @@ import type {
 } from '../../src/core/types'
 
 /**
- * The seed carries content only. `state`, `completedAt` and the projected dates
- * are runtime state, so the file you hand-edit cannot overwrite your progress.
+ * The seed carries content only. `state`, `completedAt`, `hoursDone` and the
+ * projected dates are runtime state, so the file you hand-edit cannot overwrite
+ * your progress.
  */
 export type SeedItem = Omit<
   Item,
-  'state' | 'completedAt' | 'projectedStartDate' | 'projectedEndDate'
+  'state' | 'completedAt' | 'hoursDone' | 'projectedStartDate' | 'projectedEndDate'
 >
 
 export type PhaseWindow = { from: CivilDate; to: CivilDate | null }
@@ -112,6 +113,7 @@ export function asItems(seed: SeedFile): Item[] {
     projectedEndDate: item.baselineEndDate,
     state: 'pending',
     completedAt: null,
+    hoursDone: 0,
   }))
 }
 

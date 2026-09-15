@@ -1,12 +1,14 @@
-import { useState, type DragEvent, type ReactNode } from 'react'
+import { useEffect, useState, type DragEvent, type ReactNode } from 'react'
 import {
   estimatedHours,
   hoursInWeek,
+  progressHours,
   inWeek,
   isLastWeekOfMonth,
   sumHours,
   weekOf,
 } from '../core/hours'
+import { STATES } from '../core/constants'
 import { BOARD_COLUMNS, groupByState, isOverdue, unfinishedDependencies } from '../core/selectors'
 import type { Week } from '../core/hours'
 import type { AppState, Item, Phase, Resource, State } from '../core/types'
@@ -35,11 +37,12 @@ const COLUMN_LABEL: Record<State, string> = {
  * The board still never blocks. An item started before its dependencies are
  * done is marked, not refused.
  */
-export function Kanban({ state, pendingId, changeState }: Store & { state: AppState }) {
+export function Kanban({ state, pendingId, changeState, changeHours }: Store & { state: AppState }) {
   const [dragging, setDragging] = useState<Item | null>(null)
   const [over, setOver] = useState<State | null>(null)
   /** One card open at a time: the board stays a board and not a list of essays. */
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [collapsed, toggleColumn] = useCollapsed()
 
   const phase = activePhase(state)
   const items = state.items.filter((item) => phase === null || item.phase === phase.number)
@@ -74,6 +77,8 @@ export function Kanban({ state, pendingId, changeState }: Store & { state: AppSt
       open={expanded === item.id}
       busy={pendingId === item.id}
       onToggle={() => setExpanded((current) => (current === item.id ? null : item.id))}
+      onChange={(next) => changeState(item.id, next)}
+      onHours={(hours) => changeHours(item.id, hours)}
       onDragStart={() => setDragging(item)}
       onDragEnd={() => {
         setDragging(null)
@@ -112,7 +117,14 @@ export function Kanban({ state, pendingId, changeState }: Store & { state: AppSt
         {BOARD_COLUMNS.map((column) => (
           <div
             key={column}
-            className={over === column && dragging?.state !== column ? 'column over' : 'column'}
+            className={[
+              'column',
+              column,
+              collapsed.has(column) ? 'collapsed' : '',
+              over === column && dragging?.state !== column ? 'over' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
             onDragOver={(event) => {
               // Preventing the dragover default is what marks an element as a
               // valid drop target; without it the browser refuses the drop.
@@ -122,12 +134,25 @@ export function Kanban({ state, pendingId, changeState }: Store & { state: AppSt
             onDragLeave={() => setOver((current) => (current === column ? null : current))}
             onDrop={(event) => drop(event, column)}
           >
+            {/* The head folds the column on a narrow screen, where three
+                columns stacked end to end are one very long scroll. Folded it
+                still carries its counts, so folding costs no information. */}
             <header className="column-head">
-              <span className="column-name">{COLUMN_LABEL[column]}</span>
+              <button
+                type="button"
+                className="column-toggle"
+                aria-expanded={!collapsed.has(column)}
+                onClick={() => toggleColumn(column)}
+              >
+                <span className="disclosure" aria-hidden="true">
+                  {collapsed.has(column) ? '\u25b8' : '\u25be'}
+                </span>
+                <span className="column-name">{COLUMN_LABEL[column]}</span>
+              </button>
               <Totals items={columns[column].length} hours={sumHours(columns[column])} />
             </header>
 
-            {columns[column].length === 0 ? (
+            {collapsed.has(column) ? null : columns[column].length === 0 ? (
               <p className="column-empty">Nothing here.</p>
             ) : column === 'pending' ? (
               <Split
@@ -136,6 +161,8 @@ export function Kanban({ state, pendingId, changeState }: Store & { state: AppSt
                 week={week}
                 state={state}
                 card={card}
+                collapsed={collapsed}
+                onToggle={toggleColumn}
               />
             ) : (
               columns[column].map(card)
@@ -145,6 +172,35 @@ export function Kanban({ state, pendingId, changeState }: Store & { state: AppSt
       </div>
     </section>
   )
+}
+
+const NARROW = '(max-width: 1024px)'
+const COLLAPSED_KEY = 'planify.board.collapsed'
+
+/**
+ * Which sections start folded. On a narrow screen: what is finished, and what
+ * comes after this week — the two that are furthest from today's work. On a wide
+ * one, nothing: the columns sit side by side and cost nothing to leave open.
+ *
+ * The choice is remembered per device, like the phase list's.
+ */
+function useCollapsed(): [ReadonlySet<string>, (section: string) => void] {
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => {
+    const stored = localStorage.getItem(COLLAPSED_KEY)
+    if (stored !== null) return new Set(JSON.parse(stored) as string[])
+    return window.matchMedia(NARROW).matches ? new Set(['done', 'later']) : new Set()
+  })
+
+  const toggle = (section: string) => {
+    setCollapsed((current) => {
+      const next = new Set(current)
+      if (!next.delete(section)) next.add(section)
+      localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]))
+      return next
+    })
+  }
+
+  return [collapsed, toggle]
 }
 
 /**
@@ -158,12 +214,16 @@ function Split({
   week,
   state,
   card,
+  collapsed,
+  onToggle,
 }: {
   items: Item[]
   thisWeek: Set<string>
   week: Week
   state: AppState
   card: (item: Item) => ReactNode
+  collapsed: ReadonlySet<string>
+  onToggle: (section: string) => void
 }) {
   const now = items.filter((item) => thisWeek.has(item.id))
   const later = items.filter((item) => !thisWeek.has(item.id))
@@ -172,6 +232,7 @@ function Split({
     <>
       {[
         {
+          key: 'this-week',
           label: 'This week',
           group: now,
           empty: 'nothing scheduled this week',
@@ -180,18 +241,29 @@ function Split({
           hours: hoursInWeek(now, week, state.roadmap.blackouts),
         },
         {
+          key: 'later',
           label: 'Later in this phase',
           group: later,
           empty: 'nothing left after this week',
           hours: sumHours(later),
         },
-      ].map(({ label, group, empty, hours }) => (
-        <div key={label} className="group">
+      ].map(({ key, label, group, empty, hours }) => (
+        <div key={key} className={collapsed.has(key) ? 'group collapsed' : 'group'}>
           <div className="group-head">
-            <span className="group-name">{label}</span>
+            <button
+              type="button"
+              className="group-toggle"
+              aria-expanded={!collapsed.has(key)}
+              onClick={() => onToggle(key)}
+            >
+              <span className="disclosure" aria-hidden="true">
+                {collapsed.has(key) ? '\u25b8' : '\u25be'}
+              </span>
+              <span className="group-name">{label}</span>
+            </button>
             <Totals items={group.length} hours={hours} />
           </div>
-          {group.length === 0 ? (
+          {collapsed.has(key) ? null : group.length === 0 ? (
             <p className="column-empty">{empty}</p>
           ) : (
             group.map(card)
@@ -287,6 +359,8 @@ function Card({
   open,
   busy,
   onToggle,
+  onChange,
+  onHours,
   onDragStart,
   onDragEnd,
 }: {
@@ -299,17 +373,26 @@ function Card({
   open: boolean
   busy: boolean
   onToggle: () => void
+  onChange: (next: State) => void
+  onHours: (hours: number) => void
   onDragStart: () => void
   onDragEnd: () => void
 }) {
   const late = isOverdue(item, today)
   const hours = estimatedHours(item)
+  const done = progressHours(item)
   // Started or finished with dependencies still open. Reported, never refused.
   const outOfOrder = item.state !== 'pending' && blockers.length > 0
 
   return (
     <article
-      className={[ 'card', busy ? 'busy' : '', outOfOrder ? 'out-of-order' : '', open ? 'open' : '' ]
+      className={[
+        'card',
+        item.state,
+        busy ? 'busy' : '',
+        outOfOrder ? 'out-of-order' : '',
+        open ? 'open' : '',
+      ]
         .filter(Boolean)
         .join(' ')}
       draggable={!busy}
@@ -323,7 +406,9 @@ function Card({
     >
       <div className="card-head">
         <span className="type-tag">{item.type}</span>
-        <span className="card-hours">{hours === null ? 'no estimate' : `${trim(hours)}h`}</span>
+        <span className="card-hours">
+          {hours === null ? 'no estimate' : done > 0 ? `${trim(done)} / ${trim(hours)}h` : `${trim(hours)}h`}
+        </span>
         <span className={late ? 'card-date bad' : 'card-date'}>
           {item.state === 'done' ? 'ended' : 'ends'} {item.projectedEndDate}
         </span>
@@ -349,7 +434,46 @@ function Card({
       )}
       {part && !open && <PartOf part={part} />}
 
-      {open && <ItemDetail item={item} part={part} links={links} names={names} showResources />}
+      {/* Closed, the bar is the whole answer to "how far in am I?"; open, the
+          field below is where that number is declared. */}
+      {hours !== null && done > 0 && !open && (
+        <div className="card-progress" title={`${trim(done)} of ${trim(hours)} hours`}>
+          <div className="meter">
+            <div className="meter-fill" style={{ width: `${Math.round((done / hours) * 100)}%` }} />
+          </div>
+        </div>
+      )}
+
+      {open && (
+        <ItemDetail
+          item={item}
+          part={part}
+          links={links}
+          names={names}
+          showResources
+          showProgress={false}
+        />
+      )}
+
+      {open && hours !== null && item.state !== 'done' && (
+        <HoursEditor item={item} estimate={hours} done={done} busy={busy} onSave={onHours} />
+      )}
+
+      {/* Dragging a card needs a mouse. On a touch screen the same move is made
+          by picking the state here, so the board works with a finger too. */}
+      <select
+        className={`card-state state-select ${item.state}`}
+        value={item.state}
+        disabled={busy}
+        aria-label={`State of ${item.name}`}
+        onChange={(event) => onChange(event.target.value as State)}
+      >
+        {STATES.map((candidate) => (
+          <option key={candidate} value={candidate}>
+            {COLUMN_LABEL[candidate]}
+          </option>
+        ))}
+      </select>
 
       {blockers.length > 0 && (
         <div
@@ -361,6 +485,69 @@ function Card({
         </div>
       )}
     </article>
+  )
+}
+
+/**
+ * Hours spent, declared by hand. It never touches the state: finishing is a
+ * separate decision, which is why this sits apart from the selector below it.
+ *
+ * The field is only offered where there is an estimate to be part of. An exam
+ * has hours you sit, not hours you accumulate.
+ */
+function HoursEditor({
+  item,
+  estimate,
+  done,
+  busy,
+  onSave,
+}: {
+  item: Item
+  estimate: number
+  done: number
+  busy: boolean
+  onSave: (hours: number) => void
+}) {
+  const [value, setValue] = useState(String(done))
+
+  // A card that moves between columns keeps its component, so the field has to
+  // follow the item it is showing rather than whatever was typed on the last one.
+  useEffect(() => {
+    setValue(String(done))
+  }, [item.id, done])
+
+  const parsed = Number(value.replace(',', '.'))
+  const invalid = value.trim() === '' || !Number.isFinite(parsed) || parsed < 0
+  const changed = !invalid && parsed !== done
+
+  return (
+    <div className="card-progress-edit">
+      <label className="card-progress-label" htmlFor={`hours-${item.id}`}>
+        Hours done
+      </label>
+      <input
+        id={`hours-${item.id}`}
+        type="number"
+        inputMode="decimal"
+        min={0}
+        max={estimate}
+        step={0.5}
+        value={value}
+        disabled={busy}
+        onChange={(event) => setValue(event.target.value)}
+      />
+      <span className="card-progress-total">of {trim(estimate)}h</span>
+      <button
+        type="button"
+        className="icon-button save"
+        disabled={busy || invalid || !changed}
+        title={`Declare the hours done on ${item.name}`}
+        aria-label={`Declare the hours done on ${item.name}`}
+        onClick={() => onSave(Math.min(parsed, estimate))}
+      >
+        ✓
+      </button>
+    </div>
   )
 }
 

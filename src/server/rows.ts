@@ -34,6 +34,7 @@ export type ItemRow = {
   done_when: string
   state: string
   completed_at: string | null
+  hours_done: number
   sort_order: number
 }
 
@@ -83,6 +84,7 @@ export function toItem(row: ItemRow): Item {
     doneWhen: row.done_when ?? '',
     state: row.state as State,
     completedAt: row.completed_at,
+    hoursDone: row.hours_done ?? 0,
     sortOrder: row.sort_order,
   }
 }
@@ -141,6 +143,7 @@ export function changedItems(before: readonly Item[], after: readonly Item[]): I
     return (
       old.state !== item.state ||
       old.completedAt !== item.completedAt ||
+      old.hoursDone !== item.hoursDone ||
       old.baselineStartDate !== item.baselineStartDate ||
       old.baselineEndDate !== item.baselineEndDate ||
       old.projectedStartDate !== item.projectedStartDate ||
