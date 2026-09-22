@@ -7,6 +7,7 @@ import { Dashboard } from './Dashboard'
 import { Gantt } from './Gantt'
 import { shortDate } from './format'
 import { Kanban } from './Kanban'
+import { LateBanner, RescheduleDialog, useLateAlert } from './Reschedule'
 import { Session } from './Session'
 import { useAppState } from './useAppState'
 import { WorkItems } from './WorkItems'
@@ -76,6 +77,7 @@ function round(hours: number): string {
 export function App() {
   const store = useAppState()
   const { state, error } = store
+  const alert = useLateAlert(state)
 
   return (
     <div className="app">
@@ -93,13 +95,18 @@ export function App() {
         <Session />
       </header>
 
+      <LateBanner alert={alert} />
+
       <main>
         {!state && !error && <p className="empty">Loading the roadmap…</p>}
         {state && (
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<Dashboard state={state} />} />
-            <Route path="/gantt" element={<Gantt state={state} />} />
+            <Route
+              path="/gantt"
+              element={<Gantt state={state} onReschedule={alert.openDialog} />}
+            />
             <Route path="/backlog" element={<Backlog {...store} state={state} />} />
             <Route path="/kanban" element={<Kanban {...store} state={state} />} />
             <Route path="/work-items" element={<WorkItems state={state} />} />
@@ -107,6 +114,15 @@ export function App() {
           </Routes>
         )}
       </main>
+
+      {state && (
+        <RescheduleDialog
+          state={state}
+          alert={alert}
+          busy={store.rescheduling}
+          onConfirm={store.reschedulePlan}
+        />
+      )}
 
       <footer>
         <span className="credit">

@@ -54,7 +54,7 @@ function roadmap(overrides: Partial<Roadmap> = {}): Roadmap {
   return {
     timeZone: 'UTC',
     startDate: '',
-    weeklyHours: { normal: 15, lastWeekOfMonth: 10 },
+    weeklyHours: { normal: 15 },
     phases,
     blackouts: [],
     dimensions: ['Alpha', 'Beta'],

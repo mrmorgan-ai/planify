@@ -449,7 +449,10 @@ tr.done a {
   gap: 0.25rem;
 }
 
-input[type='date'] {
+/* The date picker: a button that looks like the field it replaces, and a
+   Monday-first month grid that floats over the page. */
+
+.date-trigger {
   width: 100%;
   padding: 0.2rem 0.35rem;
   background: var(--raised);
@@ -458,6 +461,76 @@ input[type='date'] {
   border-radius: 6px;
   font: inherit;
   font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  cursor: pointer;
+}
+
+.date-trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.date-panel {
+  position: fixed;
+  z-index: 50;
+  padding: 0.6rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.45);
+}
+
+.date-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.date-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.date-weekday {
+  padding: 0.2rem 0;
+  color: var(--faint);
+  font-size: 0.72rem;
+  text-align: center;
+}
+
+.date-day {
+  height: 1.9rem;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.date-day.outside {
+  color: var(--faint);
+}
+
+.date-day:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.date-day.selected {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.date-day:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 select {
@@ -689,6 +762,167 @@ tr.detail td {
 .board-title {
   margin: 0 0 0.7rem;
   font-size: 1.05rem;
+}
+
+/* A view's title with its one action on the right. */
+.board-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.button {
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Rescheduling: the banner under the header, and the dialog it opens. */
+
+.late-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.45rem 1.25rem;
+  border-bottom: 1px solid var(--warn);
+  background: rgb(251 146 60 / 0.1);
+  color: var(--warn);
+  font-size: 0.9rem;
+}
+
+.late-banner-action {
+  padding: 0.2rem 0.65rem;
+  border: 1px solid var(--warn);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--warn);
+  font: inherit;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.late-banner-action:hover {
+  background: rgb(251 146 60 / 0.15);
+}
+
+.reschedule {
+  width: min(30rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  padding: 1.1rem 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+}
+
+.reschedule::backdrop {
+  background: rgb(0 0 0 / 0.55);
+}
+
+.reschedule h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.15rem;
+}
+
+.reschedule p {
+  margin: 0 0 1rem;
+  font-size: 0.92rem;
+}
+
+.reschedule-field {
+  margin-bottom: 1rem;
+}
+
+.reschedule-label {
+  display: block;
+  margin-bottom: 0.4rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.reschedule-field .filters {
+  margin-bottom: 0.5rem;
+}
+
+.reschedule-date {
+  max-width: 10rem;
+}
+
+.reschedule .reschedule-note {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.reschedule-preview ul {
+  margin: 0 0 0.6rem;
+  padding-left: 1.1rem;
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.reschedule-preview summary {
+  color: var(--accent);
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.reschedule-list {
+  width: 100%;
+  margin-top: 0.4rem;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.reschedule-list td {
+  padding: 0.2rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.reschedule-list td:last-child {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.change {
+  font-variant-numeric: tabular-nums;
+}
+
+.change strong {
+  color: var(--text);
+}
+
+.reschedule-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.1rem;
 }
 
 /* The week as a panel, not a subtitle. Same cells and same meter as the
@@ -1461,10 +1695,6 @@ tr.detail td {
   border-right: 1px solid rgb(248 113 113 / 0.6);
 }
 
-.legend-reduced {
-  background: rgb(251 146 60 / 0.16);
-}
-
 .legend-today {
   width: 0;
   border-left: 2px solid var(--warn);
@@ -1606,12 +1836,6 @@ tr.detail td {
   overflow: hidden;
 }
 
-.gantt-week.reduced em {
-  color: var(--warn);
-  font-size: 0.72rem;
-  font-style: normal;
-}
-
 .gantt-scale-days {
   position: relative;
   height: 1.3rem;
@@ -1650,10 +1874,6 @@ tr.detail td {
   background: rgb(248 113 113 / 0.07);
   border-left: 1px solid rgb(248 113 113 / 0.4);
   border-right: 1px solid rgb(248 113 113 / 0.4);
-}
-
-.gantt-band.reduced {
-  background: rgb(251 191 36 / 0.06);
 }
 
 .gantt-band-label {

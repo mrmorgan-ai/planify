@@ -52,7 +52,6 @@ export async function loadAppState(db: D1Database): Promise<AppState> {
       // Zero reads as "not declared" downstream, which is the honest default:
       // the app never invents a capacity on the owner's behalf.
       normal: Number(settings.weekly_hours_normal ?? '0'),
-      lastWeekOfMonth: Number(settings.weekly_hours_last_week ?? '0'),
     },
     phases: ((phases?.results ?? []) as PhaseRow[]).map(toPhase),
     blackouts: ((blackouts?.results ?? []) as BlackoutRow[]).map(toBlackout),
@@ -86,6 +85,8 @@ export function scheduleOptions(roadmap: Roadmap): ScheduleOptions {
 export async function mutate(
   db: D1Database,
   transform: (state: AppState) => Item[],
+  /** More writes for the same batch, which lands whole or not at all. */
+  alongside: (state: AppState) => D1PreparedStatement[] = () => [],
 ): Promise<AppState> {
   const state = await loadAppState(db)
   const items = transform(state)
@@ -112,6 +113,7 @@ export async function mutate(
         item.id,
       ),
   )
+  writes.unshift(...alongside(state))
   writes.push(
     db.prepare("UPDATE meta SET value = ? WHERE key = 'revision'").bind(String(revision)),
   )
@@ -124,4 +126,30 @@ export async function mutate(
 /** Recomputes every projection from the current baselines and completions. */
 export function reproject(state: AppState): Item[] {
   return recomputeProjections(state.items, scheduleOptions(state.roadmap))
+}
+
+/**
+ * Keeps the plan as it stood before a reschedule replaces it. Returned as a
+ * statement for `mutate` to run in its own batch, so the new plan is never
+ * written without the old one kept.
+ */
+export function savePlanVersion(
+  db: D1Database,
+  state: AppState,
+  version: { createdAt: string; restartDate: string; shiftDays: number },
+): D1PreparedStatement {
+  const plan = state.items.map((item) => ({
+    id: item.id,
+    state: item.state,
+    baselineStart: item.baselineStartDate,
+    baselineEnd: item.baselineEndDate,
+    projectedStart: item.projectedStartDate,
+    projectedEnd: item.projectedEndDate,
+  }))
+  return db
+    .prepare(
+      `INSERT INTO plan_versions (created_at, reason, restart_date, shift_days, plan)
+       VALUES (?, 'reschedule', ?, ?, ?)`,
+    )
+    .bind(version.createdAt, version.restartDate, version.shiftDays, JSON.stringify(plan))
 }

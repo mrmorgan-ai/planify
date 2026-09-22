@@ -268,8 +268,119 @@ describe('applyBaselineDates', () => {
 
     const second = after.find((entry) => entry.id === 'second')!
     expect(second.projectedStartDate).toBe('2030-01-11')
-    // The dependent's own plan did not change, only its projection.
-    expect(second.baselineStartDate).toBe('2030-01-09')
+    // A push is a change of plan: the dependent's baseline moves with it.
+    expect([second.baselineStartDate, second.baselineEndDate]).toEqual([
+      '2030-01-11',
+      '2030-01-13',
+    ])
+  })
+
+  it('moves the whole chain by the same amount, keeping the gaps between items', () => {
+    const gapped = [
+      ...chain,
+      item('third', {
+        baselineStartDate: '2030-01-13',
+        baselineEndDate: '2030-01-14',
+        dependsOn: ['second'],
+        sortOrder: 3,
+      }),
+    ]
+
+    const after = applyBaselineDates(gapped, 'first', '2030-01-07', '2030-01-10', OPTIONS)
+
+    const third = after.find((entry) => entry.id === 'third')!
+    // Two study days later; the one-day gap after `second` is still there, and
+    // the break (01-15 to 01-28) is stepped over instead of counted.
+    expect([third.baselineStartDate, third.baselineEndDate]).toEqual(['2030-01-29', '2030-01-30'])
+    expect(third.projectedStartDate).toBe('2030-01-29')
+  })
+
+  it('pushes a dependent that has slack by the full amount', () => {
+    const slack = [
+      chain[0]!,
+      item('later', {
+        baselineStartDate: '2030-01-12',
+        baselineEndDate: '2030-01-13',
+        dependsOn: ['first'],
+        sortOrder: 2,
+      }),
+    ]
+
+    const after = applyBaselineDates(slack, 'first', '2030-01-07', '2030-01-09', OPTIONS)
+
+    expect(after.find((entry) => entry.id === 'later')!.projectedStartDate).toBe('2030-01-13')
+  })
+
+  it('slides the item itself as a block when its start and end move together', () => {
+    const after = applyBaselineDates(chain, 'first', '2030-01-09', '2030-01-10', OPTIONS)
+
+    const [first, second] = after
+    expect([first!.projectedStartDate, first!.projectedEndDate]).toEqual([
+      '2030-01-09',
+      '2030-01-10',
+    ])
+    expect(second!.projectedStartDate).toBe('2030-01-11')
+  })
+
+  it('pushes each follower once, however many paths reach it', () => {
+    const diamond = [
+      ...chain,
+      item('side', {
+        baselineStartDate: '2030-01-09',
+        baselineEndDate: '2030-01-11',
+        dependsOn: ['first'],
+        sortOrder: 3,
+      }),
+      item('join', {
+        baselineStartDate: '2030-01-12',
+        baselineEndDate: '2030-01-12',
+        dependsOn: ['second', 'side'],
+        sortOrder: 4,
+      }),
+    ]
+
+    const after = applyBaselineDates(diamond, 'first', '2030-01-07', '2030-01-09', OPTIONS)
+
+    expect(after.find((entry) => entry.id === 'join')!.baselineStartDate).toBe('2030-01-13')
+  })
+
+  it('moves a dependent with two predecessors when either one pushes it', () => {
+    const two = [
+      ...chain,
+      item('other', { baselineStartDate: '2030-01-07', baselineEndDate: '2030-01-08', sortOrder: 3 }),
+      item('both', {
+        baselineStartDate: '2030-01-12',
+        baselineEndDate: '2030-01-12',
+        dependsOn: ['second', 'other'],
+        sortOrder: 4,
+      }),
+    ]
+
+    const after = applyBaselineDates(two, 'first', '2030-01-07', '2030-01-09', OPTIONS)
+
+    expect(after.find((entry) => entry.id === 'other')!.projectedStartDate).toBe('2030-01-07')
+    expect(after.find((entry) => entry.id === 'both')!.projectedStartDate).toBe('2030-01-13')
+  })
+
+  it('does not push an item that is already done, nor pass through it', () => {
+    const finished = [
+      ...chain.map((entry) =>
+        entry.id === 'second'
+          ? { ...entry, state: 'done' as const, completedAt: '2030-01-11T12:00:00-05:00' }
+          : entry,
+      ),
+      item('after', {
+        baselineStartDate: '2030-01-12',
+        baselineEndDate: '2030-01-12',
+        dependsOn: ['second'],
+        sortOrder: 3,
+      }),
+    ]
+
+    const after = applyBaselineDates(finished, 'first', '2030-01-07', '2030-01-10', OPTIONS)
+
+    expect(after.find((entry) => entry.id === 'second')!.baselineStartDate).toBe('2030-01-09')
+    expect(after.find((entry) => entry.id === 'after')!.baselineStartDate).toBe('2030-01-12')
   })
 
   it('leaves an item that depends on nothing where it was', () => {
@@ -288,11 +399,27 @@ describe('applyBaselineDates', () => {
     expect(untouched.projectedStartDate).toBe('2030-01-09')
   })
 
-  it('pulls a dependent back when the baseline shrinks again', () => {
+  it('never pulls a dependent back when the item shrinks again', () => {
     const stretched = applyBaselineDates(chain, 'first', '2030-01-07', '2030-01-10', OPTIONS)
     const shrunk = applyBaselineDates(stretched, 'first', '2030-01-07', '2030-01-08', OPTIONS)
 
-    expect(shrunk.find((entry) => entry.id === 'second')!.projectedStartDate).toBe('2030-01-09')
+    expect(shrunk.find((entry) => entry.id === 'second')!.projectedStartDate).toBe('2030-01-11')
+  })
+
+  it('leaves the dependents where they are when the item moves earlier', () => {
+    const late = [
+      item('first', { baselineStartDate: '2030-01-08', baselineEndDate: '2030-01-09', sortOrder: 1 }),
+      item('second', {
+        baselineStartDate: '2030-01-10',
+        baselineEndDate: '2030-01-11',
+        dependsOn: ['first'],
+        sortOrder: 2,
+      }),
+    ]
+
+    const after = applyBaselineDates(late, 'first', '2030-01-06', '2030-01-07', OPTIONS)
+
+    expect(after.find((entry) => entry.id === 'second')!.projectedStartDate).toBe('2030-01-10')
   })
 
   it('hands off across a non-study period instead of into it', () => {

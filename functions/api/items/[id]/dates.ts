@@ -4,8 +4,9 @@ import { only } from '../../../../src/server/http'
 import { mutate, scheduleOptions, type Env } from '../../../../src/server/repository'
 
 /**
- * Moves one item's baseline dates. The projection of everything downstream is
- * recomputed in the same write, so the plan stays continuous.
+ * Moves one item's baseline dates. When it now ends later, everything that
+ * depends on it is pushed forward by the same study days in the same write, so
+ * the plan stays continuous. Nothing is ever pulled back.
  *
  * The roadmap's start date is enforced here rather than in the engine: a floor
  * inside the engine would quietly clamp bad data instead of reporting it, and

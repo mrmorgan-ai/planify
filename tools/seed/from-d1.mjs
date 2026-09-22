@@ -41,13 +41,9 @@ const parseJson = (value, fallback) => {
 const roadmap = {
   timeZone: meta.time_zone ?? 'UTC',
   startDate: meta.start_date || undefined,
-  weeklyHours:
-    meta.weekly_hours_normal && meta.weekly_hours_last_week
-      ? {
-          normal: Number(meta.weekly_hours_normal),
-          lastWeekOfMonth: Number(meta.weekly_hours_last_week),
-        }
-      : undefined,
+  weeklyHours: meta.weekly_hours_normal
+    ? { normal: Number(meta.weekly_hours_normal) }
+    : undefined,
   expectedItemsPerPhase: parseJson(meta.expected_items_per_phase, {}),
   phases: query('SELECT number, name, closing_milestone_id FROM phases ORDER BY number').map(
     (row) => ({

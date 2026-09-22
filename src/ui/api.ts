@@ -49,3 +49,15 @@ export function setItemHours(id: string, hours: number): Promise<AppState> {
     body: JSON.stringify({ hours }),
   })
 }
+
+/**
+ * Moves every unfinished item so the plan restarts on this date. The server
+ * keeps the plan it replaces, and returns the new world.
+ */
+export function reschedule(restartDate: CivilDate): Promise<AppState> {
+  return call('/api/reschedule', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ restartDate }),
+  })
+}

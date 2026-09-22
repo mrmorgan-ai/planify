@@ -1,8 +1,6 @@
 /** Study hours available per week. Roadmap content: capacity is personal. */
 export type WeeklyHours = {
   normal: number
-  /** The last week of each month, where time is reserved for something else. */
-  lastWeekOfMonth: number
 }
 
 /** A civil date, `YYYY-MM-DD`. No time, no timezone — see dates.ts. */

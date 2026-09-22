@@ -233,14 +233,15 @@ function parseSeedItem(entry: unknown, index: number): SeedItem {
   }
 }
 
-/** Absent reads as no declared capacity, which the board renders as unknown. */
+/**
+ * Absent reads as no declared capacity, which the board renders as unknown. A
+ * `lastWeekOfMonth` left in an older seed is ignored: every week has the same
+ * capacity now.
+ */
 function parseWeeklyHours(value: unknown): WeeklyHours | undefined {
   if (value === undefined) return undefined
   const hours = requireObject(value, 'weeklyHours')
-  return {
-    normal: requirePositive(hours.normal, 'weeklyHours.normal'),
-    lastWeekOfMonth: requirePositive(hours.lastWeekOfMonth, 'weeklyHours.lastWeekOfMonth'),
-  }
+  return { normal: requirePositive(hours.normal, 'weeklyHours.normal') }
 }
 
 function requirePositive(value: unknown, at: string): number {

@@ -64,22 +64,10 @@ export type Week = {
   hours: number
 }
 
-/**
- * The week a date falls in, with its capacity. The last week of a month is
- * shorter on purpose: it is the one the roadmap's owner reserves time in.
- */
+/** The week a date falls in, with its capacity. Every week has the same one. */
 export function weekOf(date: CivilDate, capacity: WeeklyHours): Week {
   const from = startOfWeek(date)
-  return {
-    from,
-    to: addDays(from, 6),
-    hours: isLastWeekOfMonth(from) ? capacity.lastWeekOfMonth : capacity.normal,
-  }
-}
-
-/** True when no later Monday shares this one's month. */
-export function isLastWeekOfMonth(monday: CivilDate): boolean {
-  return addDays(monday, 7).slice(0, 7) !== monday.slice(0, 7)
+  return { from, to: addDays(from, 6), hours: capacity.normal }
 }
 
 /** Items whose projection touches the week at all, not only those starting in it. */
