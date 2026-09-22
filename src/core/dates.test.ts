@@ -6,6 +6,7 @@ import {
   firstStudyDayFrom,
   fromEpochDay,
   isBlackoutDay,
+  shiftStudyDays,
   startOfWeek,
   studyDayAfter,
   studyDaysBetween,
@@ -77,6 +78,29 @@ describe('addStudyDays', () => {
 
   it('refuses a span of zero days', () => {
     expect(() => addStudyDays('2030-01-08', 0, BREAK)).toThrow()
+  })
+})
+
+describe('shiftStudyDays', () => {
+  it('moves by plain days outside a blackout', () => {
+    expect(shiftStudyDays('2030-01-07', 3, BREAK)).toBe('2030-01-10')
+  })
+
+  it('steps over a blackout without counting it', () => {
+    expect(shiftStudyDays('2030-01-13', 3, BREAK)).toBe('2030-01-30')
+  })
+
+  it('keeps a date where it is when the shift is zero', () => {
+    expect(shiftStudyDays('2030-01-07', 0, BREAK)).toBe('2030-01-07')
+  })
+
+  it('moves a date inside a blackout to the day after it first', () => {
+    expect(shiftStudyDays('2030-01-20', 1, BREAK)).toBe('2030-01-30')
+  })
+
+  it('refuses a negative or fractional shift', () => {
+    expect(() => shiftStudyDays('2030-01-07', -1, BREAK)).toThrow(/whole number/)
+    expect(() => shiftStudyDays('2030-01-07', 1.5, BREAK)).toThrow(/whole number/)
   })
 })
 

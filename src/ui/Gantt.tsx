@@ -2,13 +2,11 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import {
   addDays,
-  blackoutAt,
   fromEpochDay,
   startOfWeek,
   studySegments,
   toEpochDay,
 } from '../core/dates'
-import { isLastWeekOfMonth } from '../core/hours'
 import type { AppState, Blackout, CivilDate, Item, PhaseNumber } from '../core/types'
 import { partLabel } from '../core/workItems'
 
@@ -41,7 +39,6 @@ const LEGEND = [
   { className: 'legend-done', label: 'done' },
   { className: 'legend-late', label: 'past its date' },
   { className: 'legend-pause', label: 'declared pause' },
-  { className: 'legend-reduced', label: 'fewer hours' },
   { className: 'legend-today', label: 'today' },
 ]
 
@@ -126,7 +123,7 @@ export function Gantt({ state }: { state: AppState }) {
         <div className="gantt-inner" style={{ width: names + width }}>
           <div className="gantt-header">
             <div className="gantt-corner" />
-            <Scale span={span} day={day} capacity={roadmap.weeklyHours.lastWeekOfMonth} />
+            <Scale span={span} day={day} />
           </div>
 
           <div className="gantt-rows">
@@ -214,7 +211,7 @@ export function Gantt({ state }: { state: AppState }) {
   )
 }
 
-function Scale({ span, day, capacity }: { span: Span; day: number; capacity: number }) {
+function Scale({ span, day }: { span: Span; day: number }) {
   const weeks: CivilDate[] = []
   let cursor = startOfWeek(fromEpochDay(span.from))
   while (toEpochDay(cursor) < span.from + span.days) {
@@ -231,15 +228,9 @@ function Scale({ span, day, capacity }: { span: Span; day: number; capacity: num
           // Clamped to the days that remain: a full seven-day label on the last
           // Monday overhangs the track and raises a scrollbar for nothing.
           const days = Math.min(offset + 7, span.days) - Math.max(offset, 0)
-          const reduced = isLastWeekOfMonth(monday)
           return (
-            <span
-              key={monday}
-              className={reduced ? 'gantt-week reduced' : 'gantt-week'}
-              style={{ left, width: days * day }}
-            >
+            <span key={monday} className="gantt-week" style={{ left, width: days * day }}>
               {label(monday)}
-              {reduced && capacity > 0 && <em>{capacity}h</em>}
             </span>
           )
         })}
@@ -263,9 +254,6 @@ function Scale({ span, day, capacity }: { span: Span; day: number; capacity: num
  * One piece of bar per unbroken run of study days. A declared pause cuts the bar
  * and it resumes after: drawing straight through would claim work happens on the
  * days the plan sets aside, and those days are exactly why the end date moved.
- *
- * The reduced-hour weeks are not cut. They are still study days; only how many
- * hours fit in them changes, and the engine schedules in days.
  */
 function Bars({
   item,
@@ -401,12 +389,9 @@ function linksFor(id: string, shown: Item[], rowOf: Map<string, number>): Depend
   return links
 }
 
-type Band = { kind: 'pause' | 'reduced'; from: CivilDate; to: CivilDate; label?: string }
+type Band = { kind: 'pause'; from: CivilDate; to: CivilDate; label?: string }
 
-/**
- * The background of the track: declared pauses carry their reason, and the last
- * week of each month is tinted because fewer hours are available in it.
- */
+/** The background of the track: declared pauses, each carrying its reason. */
 function bands(span: Span, blackouts: readonly Blackout[]): Band[] {
   const found: Band[] = []
   const first = fromEpochDay(span.from)
@@ -420,22 +405,6 @@ function bands(span: Span, blackouts: readonly Blackout[]): Band[] {
       to: blackout.to > last ? last : blackout.to,
       label: blackout.reason,
     })
-  }
-
-  // Clipped to the span like the pauses above: an unclipped seven-day band whose
-  // Monday is the last day of the track sticks out and raises a scrollbar with
-  // nothing behind it.
-  let monday = startOfWeek(first)
-  while (monday <= last) {
-    if (isLastWeekOfMonth(monday) && !blackoutAt(monday, blackouts)) {
-      const to = addDays(monday, 6)
-      found.push({
-        kind: 'reduced',
-        from: monday < first ? first : monday,
-        to: to > last ? last : to,
-      })
-    }
-    monday = addDays(monday, 7)
   }
   return found
 }

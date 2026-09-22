@@ -52,7 +52,6 @@ export async function loadAppState(db: D1Database): Promise<AppState> {
       // Zero reads as "not declared" downstream, which is the honest default:
       // the app never invents a capacity on the owner's behalf.
       normal: Number(settings.weekly_hours_normal ?? '0'),
-      lastWeekOfMonth: Number(settings.weekly_hours_last_week ?? '0'),
     },
     phases: ((phases?.results ?? []) as PhaseRow[]).map(toPhase),
     blackouts: ((blackouts?.results ?? []) as BlackoutRow[]).map(toBlackout),

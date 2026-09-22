@@ -1,6 +1,6 @@
 {
   "timeZone": "UTC",
-  "weeklyHours": { "normal": 15, "lastWeekOfMonth": 10 },
+  "weeklyHours": { "normal": 15 },
   "expectedItemsPerPhase": { "1": 9, "2": 2 },
   "phases": [
     { "number": 1, "name": "First phase", "closingMilestoneId": "phase-1-exam" },

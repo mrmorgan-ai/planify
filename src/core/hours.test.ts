@@ -5,7 +5,6 @@ import {
   progressHours,
   hoursInWeek,
   inWeek,
-  isLastWeekOfMonth,
   planProgress,
   sumHours,
   weekOf,
@@ -40,7 +39,7 @@ function item(id: string, overrides: Partial<Item> = {}): Item {
   }
 }
 
-const CAPACITY: WeeklyHours = { normal: 15, lastWeekOfMonth: 10 }
+const CAPACITY: WeeklyHours = { normal: 15 }
 
 describe('estimatedHours', () => {
   it('reads plain hours', () => {
@@ -98,21 +97,6 @@ describe('sumHours and withoutEstimate', () => {
   })
 })
 
-describe('isLastWeekOfMonth', () => {
-  it('is the last week when the next Monday is a new month', () => {
-    // 2030-04-29 is a Monday; the next Monday is 2030-05-06.
-    expect(isLastWeekOfMonth('2030-04-29')).toBe(true)
-  })
-
-  it('is not the last week mid-month', () => {
-    expect(isLastWeekOfMonth('2030-04-08')).toBe(false)
-  })
-
-  it('is the last week when the next Monday is a new year', () => {
-    expect(isLastWeekOfMonth('2030-12-30')).toBe(true)
-  })
-})
-
 describe('weekOf', () => {
   it('spans Monday to Sunday with the normal capacity', () => {
     expect(weekOf('2030-02-06', CAPACITY)).toEqual({
@@ -122,8 +106,8 @@ describe('weekOf', () => {
     })
   })
 
-  it('uses the reduced capacity in the last week of a month', () => {
-    expect(weekOf('2030-04-30', CAPACITY).hours).toBe(10)
+  it('uses the same capacity in the last week of a month', () => {
+    expect(weekOf('2030-04-30', CAPACITY).hours).toBe(15)
   })
 })
 
