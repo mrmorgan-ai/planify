@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { STATES } from '../core/constants'
+import { shiftStudyDays, studyDaysBetween } from '../core/dates'
 import {
   hasSlipped,
   isOverdue,
@@ -8,8 +9,9 @@ import {
   ITEM_FILTERS,
   type ItemFilter,
 } from '../core/selectors'
-import type { AppState, CivilDate, Item, Resource, State } from '../core/types'
+import type { AppState, Blackout, CivilDate, Item, Resource, State } from '../core/types'
 import { linksOf, partLabel, type PartLabel } from '../core/workItems'
+import { DatePicker } from './DatePicker'
 import { hostOf, ItemDetail } from './ItemDetail'
 import { scrollToRow, useArrival } from './useArrival'
 import { PhaseSidebar, type PhaseSelection } from './PhaseSidebar'
@@ -128,6 +130,7 @@ export function Backlog({
                   item={item}
                   today={state.today}
                   floor={state.roadmap.startDate}
+                  blackouts={state.roadmap.blackouts}
                   busy={pendingId === item.id}
                   open={expanded === item.id}
                   arrived={arrived === item.id}
@@ -156,6 +159,7 @@ function Row({
   item,
   today,
   floor,
+  blackouts,
   busy,
   open,
   arrived,
@@ -172,6 +176,7 @@ function Row({
   item: Item
   today: string
   floor: CivilDate | ''
+  blackouts: readonly Blackout[]
   busy: boolean
   open: boolean
   /** Just reached through a link: scroll to it and highlight it. */
@@ -249,7 +254,14 @@ function Row({
         </td>
 
         {editing ? (
-          <DateEditor item={item} floor={floor} busy={busy} onSave={onSaveDates} onCancel={onEdit} />
+          <DateEditor
+            item={item}
+            floor={floor}
+            blackouts={blackouts}
+            busy={busy}
+            onSave={onSaveDates}
+            onCancel={onEdit}
+          />
         ) : (
           <>
             <td className="col-date">
@@ -314,16 +326,21 @@ function Row({
  * Editing writes the baseline, so the inputs start from the baseline and not
  * from the projection — otherwise a slip would be silently promoted into the
  * plan the moment you saved.
+ *
+ * Moving the start slides the item as a block: the end follows, keeping the same
+ * number of study days. Moving the end alone is how the length changes.
  */
 function DateEditor({
   item,
   floor,
+  blackouts,
   busy,
   onSave,
   onCancel,
 }: {
   item: Item
   floor: CivilDate | ''
+  blackouts: readonly Blackout[]
   busy: boolean
   onSave: (start: CivilDate, end: CivilDate) => void
   onCancel: () => void
@@ -332,27 +349,31 @@ function DateEditor({
   const [end, setEnd] = useState(item.baselineEndDate)
   const invalid = end < start
 
+  const slide = (next: CivilDate) => {
+    const length = studyDaysBetween(start, end, blackouts)
+    setStart(next)
+    setEnd(length > 0 ? shiftStudyDays(next, length - 1, blackouts) : next)
+  }
+
   return (
     <>
       <td className="col-date">
-        <input
-          type="date"
+        <DatePicker
           value={start}
           min={floor || undefined}
           disabled={busy}
-          aria-label={`Planned start of ${item.name}`}
-          onChange={(event) => setStart(event.target.value)}
+          label={`Planned start of ${item.name}`}
+          onChange={slide}
         />
       </td>
 
       <td className="col-date">
-        <input
-          type="date"
+        <DatePicker
           value={end}
           min={start}
           disabled={busy}
-          aria-label={`Planned end of ${item.name}`}
-          onChange={(event) => setEnd(event.target.value)}
+          label={`Planned end of ${item.name}`}
+          onChange={setEnd}
         />
         {invalid && <div className="planned bad">end is before start</div>}
       </td>

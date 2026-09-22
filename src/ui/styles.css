@@ -449,7 +449,10 @@ tr.done a {
   gap: 0.25rem;
 }
 
-input[type='date'] {
+/* The date picker: a button that looks like the field it replaces, and a
+   Monday-first month grid that floats over the page. */
+
+.date-trigger {
   width: 100%;
   padding: 0.2rem 0.35rem;
   background: var(--raised);
@@ -458,6 +461,76 @@ input[type='date'] {
   border-radius: 6px;
   font: inherit;
   font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  cursor: pointer;
+}
+
+.date-trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.date-panel {
+  position: fixed;
+  z-index: 50;
+  padding: 0.6rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.45);
+}
+
+.date-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.date-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.date-weekday {
+  padding: 0.2rem 0;
+  color: var(--faint);
+  font-size: 0.72rem;
+  text-align: center;
+}
+
+.date-day {
+  height: 1.9rem;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.date-day.outside {
+  color: var(--faint);
+}
+
+.date-day:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.date-day.selected {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.date-day:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 select {
@@ -1461,10 +1534,6 @@ tr.detail td {
   border-right: 1px solid rgb(248 113 113 / 0.6);
 }
 
-.legend-reduced {
-  background: rgb(251 146 60 / 0.16);
-}
-
 .legend-today {
   width: 0;
   border-left: 2px solid var(--warn);
@@ -1606,12 +1675,6 @@ tr.detail td {
   overflow: hidden;
 }
 
-.gantt-week.reduced em {
-  color: var(--warn);
-  font-size: 0.72rem;
-  font-style: normal;
-}
-
 .gantt-scale-days {
   position: relative;
   height: 1.3rem;
@@ -1650,10 +1713,6 @@ tr.detail td {
   background: rgb(248 113 113 / 0.07);
   border-left: 1px solid rgb(248 113 113 / 0.4);
   border-right: 1px solid rgb(248 113 113 / 0.4);
-}
-
-.gantt-band.reduced {
-  background: rgb(251 191 36 / 0.06);
 }
 
 .gantt-band-label {

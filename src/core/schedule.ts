@@ -1,8 +1,10 @@
 import {
+  addDays,
   addStudyDays,
   firstStudyDayFrom,
   maxDate,
   minDate,
+  shiftStudyDays,
   studyDayAfter,
   studyDaysBetween,
   toCivilDate,
@@ -188,12 +190,20 @@ export function applyHoursDone(
 }
 
 /**
- * Moves one item's baseline, then recomputes every projection from it.
+ * Moves one item's baseline, pushes what follows it, and recomputes every
+ * projection.
  *
- * The baseline is the plan, so editing it is what makes the rest of the roadmap
- * follow: anything that depends on this item picks up the new end date through
- * the same rule as always, max(own baseline, dependency end + 1 study day). An
- * item that depends on nothing keeps its own dates, because nothing about its
+ * When the item now ends N study days later than it did, everything that depends
+ * on it — directly or down the chain — moves N study days later too, as a block:
+ * the gaps the plan left between them are kept. Their baselines move, not only
+ * their projections, because a push is a change of plan; moving the item back
+ * later does not pull them with it.
+ *
+ * Pushing only goes forward. An item moved earlier or shortened leaves what
+ * follows it where it was. Done items are not pushed and the push does not pass
+ * through them: they ended when they ended.
+ *
+ * An item that depends on nothing keeps its own dates, because nothing about its
  * plan changed.
  */
 export function applyBaselineDates(
@@ -206,11 +216,70 @@ export function applyBaselineDates(
   if (!items.some((item) => item.id === id)) throw new Error(`No item with id ${id}`)
   if (end < start) throw new Error(`End ${end} is before start ${start}`)
 
-  const updated = items.map((item) =>
-    item.id === id ? { ...item, baselineStartDate: start, baselineEndDate: end } : item,
+  const before = recomputeProjections(items, options)
+  const moved = recomputeProjections(
+    items.map((item) =>
+      item.id === id ? { ...item, baselineStartDate: start, baselineEndDate: end } : item,
+    ),
+    options,
   )
 
-  return recomputeProjections(updated, options)
+  const push = pushedBy(before, moved, id, options)
+  if (push === 0) return moved
+
+  const followers = followersOf(moved, id)
+  return recomputeProjections(
+    moved.map((item) =>
+      followers.has(item.id)
+        ? {
+            ...item,
+            baselineStartDate: shiftStudyDays(item.baselineStartDate, push, options.blackouts),
+            baselineEndDate: shiftStudyDays(item.baselineEndDate, push, options.blackouts),
+          }
+        : item,
+    ),
+    options,
+  )
+}
+
+/** Study days the item's projected end moved later by. Zero when it did not. */
+function pushedBy(
+  before: readonly Item[],
+  after: readonly Item[],
+  id: string,
+  options: ScheduleOptions,
+): number {
+  const oldEnd = before.find((item) => item.id === id)?.projectedEndDate
+  const newEnd = after.find((item) => item.id === id)?.projectedEndDate
+  if (!oldEnd || !newEnd || newEnd <= oldEnd) return 0
+  return studyDaysBetween(addDays(oldEnd, 1), newEnd, options.blackouts)
+}
+
+/**
+ * Every unfinished item that depends on `id`, directly or through other
+ * unfinished items. Each appears once, however many paths lead to it.
+ */
+function followersOf(items: readonly Item[], id: string): Set<string> {
+  const dependents = new Map<string, Item[]>()
+  for (const item of items) {
+    for (const dependency of new Set(item.dependsOn)) {
+      const list = dependents.get(dependency) ?? []
+      list.push(item)
+      dependents.set(dependency, list)
+    }
+  }
+
+  const found = new Set<string>()
+  const queue = [id]
+  while (queue.length > 0) {
+    const current = queue.shift()!
+    for (const dependent of dependents.get(current) ?? []) {
+      if (dependent.state === 'done' || found.has(dependent.id)) continue
+      found.add(dependent.id)
+      queue.push(dependent.id)
+    }
+  }
+  return found
 }
 
 type Rank = readonly [number, number, string]

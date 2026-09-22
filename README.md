@@ -36,7 +36,7 @@ dates again?".
 | Backlog | One phase at a time, one line per item: state, dates you can edit, resources. Expanding a row shows duration, description, outcome, skills, price and dependencies |
 | Work items | The roadmap as units rather than dates — each course, book, project or exam with its parts, its phases and how far through it you are |
 | Kanban | The active phase as a board, with the current week's available and scheduled hours, and items split into this week and later |
-| Gantt | One phase at a time, by day: the plan under the projection, pauses and reduced-capacity weeks shaded, dependencies on hover |
+| Gantt | One phase at a time, by day: the plan under the projection, pauses shaded, dependencies on hover |
 
 The backlog and the board write the same state. The dashboard, the work items
 and the Gantt only reflect it. Links between views land on the row they point
@@ -84,7 +84,20 @@ make stop
 ```
 
 Open `http://127.0.0.1:5173`. `make start` refuses to start if a port is taken
-and names what holds it.
+and names what holds it. Both work on macOS and Linux.
+
+To see the app with work behind schedule, `make start-overdue` moves the local
+plan so it began on the Monday four weeks ago, starts the app if it is not
+running, and recomputes the projections. Running it again gives the same dates.
+It rewrites the local dates; to get the originals back, reload the seed and
+reproject:
+
+```bash
+make start-overdue
+node tools/seed/to-sql.mjs seed/roadmap.example.json --with-dates
+npx wrangler d1 execute planify --local --file build/seed.sql
+curl -X POST http://127.0.0.1:8788/api/reproject
+```
 
 ## The roadmap file
 

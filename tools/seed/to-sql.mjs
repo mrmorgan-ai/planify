@@ -68,7 +68,7 @@ for (const item of seed.items) {
   ${nullable(item.workItemId)}, ${json(item.skills)}, ${json(item.dependsOn)},
   ${text(item.baselineStartDate)}, ${text(item.baselineEndDate)},
   ${text(item.baselineStartDate)}, ${text(item.baselineEndDate)},
-  ${text(item.price)}, ${nullable(item.link)}, ${json(item.resources)},
+  ${text(item.price)}, ${nullable(item.link)}, ${json(item.resources ?? [])},
   ${text(item.duration)}, ${text(item.notes)}, ${text(item.doneWhen ?? '')}, ${item.sortOrder}
 )
 ON CONFLICT(id) DO UPDATE SET
@@ -110,6 +110,11 @@ statements.push(
   `DELETE FROM work_items WHERE id NOT IN (${list(workItems.map((workItem) => workItem.id))});`,
 )
 
+// A pause is keyed by its first day, so one that moved in the seed would
+// otherwise stay behind under its old date and keep blocking study days.
+statements.push(
+  `DELETE FROM blackouts WHERE from_date NOT IN (${list(seed.blackouts.map((blackout) => blackout.from))});`,
+)
 for (const blackout of seed.blackouts) {
   statements.push(`INSERT INTO blackouts (from_date, to_date, reason)
 VALUES (${text(blackout.from)}, ${text(blackout.to)}, ${text(blackout.reason)})
@@ -136,7 +141,6 @@ ON CONFLICT(name) DO UPDATE SET dimension = excluded.dimension;`)
 const meta = {
   time_zone: seed.timeZone,
   weekly_hours_normal: seed.weeklyHours ? String(seed.weeklyHours.normal) : '',
-  weekly_hours_last_week: seed.weeklyHours ? String(seed.weeklyHours.lastWeekOfMonth) : '',
   // The anchor the plan starts on. Taken from the file when it declares one,
   // otherwise the earliest baseline start — which is what it means anyway.
   start_date:
