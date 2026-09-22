@@ -87,6 +87,26 @@ export function addStudyDays(
   return cursor
 }
 
+/**
+ * The date `days` study days later. A date inside a blackout first moves to the
+ * day after it, so a start and an end shifted by the same amount keep the same
+ * number of study days between them.
+ */
+export function shiftStudyDays(
+  date: CivilDate,
+  days: number,
+  blackouts: readonly Blackout[],
+): CivilDate {
+  if (!Number.isInteger(days) || days < 0) {
+    throw new Error(`A shift is a whole number of study days, got ${days}`)
+  }
+  let cursor = firstStudyDayFrom(date, blackouts)
+  for (let moved = 0; moved < days; moved++) {
+    cursor = studyDayAfter(cursor, blackouts)
+  }
+  return cursor
+}
+
 /** Study days in `[from, to]`, both ends included. Zero if the range is empty. */
 export function studyDaysBetween(
   from: CivilDate,

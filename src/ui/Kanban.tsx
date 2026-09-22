@@ -4,7 +4,6 @@ import {
   hoursInWeek,
   progressHours,
   inWeek,
-  isLastWeekOfMonth,
   sumHours,
   weekOf,
 } from '../core/hours'
@@ -304,11 +303,7 @@ function WeekPanel({
         <div className="stat-label">Available</div>
         <div className="stat-value">{declared ? `${week.hours}h` : '—'}</div>
         <div className="stat-note">
-          {declared
-            ? isLastWeekOfMonth(week.from)
-              ? 'last week of the month'
-              : 'normal week'
-            : 'no capacity declared'}
+          {declared ? 'this week' : 'no capacity declared'}
         </div>
       </div>
 

@@ -33,14 +33,21 @@ dates again?".
 | View | What it is for |
 |---|---|
 | Dashboard | Today and what is in progress; hours done against the hours the plan expected by today, overdue items, next milestone and pace; a skills radar with its dimensions |
-| Backlog | One phase at a time, one line per item: state, dates you can edit, resources. Expanding a row shows duration, description, outcome, skills, price and dependencies |
+| Backlog | One phase at a time, one line per item: state, dates you can edit, resources. Moving an item's dates pushes everything that depends on it forward by the same study days. Expanding a row shows duration, description, outcome, skills, price and dependencies |
 | Work items | The roadmap as units rather than dates — each course, book, project or exam with its parts, its phases and how far through it you are |
 | Kanban | The active phase as a board, with the current week's available and scheduled hours, and items split into this week and later |
-| Gantt | One phase at a time, by day: the plan under the projection, pauses and reduced-capacity weeks shaded, dependencies on hover |
+| Gantt | One phase at a time, by day: the plan under the projection, pauses shaded, dependencies on hover, and the button that reschedules the plan |
 
 The backlog and the board write the same state. The dashboard, the work items
 and the Gantt only reflect it. Links between views land on the row they point
 at and highlight it.
+
+When the oldest unfinished item is a week or more past its end, the app offers
+to reschedule: a pop-up once a week, then a banner on every view. Rescheduling
+picks a restart date and moves every unfinished item forward by the same study
+days, so the earliest one starts that day and the plan keeps its shape. It
+shows what moves before writing anything, and the plan it replaces is kept in
+`plan_versions`.
 
 ## Stack
 
@@ -84,7 +91,20 @@ make stop
 ```
 
 Open `http://127.0.0.1:5173`. `make start` refuses to start if a port is taken
-and names what holds it.
+and names what holds it. Both work on macOS and Linux.
+
+To see the app with work behind schedule, `make start-overdue` moves the local
+plan so it began on the Monday four weeks ago, starts the app if it is not
+running, and recomputes the projections. Running it again gives the same dates.
+It rewrites the local dates; to get the originals back, reload the seed and
+reproject:
+
+```bash
+make start-overdue
+node tools/seed/to-sql.mjs seed/roadmap.example.json --with-dates
+npx wrangler d1 execute planify --local --file build/seed.sql
+curl -X POST http://127.0.0.1:8788/api/reproject
+```
 
 ## The roadmap file
 

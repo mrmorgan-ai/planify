@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { AppState, State } from '../core/types'
-import { fetchState, setItemDates, setItemHours, setItemState } from './api'
+import { fetchState, reschedule, setItemDates, setItemHours, setItemState } from './api'
 
 export type Store = {
   state: AppState | null
@@ -12,6 +12,10 @@ export type Store = {
   changeDates: (id: string, start: string, end: string) => Promise<boolean>
   /** Declares hours spent on an item. Resolves true when the server accepted it. */
   changeHours: (id: string, hours: number) => Promise<boolean>
+  /** True while a reschedule is being written. */
+  rescheduling: boolean
+  /** Restarts the plan on a date. Resolves true when the server accepted it. */
+  reschedulePlan: (restartDate: string) => Promise<boolean>
 }
 
 /**
@@ -23,6 +27,7 @@ export function useAppState(): Store {
   const [state, setState] = useState<AppState | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pendingId, setPendingId] = useState<string | null>(null)
+  const [rescheduling, setRescheduling] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -78,7 +83,30 @@ export function useAppState(): Store {
     }
   }, [])
 
-  return { state, error, pendingId, changeState, changeDates, changeHours }
+  const reschedulePlan = useCallback(async (restartDate: string) => {
+    setRescheduling(true)
+    setError(null)
+    try {
+      setState(await reschedule(restartDate))
+      return true
+    } catch (cause: unknown) {
+      setError(messageOf(cause))
+      return false
+    } finally {
+      setRescheduling(false)
+    }
+  }, [])
+
+  return {
+    state,
+    error,
+    pendingId,
+    changeState,
+    changeDates,
+    changeHours,
+    rescheduling,
+    reschedulePlan,
+  }
 }
 
 function messageOf(cause: unknown): string {
