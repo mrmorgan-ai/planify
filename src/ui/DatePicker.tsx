@@ -54,6 +54,8 @@ export function DatePicker({
     }
     const escape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
+      // Inside a modal, Escape would otherwise close the modal too.
+      event.preventDefault()
       setOpen(false)
       trigger.current?.focus()
     }
