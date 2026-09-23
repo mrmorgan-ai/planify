@@ -1,13 +1,12 @@
 name: ci
 
-# Manual by default, plus callable from deploy.yml so the gates are defined once
-# and the deploy cannot run without them. To turn automatic runs back on, restore
-# the push trigger below.
+# Runs on every pull request, by hand, and from deploy.yml — so the gates are
+# defined once and the deploy cannot run without them. It needs no secrets: it
+# checks the code, and never touches a database.
 on:
+  pull_request:
   workflow_dispatch:
   workflow_call:
-  # push:
-  #   branches: ['**']
 
 jobs:
   check:
