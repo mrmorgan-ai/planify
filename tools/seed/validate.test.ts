@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { recomputeProjections } from '../../src/core/schedule'
 import { seedContent } from '../../src/core/seed'
 import type { Item, RoadmapContent } from '../../src/core/types'
-import { RULES, validate, type Rule } from '../../src/core/validate'
+import { RULES, introducedErrors, validate, type Rule } from '../../src/core/validate'
 import { EXAMPLE_SEED, availableSeeds, readSeedFile } from './load'
 
 // Runs against every seed file present: the tracked example always — which is
@@ -142,5 +142,31 @@ describe('every rule fires', () => {
       expect(issue.severity).toBe(RULES[rule])
       expect(issue.message).not.toBe('')
     }
+  })
+})
+
+describe('introducedErrors', () => {
+  const example = seedContent(readSeedFile(EXAMPLE_SEED))
+  const moved = (content: RoadmapContent, id: string, start: string): RoadmapContent => ({
+    ...content,
+    items: content.items.map((item) => (item.id === id ? { ...item, baselineStartDate: start } : item)),
+  })
+
+  it('reports an error the change brings in', () => {
+    const intoPause = moved(example, 'build-part-2', '2030-02-03')
+    expect(introducedErrors(example, intoPause).map((issue) => issue.rule)).toEqual(['blackout-edge'])
+  })
+
+  it('lets a change through when the roadmap already had the same error', () => {
+    const broken = structuredClone(example)
+    broken.items.find((item) => item.id === 'course-part-1')!.link = 'http://example.com'
+    const edited = moved(broken, 'the-optional-thing', '2030-02-19')
+    expect(introducedErrors(broken, edited)).toEqual([])
+  })
+
+  it('ignores warnings, which never refuse a change', () => {
+    const tooLong = moved(example, 'the-optional-thing', '2030-02-14')
+    expect(validate(tooLong).some((issue) => issue.severity === 'warning')).toBe(true)
+    expect(introducedErrors(example, tooLong)).toEqual([])
   })
 })

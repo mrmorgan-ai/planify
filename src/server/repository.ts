@@ -1,5 +1,6 @@
 import { DEFAULT_TIME_ZONE } from '../core/constants'
 import { recomputeProjections } from '../core/schedule'
+import { introducedErrors, type Issue } from '../core/validate'
 import type { AppState, Item, Roadmap, ScheduleOptions } from '../core/types'
 import { todayIn } from './clock'
 import {
@@ -78,6 +79,13 @@ export function scheduleOptions(roadmap: Roadmap): ScheduleOptions {
  * device or tab saved in between. Carries the current world, so the client can
  * catch up instead of guessing.
  */
+/** A write that would give the roadmap an error it did not have. Nothing is written. */
+export class InvalidWriteError extends Error {
+  constructor(readonly issues: Issue[]) {
+    super(`This change would break the roadmap: ${issues.map((issue) => issue.message).join('; ')}`)
+  }
+}
+
 export class StaleRevisionError extends Error {
   constructor(readonly state: AppState) {
     super(
@@ -114,6 +122,21 @@ export async function mutate(
   const items = transform(state)
   const changed = changedItems(state.items, items)
   const revision = state.revision + 1
+
+  // Only planned dates are content among the columns a write touches here, so
+  // a change of state or hours cannot break a rule and skips the check.
+  const before = new Map(state.items.map((item) => [item.id, item]))
+  const replanned = changed.some((item) => {
+    const previous = before.get(item.id)
+    return (
+      previous?.baselineStartDate !== item.baselineStartDate ||
+      previous.baselineEndDate !== item.baselineEndDate
+    )
+  })
+  if (replanned) {
+    const broken = introducedErrors(state, { ...state, items })
+    if (broken.length > 0) throw new InvalidWriteError(broken)
+  }
 
   const writes = changed.map((item) =>
     db

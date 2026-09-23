@@ -172,6 +172,11 @@ write's own transaction, so two writes racing from the same revision cannot both
 land. `reproject` alone accepts no revision: it only recomputes from what is
 stored, and scripts call it without a body.
 
+A write that moves planned dates is checked against the validator before it
+lands. One that would bring in an error the roadmap did not already have — an
+item starting inside a pause, say — is refused with `422` and the errors it
+would have introduced. Warnings never refuse a write.
+
 ## Checks
 
 ```bash
