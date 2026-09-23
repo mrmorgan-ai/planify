@@ -13,6 +13,7 @@ import type { AppState, Blackout, CivilDate, Item, Resource, State } from '../co
 import { linksOf, partLabel, type PartLabel } from '../core/workItems'
 import { DatePicker } from './DatePicker'
 import { hostOf, ItemDetail } from './ItemDetail'
+import { DeleteItem, NewItemForm } from './ItemEditing'
 import { ItemForm, draftOf, editsFor } from './ItemForm'
 import { scrollToRow, useArrival } from './useArrival'
 import { PhaseSidebar, type PhaseSelection } from './PhaseSidebar'
@@ -43,6 +44,7 @@ const FILTER_LABEL: Record<ItemFilter, string> = {
  * lock: nothing here stops you starting anything.
  *
  * The rest of an item is edited in its expanded row, and saved as one write.
+ * New items are created here too, in the phase being looked at.
  */
 export function Backlog({
   state,
@@ -57,8 +59,12 @@ export function Backlog({
   const [expanded, setExpanded] = useState<string | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
   const [editingItem, setEditingItem] = useState<string | null>(null)
-  /** The last save of the open form was refused; the store holds why. */
-  const [refused, setRefused] = useState(false)
+  const [creating, setCreating] = useState(false)
+  /**
+   * Which form's last save was refused — an item's id, or `new` — so the
+   * store's error shows in that form and not in every open one.
+   */
+  const [refused, setRefused] = useState<string | null>(null)
 
   /**
    * `?item=` is how the Gantt and the work items hand a row over. Opening it
@@ -114,7 +120,37 @@ export function Backlog({
               </span>
             </button>
           ))}
+          <button
+            type="button"
+            className="button push-end"
+            disabled={creating}
+            onClick={() => {
+              setRefused(null)
+              setCreating(true)
+            }}
+          >
+            + New item
+          </button>
         </div>
+
+        {creating && (
+          <NewItemForm
+            state={state}
+            phase={phase ?? state.roadmap.phases[0]?.number ?? 1}
+            busy={pendingId === 'new'}
+            error={refused === 'new' ? error : null}
+            onCancel={() => setCreating(false)}
+            onCreate={async (edits, id, into) => {
+              const saved = await edit(edits, 'new')
+              setRefused(saved ? null : 'new')
+              if (!saved) return
+              setCreating(false)
+              setPhase(into)
+              setFilter('all')
+              setExpanded(id)
+            }}
+          />
+        )}
 
         {visible.length === 0 ? (
           <p className="empty">Nothing matches this filter in this phase.</p>
@@ -155,20 +191,34 @@ export function Backlog({
                         self={item.id}
                         initial={draftOf(item)}
                         busy={pendingId === item.id}
-                        error={refused ? error : null}
+                        error={refused === item.id ? error : null}
                         submitLabel="Save"
+                        danger={
+                          <DeleteItem
+                            state={state}
+                            item={item}
+                            busy={pendingId === item.id}
+                            onDelete={async (deletion) => {
+                              const deleted = await edit([deletion], item.id)
+                              setRefused(deleted ? null : item.id)
+                              if (!deleted) return
+                              setEditingItem(null)
+                              setExpanded(null)
+                            }}
+                          />
+                        }
                         onCancel={() => setEditingItem(null)}
                         onSubmit={async (draft) => {
                           const edits = editsFor(item, draft)
                           const saved = edits.length === 0 || (await edit(edits, item.id))
-                          setRefused(!saved)
+                          setRefused(saved ? null : item.id)
                           if (saved) setEditingItem(null)
                         }}
                       />
                     ) : null
                   }
                   onEditItem={() => {
-                    setRefused(false)
+                    setRefused(null)
                     setEditingItem(item.id)
                   }}
                   onToggle={() => {

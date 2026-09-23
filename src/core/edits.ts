@@ -148,11 +148,10 @@ export function hasProgress(item: Item): boolean {
 }
 
 function created(content: RoadmapContent, items: Item[], item: NewItem, at: string): Item {
-  const taken = new Set([...items.map((each) => each.id), ...content.workItems.map((each) => each.id)])
-  if (item.id !== undefined && taken.has(item.id)) {
+  if (item.id !== undefined && takenIds({ items, workItems: content.workItems }).has(item.id)) {
     throw new EditError(`${at}: the id ${item.id} is already taken`)
   }
-  const id = item.id ?? uniqueId(slugOf(String(item.name ?? '')), taken)
+  const id = item.id ?? newItemId(String(item.name ?? ''), { items, workItems: content.workItems })
   const last = items
     .filter((each) => each.phase === item.phase)
     .reduce((max, each) => Math.max(max, each.sortOrder), 0)
@@ -266,6 +265,10 @@ function strings(value: unknown, at: string): string[] {
   return value as string[]
 }
 
+function takenIds({ items, workItems }: Pick<RoadmapContent, 'items' | 'workItems'>): Set<string> {
+  return new Set([...items.map((item) => item.id), ...workItems.map((workItem) => workItem.id)])
+}
+
 /** A kebab-case id from a name: "Build part 2 — the API" → "build-part-2-the-api". */
 export function slugOf(name: string): string {
   const slug = name
@@ -279,7 +282,14 @@ export function slugOf(name: string): string {
   return slug === '' ? 'item' : slug
 }
 
-function uniqueId(base: string, taken: ReadonlySet<string>): string {
+/**
+ * The id a new item with this name gets: its name in kebab-case, numbered when
+ * an item or a work item already has it. The client asks for it explicitly, so
+ * it knows which row to open once the item exists.
+ */
+export function newItemId(name: string, content: Pick<RoadmapContent, 'items' | 'workItems'>): string {
+  const base = slugOf(name)
+  const taken = takenIds(content)
   if (!taken.has(base)) return base
   for (let n = 2; ; n++) {
     const candidate = `${base}-${n}`

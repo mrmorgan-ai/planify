@@ -36,6 +36,23 @@ export function draftOf(item: Item): Draft {
   }
 }
 
+/** An empty form, for an item that does not exist yet. */
+export function blankDraft(): Draft {
+  return {
+    name: '',
+    type: 'Course',
+    duration: '',
+    notes: '',
+    doneWhen: '',
+    price: '',
+    link: '',
+    resources: [],
+    workItemId: '',
+    skills: [],
+    dependsOn: [],
+  }
+}
+
 /** The draft as the item's fields: empty inputs back to null, blank link rows dropped. */
 export function fieldsOf(draft: Draft): Required<ItemFields> {
   return {
@@ -105,6 +122,7 @@ export function ItemForm({
   error,
   submitLabel,
   extra,
+  danger,
   onSubmit,
   onCancel,
 }: {
@@ -118,6 +136,8 @@ export function ItemForm({
   submitLabel: string
   /** Fields that only one use of the form has, placed after the name. */
   extra?: ReactNode
+  /** What goes at the far end of the buttons: deleting, for an item that exists. */
+  danger?: ReactNode
   onSubmit: (draft: Draft) => void
   onCancel: () => void
 }) {
@@ -353,6 +373,7 @@ export function ItemForm({
         <button type="submit" className="button primary" disabled={busy || problems.length > 0}>
           {busy ? 'Saving…' : submitLabel}
         </button>
+        {danger}
       </div>
     </form>
   )
