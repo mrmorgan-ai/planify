@@ -7,6 +7,7 @@ import { Dashboard } from './Dashboard'
 import { Gantt } from './Gantt'
 import { shortDate } from './format'
 import { Kanban } from './Kanban'
+import { PlanIssues } from './PlanIssues'
 import { LateBanner, RescheduleDialog, useLateAlert } from './Reschedule'
 import { Session } from './Session'
 import { useAppState } from './useAppState'
@@ -92,6 +93,7 @@ export function App() {
             </NavLink>
           ))}
         </nav>
+        {state && <PlanIssues state={state} />}
         <Session />
       </header>
 

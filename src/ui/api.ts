@@ -10,21 +10,36 @@ async function call(url: string, init?: RequestInit): Promise<AppState> {
   const body: unknown = await response.json().catch(() => null)
 
   if (!response.ok) {
-    const reported = (body as { error?: string } | null)?.error
-    throw new Error(reported ?? `HTTP ${response.status}`)
+    const { error: reported, state } = (body ?? {}) as { error?: string; state?: AppState }
+    const message = reported ?? `HTTP ${response.status}`
+    if (response.status === 409 && state) throw new StaleStateError(message, state)
+    throw new Error(message)
   }
   return body as AppState
+}
+
+/** A write refused for being made from an old copy. Carries the current one. */
+export class StaleStateError extends Error {
+  constructor(
+    message: string,
+    readonly state: AppState,
+  ) {
+    super(message)
+  }
 }
 
 export function fetchState(): Promise<AppState> {
   return call('/api/state')
 }
 
-export function setItemState(id: string, state: State): Promise<AppState> {
+// Every write names the revision it was made from, so the server can refuse one
+// made from a copy another device has already changed.
+
+export function setItemState(id: string, state: State, revision: number): Promise<AppState> {
   return call(`/api/items/${encodeURIComponent(id)}/state`, {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ state }),
+    body: JSON.stringify({ state, revision }),
   })
 }
 
@@ -33,20 +48,21 @@ export function setItemDates(
   id: string,
   baselineStartDate: CivilDate,
   baselineEndDate: CivilDate,
+  revision: number,
 ): Promise<AppState> {
   return call(`/api/items/${encodeURIComponent(id)}/dates`, {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ baselineStartDate, baselineEndDate }),
+    body: JSON.stringify({ baselineStartDate, baselineEndDate, revision }),
   })
 }
 
 /** Declares hours spent. Progress only: the item's state does not move. */
-export function setItemHours(id: string, hours: number): Promise<AppState> {
+export function setItemHours(id: string, hours: number, revision: number): Promise<AppState> {
   return call(`/api/items/${encodeURIComponent(id)}/hours`, {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ hours }),
+    body: JSON.stringify({ hours, revision }),
   })
 }
 
@@ -54,10 +70,10 @@ export function setItemHours(id: string, hours: number): Promise<AppState> {
  * Moves every unfinished item so the plan restarts on this date. The server
  * keeps the plan it replaces, and returns the new world.
  */
-export function reschedule(restartDate: CivilDate): Promise<AppState> {
+export function reschedule(restartDate: CivilDate, revision: number): Promise<AppState> {
   return call('/api/reschedule', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ restartDate }),
+    body: JSON.stringify({ restartDate, revision }),
   })
 }

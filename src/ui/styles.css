@@ -800,6 +800,102 @@ tr.detail td {
   cursor: not-allowed;
 }
 
+/* What the plan breaks: a count in the header that opens the list. Orange for
+   warnings, red once any error is in it — the same two meanings as everywhere
+   else. It takes the header's push to the right when it is there. */
+
+.plan-issues {
+  position: relative;
+  margin-left: auto;
+}
+
+.plan-issues + .session {
+  margin-left: 0;
+}
+
+.plan-issues-toggle {
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--warn);
+  border-radius: 6px;
+  background: rgb(251 146 60 / 0.1);
+  color: var(--warn);
+  font: inherit;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.plan-issues-toggle.has-errors {
+  border-color: var(--bad);
+  background: rgb(248 113 113 / 0.1);
+  color: var(--bad);
+}
+
+.plan-issues-panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 10;
+  width: min(32rem, calc(100vw - 1.6rem));
+  max-height: min(70vh, 32rem);
+  overflow: auto;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.45);
+}
+
+.plan-issues-panel h3 {
+  margin: 0.25rem 0 0.4rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.plan-issues-panel ul {
+  margin: 0 0 0.6rem;
+  padding: 0;
+  list-style: none;
+}
+
+.plan-issues-panel li {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.45rem 0 0.45rem 0.6rem;
+  border-left: 2px solid var(--warn);
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.plan-issues-panel li + li {
+  margin-top: 0.3rem;
+}
+
+.plan-issues-panel li.error {
+  border-left-color: var(--bad);
+}
+
+.plan-issues-panel li a {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: var(--faint);
+  text-underline-offset: 2px;
+}
+
+.plan-issues-panel li a:hover {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+}
+
+.plan-issues-rule {
+  color: var(--faint);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+}
+
 /* Rescheduling: the banner under the header, and the dialog it opens. */
 
 .late-banner {

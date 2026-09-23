@@ -1,7 +1,7 @@
 import { isCivilDate } from '../../src/core/dates'
 import { reschedulePlan } from '../../src/core/reschedule'
 import { nowIso } from '../../src/server/clock'
-import { only } from '../../src/server/http'
+import { missingRevision, only, refusal, revisionOf } from '../../src/server/http'
 import { mutate, savePlanVersion, scheduleOptions, type Env } from '../../src/server/repository'
 
 /**
@@ -26,11 +26,14 @@ export const onRequest = only<Env>('POST', async ({ env, request }) => {
   if (typeof restartDate !== 'string' || !isCivilDate(restartDate)) {
     return Response.json({ error: 'restartDate must be YYYY-MM-DD' }, { status: 400 })
   }
+  const revision = revisionOf(body)
+  if (revision === null) return missingRevision()
 
   let shift = 0
   try {
     const state = await mutate(
       env.DB,
+      revision,
       (current) => {
         if (restartDate < current.today) {
           throw new RefusedError(`${restartDate} is in the past; today is ${current.today}`)
@@ -52,6 +55,8 @@ export const onRequest = only<Env>('POST', async ({ env, request }) => {
     )
     return Response.json(state)
   } catch (error) {
+    const refused = refusal(error)
+    if (refused) return refused
     const message = error instanceof Error ? error.message : 'Unknown error'
     return Response.json({ error: message }, { status: error instanceof RefusedError ? 400 : 500 })
   }
