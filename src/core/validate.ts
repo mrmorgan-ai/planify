@@ -446,16 +446,24 @@ function checkHours(
     }
   }
 
+  // Capacity is a property of the plan. `hoursInWeek` spreads hours over the
+  // projection, which moves with progress — finish something two days late and
+  // the weeks after it fill up — so it is handed the planned dates instead.
+  const planned = dated.map((item) => ({
+    ...item,
+    projectedStartDate: item.baselineStartDate,
+    projectedEndDate: item.baselineEndDate,
+  }))
   const capacity = roadmap.weeklyHours
-  const plan = span(dated)
+  const plan = span(planned)
   if (capacity.normal <= 0 || plan === null) return
   for (let monday = startOfWeek(plan.start); monday <= plan.end; monday = addDays(monday, 7)) {
     const week = weekOf(monday, capacity)
-    const planned = hoursInWeek(dated, week, roadmap.blackouts)
-    if (planned > week.hours + CAPACITY_TOLERANCE) {
+    const hours = hoursInWeek(planned, week, roadmap.blackouts)
+    if (hours > week.hours + CAPACITY_TOLERANCE) {
       report(
         'over-capacity',
-        `The week of ${monday} has ${planned.toFixed(1)}h planned for ${week.hours}h`,
+        `The week of ${monday} has ${hours.toFixed(1)}h planned for ${week.hours}h`,
       )
     }
   }
