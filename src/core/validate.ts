@@ -1,6 +1,5 @@
 import { addDays, isBlackoutDay, isCivilDate, startOfWeek, studyDaysBetween } from './dates'
 import { estimatedHours, hoursInWeek, weekOf } from './hours'
-import { topologicalOrder } from './schedule'
 import type { CivilDate, Item, PhaseNumber, RoadmapContent } from './types'
 import { partsOf } from './workItems'
 
@@ -292,10 +291,9 @@ function checkGraph(
     dependsOn: item.dependsOn.filter((id) => id !== item.id && byId.has(id)),
   }))
   if (idsUnique) {
-    try {
-      topologicalOrder(known)
-    } catch (error) {
-      report('cycle', error instanceof Error ? error.message : 'The dependencies form a cycle')
+    const cycle = findCycle(known)
+    if (cycle) {
+      report('cycle', `Dependencies go round in a circle: ${cycle.join(' → ')}`, cycle[0])
     }
   }
 
@@ -384,6 +382,40 @@ function transitiveDependencies(items: readonly Item[]): (id: string) => Set<str
     cache.set(id, seen)
     return seen
   }
+}
+
+/**
+ * One cycle in the dependency graph, as the path that closes it — `a → b → a` —
+ * or null when there is none. The path and not every item stuck behind it: the
+ * engine can only say which items it could not order, which for one loop early
+ * in the plan is everything after it.
+ */
+function findCycle(items: readonly Item[]): string[] | null {
+  const byId = new Map(items.map((item) => [item.id, item]))
+  const done = new Set<string>()
+  const path: string[] = []
+  const onPath = new Set<string>()
+
+  const visit = (id: string): string[] | null => {
+    if (onPath.has(id)) return [...path.slice(path.indexOf(id)), id]
+    if (done.has(id)) return null
+    path.push(id)
+    onPath.add(id)
+    for (const dependency of byId.get(id)?.dependsOn ?? []) {
+      const found = visit(dependency)
+      if (found) return found
+    }
+    path.pop()
+    onPath.delete(id)
+    done.add(id)
+    return null
+  }
+
+  for (const item of items) {
+    const found = visit(item.id)
+    if (found) return found
+  }
+  return null
 }
 
 function checkWorkItems({ items, workItems }: RoadmapContent, report: Report): void {

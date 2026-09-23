@@ -60,7 +60,9 @@ export function parseSeed(raw: unknown): SeedFile {
     }
   }
 
-  const items = requireArray(file.items, 'items').map((entry, index) => parseSeedItem(entry, index))
+  const items = requireArray(file.items, 'items').map((entry, index) =>
+    parseSeedItem(entry, `items[${index}]`),
+  )
 
   return {
     timeZone: requireString(file.timeZone, 'timeZone'),
@@ -212,10 +214,15 @@ function parseBlackout(entry: unknown, index: number): Blackout {
   }
 }
 
-function parseSeedItem(entry: unknown, index: number): SeedItem {
-  const value = requireObject(entry, `items[${index}]`)
-  const id = requireString(value.id, `items[${index}].id`)
-  const where = `items[${index}] (${id})`
+/**
+ * One item's shape and types, as the seed file requires them. Exported so an
+ * item edited in the app is held to exactly the rules a file is. `at` names it
+ * in the error: `items[3]` in a file, the edit it came from in the app.
+ */
+export function parseSeedItem(entry: unknown, at: string): SeedItem {
+  const value = requireObject(entry, at)
+  const id = requireString(value.id, `${at}.id`)
+  const where = `${at} (${id})`
 
   const type = requireString(value.type, `${where}.type`)
   if (!ITEM_TYPES.includes(type as ItemType)) throw new Error(`${where}.type is not valid: ${type}`)

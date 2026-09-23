@@ -173,6 +173,23 @@ describe('introducedErrors', () => {
   })
 })
 
+describe('a cycle', () => {
+  it('is named by the items that form it, not by everything waiting behind it', () => {
+    const looped = structuredClone(seedContent(readSeedFile(EXAMPLE_SEED)))
+    looped.items.find((item) => item.id === 'course-part-1')!.dependsOn = ['course-part-2']
+
+    const cycles = validate(looped).filter((issue) => issue.rule === 'cycle')
+    expect(cycles).toEqual([
+      {
+        severity: 'error',
+        rule: 'cycle',
+        message: 'Dependencies go round in a circle: course-part-1 → course-part-2 → course-part-1',
+        itemId: 'course-part-1',
+      },
+    ])
+  })
+})
+
 describe('rules measure the plan, not the projection', () => {
   it('reports no week over capacity when only progress has moved the projection', () => {
     // Every item projected into the plan's first week, far past its capacity:
