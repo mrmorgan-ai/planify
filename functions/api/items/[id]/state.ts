@@ -2,7 +2,7 @@ import { STATES } from '../../../../src/core/constants'
 import { applyStateChange } from '../../../../src/core/schedule'
 import type { State } from '../../../../src/core/types'
 import { nowIso } from '../../../../src/server/clock'
-import { only } from '../../../../src/server/http'
+import { missingRevision, only, refusal, revisionOf } from '../../../../src/server/http'
 import { mutate, scheduleOptions, type Env } from '../../../../src/server/repository'
 
 /**
@@ -28,11 +28,13 @@ export const onRequest = only<Env>('PATCH', async ({ env, params, request }) => 
   if (typeof next !== 'string' || !STATES.includes(next as State)) {
     return Response.json({ error: `state must be one of: ${STATES.join(', ')}` }, { status: 400 })
   }
+  const revision = revisionOf(body)
+  if (revision === null) return missingRevision()
 
   const completedAt = nowIso()
 
   try {
-    const state = await mutate(env.DB, (current) =>
+    const state = await mutate(env.DB, revision, (current) =>
       applyStateChange(
         current.items,
         id,
@@ -43,6 +45,8 @@ export const onRequest = only<Env>('PATCH', async ({ env, params, request }) => 
     )
     return Response.json(state)
   } catch (error) {
+    const refused = refusal(error)
+    if (refused) return refused
     const message = error instanceof Error ? error.message : 'Unknown error'
     const status = message.startsWith('No item with id') ? 404 : 500
     return Response.json({ error: message }, { status })
