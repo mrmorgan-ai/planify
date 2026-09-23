@@ -13,8 +13,7 @@ import type { AppState, Blackout, CivilDate, Item, Resource, State } from '../co
 import { linksOf, partLabel, type PartLabel } from '../core/workItems'
 import { DatePicker } from './DatePicker'
 import { hostOf, ItemDetail } from './ItemDetail'
-import { DeleteItem, NewItemForm } from './ItemEditing'
-import { ItemForm, draftOf, editsFor } from './ItemForm'
+import { EditItemForm, NewItemForm } from './ItemEditing'
 import { scrollToRow, useArrival } from './useArrival'
 import { PhaseSidebar, type PhaseSelection } from './PhaseSidebar'
 import type { Store } from './useAppState'
@@ -185,34 +184,26 @@ export function Backlog({
                   showPhase={phase === null}
                   form={
                     editingItem === item.id ? (
-                      <ItemForm
+                      <EditItemForm
                         key={item.id}
                         state={state}
-                        self={item.id}
-                        initial={draftOf(item)}
+                        item={item}
                         busy={pendingId === item.id}
                         error={refused === item.id ? error : null}
-                        submitLabel="Save"
-                        danger={
-                          <DeleteItem
-                            state={state}
-                            item={item}
-                            busy={pendingId === item.id}
-                            onDelete={async (deletion) => {
-                              const deleted = await edit([deletion], item.id)
-                              setRefused(deleted ? null : item.id)
-                              if (!deleted) return
-                              setEditingItem(null)
-                              setExpanded(null)
-                            }}
-                          />
-                        }
                         onCancel={() => setEditingItem(null)}
-                        onSubmit={async (draft) => {
-                          const edits = editsFor(item, draft)
+                        onSave={async (edits, into) => {
                           const saved = edits.length === 0 || (await edit(edits, item.id))
                           setRefused(saved ? null : item.id)
-                          if (saved) setEditingItem(null)
+                          if (!saved) return
+                          setEditingItem(null)
+                          if (phase !== null && into !== phase) setPhase(into)
+                        }}
+                        onDelete={async (deletion) => {
+                          const deleted = await edit([deletion], item.id)
+                          setRefused(deleted ? null : item.id)
+                          if (!deleted) return
+                          setEditingItem(null)
+                          setExpanded(null)
                         }}
                       />
                     ) : null

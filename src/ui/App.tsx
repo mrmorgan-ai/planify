@@ -113,11 +113,8 @@ export function App() {
             />
             <Route path="/backlog" element={<Backlog {...store} state={state} />} />
             <Route path="/kanban" element={<Kanban {...store} state={state} />} />
-            <Route path="/work-items" element={<WorkItems state={state} />} />
-            <Route
-              path="/settings"
-              element={<Settings {...store} state={state} />}
-            />
+            <Route path="/work-items" element={<WorkItems {...store} state={state} />} />
+            <Route path="/settings" element={<Settings {...store} state={state} />} />
             <Route path="*" element={<Placeholder view="Not found" />} />
           </Routes>
         )}
