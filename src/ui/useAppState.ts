@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AppState, State } from '../core/types'
 import { fetchState, reschedule, setItemDates, setItemHours, setItemState } from './api'
 
@@ -29,6 +29,13 @@ export function useAppState(): Store {
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [rescheduling, setRescheduling] = useState(false)
 
+  // The writers below are created once, so they read the revision they were
+  // made from here rather than from the state they closed over.
+  const revision = useRef(0)
+  useEffect(() => {
+    if (state) revision.current = state.revision
+  }, [state])
+
   useEffect(() => {
     let cancelled = false
     fetchState()
@@ -47,7 +54,7 @@ export function useAppState(): Store {
     setPendingId(id)
     setError(null)
     try {
-      setState(await setItemState(id, next))
+      setState(await setItemState(id, next, revision.current))
     } catch (cause: unknown) {
       setError(messageOf(cause))
     } finally {
@@ -59,7 +66,7 @@ export function useAppState(): Store {
     setPendingId(id)
     setError(null)
     try {
-      setState(await setItemDates(id, start, end))
+      setState(await setItemDates(id, start, end, revision.current))
       return true
     } catch (cause: unknown) {
       setError(messageOf(cause))
@@ -73,7 +80,7 @@ export function useAppState(): Store {
     setPendingId(id)
     setError(null)
     try {
-      setState(await setItemHours(id, hours))
+      setState(await setItemHours(id, hours, revision.current))
       return true
     } catch (cause: unknown) {
       setError(messageOf(cause))
@@ -87,7 +94,7 @@ export function useAppState(): Store {
     setRescheduling(true)
     setError(null)
     try {
-      setState(await reschedule(restartDate))
+      setState(await reschedule(restartDate, revision.current))
       return true
     } catch (cause: unknown) {
       setError(messageOf(cause))

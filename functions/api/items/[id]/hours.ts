@@ -1,5 +1,5 @@
 import { applyHoursDone } from '../../../../src/core/schedule'
-import { only } from '../../../../src/server/http'
+import { missingRevision, only, refusal, revisionOf } from '../../../../src/server/http'
 import { mutate, scheduleOptions, type Env } from '../../../../src/server/repository'
 
 /**
@@ -22,13 +22,17 @@ export const onRequest = only<Env>('PATCH', async ({ env, params, request }) => 
   if (typeof hours !== 'number' || !Number.isFinite(hours) || hours < 0) {
     return Response.json({ error: 'hours must be a number of zero or more' }, { status: 400 })
   }
+  const revision = revisionOf(body)
+  if (revision === null) return missingRevision()
 
   try {
-    const state = await mutate(env.DB, (current) =>
+    const state = await mutate(env.DB, revision, (current) =>
       applyHoursDone(current.items, id, hours, scheduleOptions(current.roadmap)),
     )
     return Response.json(state)
   } catch (error) {
+    const refused = refusal(error)
+    if (refused) return refused
     const message = error instanceof Error ? error.message : 'Unknown error'
     const status = message.startsWith('No item with id')
       ? 404
