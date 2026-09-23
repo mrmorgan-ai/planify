@@ -150,6 +150,13 @@ export type ScheduleOptions = {
   timeZone: string
 }
 
+/** A roadmap on its own: what is validated, imported and exported. */
+export type RoadmapContent = {
+  roadmap: Roadmap
+  workItems: WorkItem[]
+  items: Item[]
+}
+
 /** What every API response carries: the world, plus the server's idea of today. */
 export type AppState = {
   today: CivilDate
