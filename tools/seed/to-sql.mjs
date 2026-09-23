@@ -1,6 +1,11 @@
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 
+// For the local database only. The live roadmap changes through an import in the
+// app (Settings, or POST /api/import), which checks the file against every rule,
+// shows what it changes, and refuses one made from an older revision. None of
+// that happens here: this writes whatever the file says.
+//
 // Emits a seed file as an upsert. Content is updated; state, completed_at and
 // the projected dates are left alone, so reloading never touches progress. Run
 // `POST /api/reproject` afterwards to recompute projections from the new
