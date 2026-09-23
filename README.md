@@ -21,6 +21,9 @@ dates again?".
 - **Groups work into units.** Anything longer than a week is split into parts —
   a course by week, a book by chapter, a project by task — and the parts are
   grouped under a work item that shows the unit's progress as a whole.
+- **Generates and places whole units.** A course, a certification, a project or
+  a run of practice blocks is described in a few answers and added at once,
+  placed in the hours the weekly capacity leaves free.
 - **States what done means.** An item can carry a checkable outcome ("the
   benchmark table is written and explained"), shown on the board where the work
   is picked up.
@@ -177,6 +180,28 @@ nothing, and restoring a version keeps what has been done. Edits less than ten
 minutes after the one before count as one change, so a form saved section by
 section is one version, not five. The history keeps the last 50.
 
+## Generating items
+
+**Backlog → Generate** adds a whole unit at once instead of one item at a time:
+
+| Kind | Asks for | Makes |
+|---|---|---|
+| Course | Total hours and the most a week | A part a week, each holding what the week has free up to that pace |
+| Certification | Prep hours and pace, exam hours, an optional exam day | Prep parts by the week, then the exam |
+| Project | Tasks, one a line with their hours | The tasks in a chain, each in the first week with room |
+| Practice | Hours a block and how many weeks | One block a week, at the end of the week |
+
+Each starts after the item you name, or after the previous phase's closing
+milestone, and not before today. Placement reads the plan's weeks the way the
+capacity check does: every new item sits inside one week, on study days, in hours
+that week has free, so none is too long, starts in a pause or overfills a week.
+Parts are grouped under a work item and chained, and the phase's milestone is
+made to wait on them when they end before it.
+
+Nothing is written until the preview — the items with their dates, and the
+warnings the result has — is confirmed. It lands as one change, with its own
+version in the history, so going back to before it undoes it and nothing else.
+
 ## API
 
 | Method | Path | Does |
@@ -188,6 +213,7 @@ section is one version, not five. The history keeps the last 50.
 | PATCH | `/api/items/:id/state` | Set `pending`, `in_progress` or `done`, and recompute |
 | PATCH | `/api/items/:id/dates` | Move an item's planned dates, and recompute |
 | PATCH | `/api/items/:id/hours` | Declare the hours spent so far, without changing the state |
+| POST | `/api/generate` | Add a course, certification, project or practice blocks, placed in the free hours; `dryRun` previews it |
 | POST | `/api/reschedule` | Move every unfinished item by whole weeks so the plan restarts in a date's week |
 | POST | `/api/reproject` | Recompute every projection |
 | GET | `/api/versions` | The history: what each change to the plan replaced, newest first |

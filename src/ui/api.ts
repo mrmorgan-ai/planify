@@ -1,4 +1,5 @@
 import type { Edit } from '../core/edits'
+import type { GenerateRequest, Placed } from '../core/generate'
 import type { PlanVersion } from '../core/history'
 import type { ImportPreview } from '../core/importing'
 import type { AppState, CivilDate, State } from '../core/types'
@@ -137,5 +138,29 @@ export function restoreVersion(id: number, revision: number): Promise<AppState> 
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ revision }),
+  })
+}
+
+/** What a generator would add, placed, and what that does to the roadmap. */
+export type GeneratePreview = ImportPreview & { placed: Placed[] }
+
+/** The items a generator would add and where, without adding them. */
+export function previewGenerate(
+  generator: GenerateRequest,
+  revision: number,
+): Promise<GeneratePreview> {
+  return call<GeneratePreview>('/api/generate', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ generator, revision, dryRun: true }),
+  })
+}
+
+/** Adds what a generator makes, placed where its preview said. */
+export function generateItems(generator: GenerateRequest, revision: number): Promise<AppState> {
+  return call('/api/generate', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ generator, revision }),
   })
 }

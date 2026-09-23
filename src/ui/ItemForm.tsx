@@ -1,7 +1,7 @@
 import { useId, useState, type ReactNode } from 'react'
 import { ITEM_TYPES } from '../core/constants'
 import type { Edit, ItemFields } from '../core/edits'
-import type { AppState, Item, ItemType, Resource } from '../core/types'
+import type { AppState, Item, ItemType, Resource, Roadmap } from '../core/types'
 
 /** What the form holds while it is being edited: every field as its input shows it. */
 export type Draft = {
@@ -304,40 +304,12 @@ export function ItemForm({
       </Field>
 
       <Field label="Skills">
-        <div className="form-list">
-          <Chips
-            values={draft.skills}
-            labelOf={(skill) => skill}
-            disabled={busy}
-            onRemove={(skill) =>
-              set(
-                'skills',
-                draft.skills.filter((each) => each !== skill),
-              )
-            }
-          />
-          <select
-            aria-label="Add a skill"
-            value=""
-            disabled={busy}
-            onChange={(event) => set('skills', [...draft.skills, event.target.value])}
-          >
-            <option value="">Add a skill…</option>
-            {roadmap.dimensions.map((dimension) => (
-              <optgroup key={dimension} label={dimension}>
-                {Object.keys(roadmap.skillDimension)
-                  .filter(
-                    (skill) =>
-                      roadmap.skillDimension[skill] === dimension && !draft.skills.includes(skill),
-                  )
-                  .sort((a, b) => a.localeCompare(b))
-                  .map((skill) => (
-                    <option key={skill}>{skill}</option>
-                  ))}
-              </optgroup>
-            ))}
-          </select>
-        </div>
+        <SkillPicker
+          roadmap={roadmap}
+          skills={draft.skills}
+          disabled={busy}
+          onChange={(skills) => set('skills', skills)}
+        />
       </Field>
 
       <Field label="Price" htmlFor={`${id}-price`}>
@@ -414,6 +386,50 @@ export function ItemForm({
         {danger}
       </div>
     </form>
+  )
+}
+
+/** The skills something feeds, picked from the radar's axes. */
+export function SkillPicker({
+  roadmap,
+  skills,
+  disabled,
+  onChange,
+}: {
+  roadmap: Roadmap
+  skills: string[]
+  disabled: boolean
+  onChange: (skills: string[]) => void
+}) {
+  return (
+    <div className="form-list">
+      <Chips
+        values={skills}
+        labelOf={(skill) => skill}
+        disabled={disabled}
+        onRemove={(skill) => onChange(skills.filter((each) => each !== skill))}
+      />
+      <select
+        aria-label="Add a skill"
+        value=""
+        disabled={disabled}
+        onChange={(event) => onChange([...skills, event.target.value])}
+      >
+        <option value="">Add a skill…</option>
+        {roadmap.dimensions.map((dimension) => (
+          <optgroup key={dimension} label={dimension}>
+            {Object.keys(roadmap.skillDimension)
+              .filter(
+                (skill) => roadmap.skillDimension[skill] === dimension && !skills.includes(skill),
+              )
+              .sort((a, b) => a.localeCompare(b))
+              .map((skill) => (
+                <option key={skill}>{skill}</option>
+              ))}
+          </optgroup>
+        ))}
+      </select>
+    </div>
   )
 }
 

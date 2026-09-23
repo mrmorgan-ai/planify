@@ -13,6 +13,7 @@ import type { AppState, Blackout, CivilDate, Item, Resource, State } from '../co
 import { linksOf, partLabel, type PartLabel } from '../core/workItems'
 import { DatePicker } from './DatePicker'
 import { hostOf, ItemDetail } from './ItemDetail'
+import { GeneratePanel } from './Generate'
 import { EditItemForm, NewItemForm } from './ItemEditing'
 import { scrollToRow, useArrival } from './useArrival'
 import { PhaseSidebar, type PhaseSelection } from './PhaseSidebar'
@@ -43,7 +44,8 @@ const FILTER_LABEL: Record<ItemFilter, string> = {
  * lock: nothing here stops you starting anything.
  *
  * The rest of an item is edited in its expanded row, and saved as one write.
- * New items are created here too, in the phase being looked at.
+ * New items are created here too, in the phase being looked at: one at a time,
+ * or a whole course, certification, project or run of practice at once.
  */
 export function Backlog({
   state,
@@ -52,6 +54,7 @@ export function Backlog({
   changeState,
   changeDates,
   edit,
+  generate,
 }: Store & { state: AppState }) {
   const [filter, setFilter] = useState<ItemFilter>('all')
   const [phase, setPhase] = useState<PhaseSelection>(state.roadmap.phases[0]?.number ?? null)
@@ -59,6 +62,7 @@ export function Backlog({
   const [editing, setEditing] = useState<string | null>(null)
   const [editingItem, setEditingItem] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const [generating, setGenerating] = useState(false)
   /**
    * Which form's last save was refused — an item's id, or `new` — so the
    * store's error shows in that form and not in every open one.
@@ -122,7 +126,7 @@ export function Backlog({
           <button
             type="button"
             className="button push-end"
-            disabled={creating}
+            disabled={creating || generating}
             onClick={() => {
               setRefused(null)
               setCreating(true)
@@ -130,7 +134,31 @@ export function Backlog({
           >
             + New item
           </button>
+          <button
+            type="button"
+            className="button"
+            disabled={creating || generating}
+            onClick={() => setGenerating(true)}
+          >
+            + Generate…
+          </button>
         </div>
+
+        {generating && (
+          <GeneratePanel
+            state={state}
+            phase={phase ?? state.roadmap.phases[0]?.number ?? 1}
+            error={error}
+            generate={generate}
+            onCancel={() => setGenerating(false)}
+            onDone={(placed, into) => {
+              setGenerating(false)
+              setPhase(into)
+              setFilter('all')
+              setExpanded(placed[0]?.id ?? null)
+            }}
+          />
+        )}
 
         {creating && (
           <NewItemForm
