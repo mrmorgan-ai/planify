@@ -1,3 +1,4 @@
+import type { Edit } from '../core/edits'
 import type { ImportPreview } from '../core/importing'
 import type { AppState, CivilDate, State } from '../core/types'
 
@@ -76,6 +77,15 @@ export function reschedule(restartDate: CivilDate, revision: number): Promise<Ap
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ restartDate, revision }),
+  })
+}
+
+/** Changes the roadmap's content. The list lands as one write or not at all. */
+export function sendEdits(edits: Edit[], revision: number): Promise<AppState> {
+  return call('/api/edits', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ edits, revision }),
   })
 }
 

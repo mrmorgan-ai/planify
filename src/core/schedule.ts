@@ -127,6 +127,20 @@ export function recomputeProjections(items: readonly Item[], options: ScheduleOp
 }
 
 /**
+ * `recomputeProjections` for a plan that may be broken. The engine cannot place
+ * a missing dependency, a cycle or a span with no study day, and says so by
+ * throwing; the items then keep the projections they came with, and the
+ * validator is what names the problem — as an error, which refuses the write.
+ */
+export function projectWherePossible(items: readonly Item[], options: ScheduleOptions): Item[] {
+  try {
+    return recomputeProjections(items, options)
+  } catch {
+    return [...items]
+  }
+}
+
+/**
  * Moves one item to a new state and reprojects everything. Keeps the invariant
  * the schema enforces: `done` carries a `completedAt`, anything else does not.
  * Re-marking an item done keeps its original date.
