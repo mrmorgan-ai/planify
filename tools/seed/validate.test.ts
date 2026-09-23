@@ -172,3 +172,16 @@ describe('introducedErrors', () => {
     expect(introducedErrors(example, tooLong)).toEqual([])
   })
 })
+
+describe('rules measure the plan, not the projection', () => {
+  it('reports no week over capacity when only progress has moved the projection', () => {
+    // Every item projected into the plan's first week, far past its capacity:
+    // the plan itself is untouched, so its capacity is untouched too.
+    const slipped = structuredClone(seedContent(readSeedFile(EXAMPLE_SEED)))
+    for (const item of slipped.items) {
+      item.projectedStartDate = '2030-01-07'
+      item.projectedEndDate = '2030-01-13'
+    }
+    expect(validate(slipped)).toEqual([])
+  })
+})
