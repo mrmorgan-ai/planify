@@ -135,9 +135,6 @@ VALUES (${text(skill)}, ${text(dimension)})
 ON CONFLICT(name) DO UPDATE SET dimension = excluded.dimension;`)
 }
 
-// Validator metadata lives in the database too, so an export is lossless: a
-// fresh machine gets back the rules the content is checked against, not just
-// the content.
 const meta = {
   time_zone: seed.timeZone,
   weekly_hours_normal: seed.weeklyHours ? String(seed.weeklyHours.normal) : '',
@@ -151,9 +148,6 @@ const meta = {
       '',
     ),
   seed_version: version,
-  expected_items_per_phase: JSON.stringify(seed.expectedItemsPerPhase),
-  phase_windows: JSON.stringify(seed.phaseWindows),
-  milestone_dependency_exceptions: JSON.stringify(seed.milestoneDependencyExceptions),
 }
 
 for (const [key, value] of Object.entries(meta)) {

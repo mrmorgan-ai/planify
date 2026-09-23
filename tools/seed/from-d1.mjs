@@ -29,22 +29,12 @@ const query = (sql) => {
 const metaRows = query('SELECT key, value FROM meta')
 const meta = Object.fromEntries(metaRows.map((row) => [row.key, row.value]))
 
-const parseJson = (value, fallback) => {
-  if (value === undefined) return fallback
-  try {
-    return JSON.parse(value)
-  } catch {
-    return fallback
-  }
-}
-
 const roadmap = {
   timeZone: meta.time_zone ?? 'UTC',
   startDate: meta.start_date || undefined,
   weeklyHours: meta.weekly_hours_normal
     ? { normal: Number(meta.weekly_hours_normal) }
     : undefined,
-  expectedItemsPerPhase: parseJson(meta.expected_items_per_phase, {}),
   phases: query('SELECT number, name, closing_milestone_id FROM phases ORDER BY number').map(
     (row) => ({
       number: row.number,
@@ -55,8 +45,6 @@ const roadmap = {
   blackouts: query('SELECT from_date, to_date, reason FROM blackouts ORDER BY from_date').map(
     (row) => ({ from: row.from_date, to: row.to_date, reason: row.reason }),
   ),
-  phaseWindows: parseJson(meta.phase_windows, {}),
-  milestoneDependencyExceptions: parseJson(meta.milestone_dependency_exceptions, {}),
   dimensions: query('SELECT name FROM dimensions ORDER BY sort_order').map((row) => row.name),
   // Grouped by axis rather than alphabetically: this file is hand-edited, and
   // the grouping is what makes a 70-skill map readable.

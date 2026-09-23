@@ -24,8 +24,6 @@ export type SeedItem = Omit<
   'state' | 'completedAt' | 'hoursDone' | 'projectedStartDate' | 'projectedEndDate'
 >
 
-export type PhaseWindow = { from: CivilDate; to: CivilDate | null }
-
 /**
  * Everything a roadmap is made of. Lives outside this repository: the app is
  * open, the roadmap is not.
@@ -43,11 +41,6 @@ export type SeedFile = {
   /** The units items are split from. Optional; an item names its own with `workItemId`. */
   workItems: WorkItem[]
   items: SeedItem[]
-
-  /** Expectations the validator checks the content against. */
-  expectedItemsPerPhase: Record<string, number>
-  phaseWindows: Record<string, PhaseWindow>
-  milestoneDependencyExceptions: Record<string, string[]>
 }
 
 /**
@@ -84,12 +77,6 @@ export function parseSeed(raw: unknown): SeedFile {
       (entry, index) => parseWorkItem(entry, index),
     ),
     items,
-    expectedItemsPerPhase: requireNumberRecord(file.expectedItemsPerPhase, 'expectedItemsPerPhase'),
-    phaseWindows: parsePhaseWindows(file.phaseWindows),
-    milestoneDependencyExceptions: requireStringArrayRecord(
-      file.milestoneDependencyExceptions,
-      'milestoneDependencyExceptions',
-    ),
   }
 }
 
@@ -179,23 +166,6 @@ function parseBlackout(entry: unknown, index: number): Blackout {
     to: requireCivilDate(value.to, `blackouts[${index}].to`),
     reason: requireString(value.reason, `blackouts[${index}].reason`),
   }
-}
-
-function parsePhaseWindows(raw: unknown): Record<string, PhaseWindow> {
-  const value = requireObject(raw, 'phaseWindows')
-  const windows: Record<string, PhaseWindow> = {}
-  for (const [phase, entry] of Object.entries(value)) {
-    const window = requireObject(entry, `phaseWindows.${phase}`)
-    const to = window.to
-    if (to !== null && typeof to !== 'string') {
-      throw new Error(`phaseWindows.${phase}.to must be a date or null`)
-    }
-    windows[phase] = {
-      from: requireCivilDate(window.from, `phaseWindows.${phase}.from`),
-      to: to === null ? null : requireCivilDate(to, `phaseWindows.${phase}.to`),
-    }
-  }
-  return windows
 }
 
 function parseSeedItem(entry: unknown, index: number): SeedItem {
@@ -313,27 +283,6 @@ function requireStringRecord(value: unknown, at: string): Record<string, string>
   const record: Record<string, string> = {}
   for (const [key, entry] of Object.entries(object)) {
     record[key] = requireString(entry, `${at}["${key}"]`)
-  }
-  return record
-}
-
-function requireNumberRecord(value: unknown, at: string): Record<string, number> {
-  const object = requireObject(value, at)
-  const record: Record<string, number> = {}
-  for (const [key, entry] of Object.entries(object)) {
-    if (typeof entry !== 'number' || !Number.isInteger(entry)) {
-      throw new Error(`${at}.${key} must be an integer`)
-    }
-    record[key] = entry
-  }
-  return record
-}
-
-function requireStringArrayRecord(value: unknown, at: string): Record<string, string[]> {
-  const object = requireObject(value, at)
-  const record: Record<string, string[]> = {}
-  for (const [key, entry] of Object.entries(object)) {
-    record[key] = requireStringArray(entry, `${at}["${key}"]`, true)
   }
   return record
 }
