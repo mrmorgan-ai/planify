@@ -168,7 +168,7 @@ included, and proves each rule fires by breaking a copy of the example seed.
 |---|---|---|
 | GET | `/api/state` | The whole roadmap with today's date |
 | GET | `/api/export` | The roadmap as a seed file, content only, naming the revision it was taken from |
-| POST | `/api/edits` | Apply a list of item edits (update fields, set dependencies, create, delete) as one write |
+| POST | `/api/edits` | Apply a list of edits to items, work items, phases, pauses, settings or skills as one write |
 | POST | `/api/import` | Replace the roadmap's content with a seed file's, keeping progress; `dryRun` previews it |
 | PATCH | `/api/items/:id/state` | Set `pending`, `in_progress` or `done`, and recompute |
 | PATCH | `/api/items/:id/dates` | Move an item's planned dates, and recompute |
@@ -197,6 +197,15 @@ depend on is refused unless the edit sets `rewire`, which connects them to what
 it depended on; a closing milestone cannot be deleted; and an item with progress
 is only deleted with `discardProgress`. An edit that cannot be applied as asked
 answers `400` saying why.
+
+The same list takes the roadmap's structure. A work item can be created, edited
+or deleted; deleting one leaves its parts standing on their own. A phase can be
+renamed or given another closing milestone, and phases are added after the last
+one, up to six; only an empty last phase can be removed. Pauses are replaced as
+a list, and with `keepStudyDays` every unfinished item keeps its study day of the
+plan, so a new pause pushes what comes after it. The time zone, start date and
+weekly capacity are set together, and the skill map is replaced whole, with
+`renamed` carrying a skill's new name into every item that uses it.
 
 An import sends `{ revision, roadmap }`: the file, and the revision it was
 exported from, so a file edited while the app moved on is refused rather than

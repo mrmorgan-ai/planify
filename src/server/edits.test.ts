@@ -75,4 +75,32 @@ describe('edits, written', () => {
     ).rejects.toBeInstanceOf(InvalidWriteError)
     expect((await loadAppState(db)).revision).toBe(1)
   })
+
+  it('moves a closing milestone and deletes the old one in the same write', async () => {
+    const db = await loaded()
+    await edit(db, 1, [
+      { op: 'updatePhase', number: 1, fields: { closingMilestoneId: 'exam-prep' } },
+      { op: 'deleteItem', id: 'phase-1-exam', rewire: true },
+    ])
+    const stored = await loadAppState(db)
+    expect(stored.roadmap.phases[0]?.closingMilestoneId).toBe('exam-prep')
+    expect(stored.items.some((item) => item.id === 'phase-1-exam')).toBe(false)
+  })
+
+  it('drops an axis while its skill moves to a new one, and deletes a work item', async () => {
+    const db = await loaded()
+    await edit(db, 1, [
+      {
+        op: 'setSkillMap',
+        dimensions: ['New axis', 'First axis'],
+        skills: { 'Something measurable': 'First axis', 'Something else': 'New axis' },
+      },
+      { op: 'deleteWorkItem', id: 'the-project' },
+    ])
+    const stored = await loadAppState(db)
+    expect(stored.roadmap.dimensions).toEqual(['New axis', 'First axis'])
+    expect(stored.roadmap.skillDimension['Something else']).toBe('New axis')
+    expect(stored.workItems.some((workItem) => workItem.id === 'the-project')).toBe(false)
+    expect(stored.items.find((item) => item.id === 'build-part-1')?.workItemId).toBeNull()
+  })
 })

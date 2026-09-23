@@ -71,12 +71,12 @@ export function parseSeed(raw: unknown): SeedFile {
     weeklyHours: parseWeeklyHours(file.weeklyHours),
     phases: requireArray(file.phases, 'phases').map((entry, index) => parsePhase(entry, index)),
     blackouts: requireArray(file.blackouts, 'blackouts').map((entry, index) =>
-      parseBlackout(entry, index),
+      parseBlackout(entry, `blackouts[${index}]`),
     ),
     dimensions,
     skills,
     workItems: (file.workItems === undefined ? [] : requireArray(file.workItems, 'workItems')).map(
-      (entry, index) => parseWorkItem(entry, index),
+      (entry, index) => parseWorkItem(entry, `workItems[${index}]`),
     ),
     items,
   }
@@ -181,10 +181,11 @@ function parsePhase(entry: unknown, index: number): Phase {
   }
 }
 
-function parseWorkItem(entry: unknown, index: number): WorkItem {
-  const value = requireObject(entry, `workItems[${index}]`)
-  const id = requireString(value.id, `workItems[${index}].id`)
-  const where = `workItems[${index}] (${id})`
+/** One work item's shape and types. `at` names it in the error, as for items. */
+export function parseWorkItem(entry: unknown, at: string): WorkItem {
+  const value = requireObject(entry, at)
+  const id = requireString(value.id, `${at}.id`)
+  const where = `${at} (${id})`
 
   const type = requireString(value.type, `${where}.type`)
   if (!ITEM_TYPES.includes(type as ItemType)) throw new Error(`${where}.type is not valid: ${type}`)
@@ -205,13 +206,13 @@ function parseWorkItem(entry: unknown, index: number): WorkItem {
   }
 }
 
-function parseBlackout(entry: unknown, index: number): Blackout {
-  const value = requireObject(entry, `blackouts[${index}]`)
-  return {
-    from: requireCivilDate(value.from, `blackouts[${index}].from`),
-    to: requireCivilDate(value.to, `blackouts[${index}].to`),
-    reason: requireString(value.reason, `blackouts[${index}].reason`),
-  }
+/** One pause's shape and types. `at` names it in the error. */
+export function parseBlackout(entry: unknown, at: string): Blackout {
+  const value = requireObject(entry, at)
+  const from = requireCivilDate(value.from, `${at}.from`)
+  const to = requireCivilDate(value.to, `${at}.to`)
+  if (to < from) throw new Error(`${at} ends on ${to}, before it starts on ${from}`)
+  return { from, to, reason: requireString(value.reason, `${at}.reason`) }
 }
 
 /**
