@@ -10,6 +10,7 @@ const REASON: Record<VersionReason, string> = {
   import: 'Import',
   reschedule: 'Reschedule',
   restore: 'Restore',
+  generate: 'Generate',
 }
 
 /** The newest ones cover most of what anyone goes back for. */

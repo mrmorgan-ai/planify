@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Edit } from '../core/edits'
+import type { GenerateRequest } from '../core/generate'
 import type { AppState, State } from '../core/types'
 import {
   StaleStateError,
   fetchState,
+  generateItems,
   importRoadmap,
   reschedule,
   restoreVersion,
@@ -36,6 +38,8 @@ export type Store = {
   importFile: (roadmap: unknown, revision: number) => Promise<boolean>
   /** Brings a version of the plan back, from the revision its preview was made at. */
   restore: (id: number, revision: number) => Promise<boolean>
+  /** Adds what a generator makes, from the revision its preview was made at. */
+  generate: (generator: GenerateRequest, revision: number) => Promise<boolean>
 }
 
 /**
@@ -199,6 +203,17 @@ export function useAppState(): Store {
     }
   }, [fail])
 
+  const generate = useCallback(async (generator: GenerateRequest, revision: number) => {
+    setError(null)
+    try {
+      setState(await generateItems(generator, revision))
+      return true
+    } catch (cause: unknown) {
+      fail(cause)
+      return false
+    }
+  }, [fail])
+
   return {
     state,
     error,
@@ -211,6 +226,7 @@ export function useAppState(): Store {
     edit,
     importFile,
     restore,
+    generate,
   }
 }
 

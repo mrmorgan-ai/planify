@@ -35,8 +35,12 @@ export function newItemId(
   name: string,
   content: Pick<RoadmapContent, 'items' | 'workItems'>,
 ): string {
+  return unusedId(name, takenIds(content))
+}
+
+/** `newItemId` against a set of ids in use, for a change that picks several at once. */
+export function unusedId(name: string, taken: ReadonlySet<string>): string {
   const base = slugOf(name)
-  const taken = takenIds(content)
   if (!taken.has(base)) return base
   for (let n = 2; ; n++) {
     const candidate = `${base}-${n}`
