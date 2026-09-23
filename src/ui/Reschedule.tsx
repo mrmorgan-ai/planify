@@ -63,7 +63,7 @@ export function LateBanner({ alert }: { alert: LateAlert }) {
 }
 
 /**
- * Picks the day the plan restarts and shows what that does before anything is
+ * Picks the week the plan restarts in and shows what that does before anything is
  * written. The preview runs the same engine function the server runs, on the
  * same data, so what it shows is what the server will write.
  */
@@ -104,11 +104,14 @@ export function RescheduleDialog({
     }
   }, [state.items, restart, roadmap.blackouts, roadmap.timeZone])
 
+  // The plan moves by whole weeks, so a choice names a week. This week is
+  // picked by today's date, since the server refuses a date already past.
+  const monday = startOfWeek(today)
   const choices = [
-    { label: 'Today', date: today },
-    { label: 'Tomorrow', date: addDays(today, 1) },
-    { label: `Mon ${Number(addDays(startOfWeek(today), 7).slice(8, 10))}`, date: addDays(startOfWeek(today), 7) },
-  ].filter((choice) => choice.date >= earliest)
+    { label: 'This week', date: earliest },
+    { label: 'Next week', date: maxDate(addDays(monday, 7), earliest) },
+    { label: 'In two weeks', date: maxDate(addDays(monday, 14), earliest) },
+  ].filter((choice, index, all) => all.findIndex((other) => sameWeek(other.date, choice.date)) === index)
 
   const { behind } = alert
   const nothing = !preview || preview.shift === 0
@@ -136,13 +139,13 @@ export function RescheduleDialog({
       )}
 
       <div className="reschedule-field">
-        <span className="reschedule-label">Restart on</span>
+        <span className="reschedule-label">Restart in</span>
         <div className="filters">
           {choices.map((choice) => (
             <button
               key={choice.label}
               type="button"
-              className={restart === choice.date ? 'chip active' : 'chip'}
+              className={sameWeek(restart, choice.date) ? 'chip active' : 'chip'}
               onClick={() => setRestart(choice.date)}
             >
               {choice.label}
@@ -150,11 +153,18 @@ export function RescheduleDialog({
           ))}
         </div>
         <div className="reschedule-date">
-          <DatePicker value={restart} min={earliest} label="Restart the plan on" onChange={setRestart} />
+          <DatePicker
+            value={restart}
+            min={earliest}
+            label="Restart the plan in the week of"
+            onChange={setRestart}
+          />
         </div>
-        {preview && preview.restart !== restart && (
+        {preview && (
           <p className="reschedule-note">
-            {shortDate(restart)} is in a pause; the plan restarts on {shortDate(preview.restart)}.
+            {sameWeek(preview.restart, restart)
+              ? `The plan restarts in the week of ${shortDate(preview.restart)}. Every item keeps its weekday.`
+              : `The week of ${shortDate(startOfWeek(restart))} is a pause; the plan restarts on ${shortDate(preview.restart)}.`}
           </p>
         )}
       </div>
@@ -163,7 +173,7 @@ export function RescheduleDialog({
         <Preview state={state} after={preview.items} moved={preview.moved} shift={preview.shift} />
       ) : (
         <p className="notice">
-          Nothing to move: no unfinished item starts before {shortDate(restart)}.
+          Nothing to move: the plan is not behind the week of {shortDate(startOfWeek(restart))}.
         </p>
       )}
 
@@ -220,8 +230,8 @@ function Preview({
     <div className="reschedule-preview">
       <ul>
         <li>
-          {moved.length} unfinished {moved.length === 1 ? 'item moves' : 'items move'} +{shift}{' '}
-          study {shift === 1 ? 'day' : 'days'}
+          {moved.length} unfinished {moved.length === 1 ? 'item moves' : 'items move'}{' '}
+          {weeksOf(shift)}
         </li>
         {milestones.map(({ phase, from, to }) => (
           <li key={phase.number}>
@@ -260,6 +270,17 @@ function Change({ from, to }: { from: CivilDate; to: CivilDate }) {
       {shortDate(from)} → <strong>{shortDate(to)}</strong>
     </span>
   )
+}
+
+function sameWeek(a: CivilDate, b: CivilDate): boolean {
+  return startOfWeek(a) === startOfWeek(b)
+}
+
+/** A move in study days, said in weeks when it is whole weeks, as it is with whole-week pauses. */
+function weeksOf(days: number): string {
+  if (days % 7 !== 0) return `+${days} study ${days === 1 ? 'day' : 'days'}`
+  const weeks = days / 7
+  return `+${weeks} ${weeks === 1 ? 'week' : 'weeks'}`
 }
 
 function readDismissed(): string | null {
