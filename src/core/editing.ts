@@ -6,7 +6,10 @@ import type { RoadmapContent } from './types'
 export class EditError extends Error {}
 
 /** Every id in use. Items and work items share one namespace. */
-export function takenIds({ items, workItems }: Pick<RoadmapContent, 'items' | 'workItems'>): Set<string> {
+export function takenIds({
+  items,
+  workItems,
+}: Pick<RoadmapContent, 'items' | 'workItems'>): Set<string> {
   return new Set([...items.map((item) => item.id), ...workItems.map((workItem) => workItem.id)])
 }
 
@@ -28,7 +31,10 @@ export function slugOf(name: string): string {
  * an item or a work item already has it. The client asks for it explicitly, so
  * it knows which row to open once the item exists.
  */
-export function newItemId(name: string, content: Pick<RoadmapContent, 'items' | 'workItems'>): string {
+export function newItemId(
+  name: string,
+  content: Pick<RoadmapContent, 'items' | 'workItems'>,
+): string {
   const base = slugOf(name)
   const taken = takenIds(content)
   if (!taken.has(base)) return base

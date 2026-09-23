@@ -26,7 +26,11 @@ export type StructureEdit =
   /** Its parts stay, on their own. */
   | { op: 'deleteWorkItem'; id: string }
   | { op: 'addPhase'; name: string }
-  | { op: 'updatePhase'; number: number; fields: { name?: string; closingMilestoneId?: string | null } }
+  | {
+      op: 'updatePhase'
+      number: number
+      fields: { name?: string; closingMilestoneId?: string | null }
+    }
   /** Only the last phase, and only once it is empty. */
   | { op: 'removePhase'; number: number }
   | {
@@ -67,7 +71,10 @@ export function isStructureOp(op: unknown): op is StructureEdit['op'] {
 export function parseStructureEdit(edit: Record<string, unknown>, at: string): StructureEdit {
   switch (edit.op) {
     case 'createWorkItem':
-      return { op: 'createWorkItem', workItem: object(edit.workItem, `${at}.workItem`) as NewWorkItem }
+      return {
+        op: 'createWorkItem',
+        workItem: object(edit.workItem, `${at}.workItem`) as NewWorkItem,
+      }
     case 'updateWorkItem': {
       const fields = object(edit.fields, `${at}.fields`)
       for (const field of Object.keys(fields)) {
@@ -75,7 +82,11 @@ export function parseStructureEdit(edit: Record<string, unknown>, at: string): S
           throw new EditError(`${at}.fields.${field} cannot be edited this way`)
         }
       }
-      return { op: 'updateWorkItem', id: text(edit.id, `${at}.id`), fields: fields as WorkItemFields }
+      return {
+        op: 'updateWorkItem',
+        id: text(edit.id, `${at}.id`),
+        fields: fields as WorkItemFields,
+      }
     }
     case 'deleteWorkItem':
       return { op: 'deleteWorkItem', id: text(edit.id, `${at}.id`) }
@@ -133,7 +144,9 @@ export function parseStructureEdit(edit: Record<string, unknown>, at: string): S
       if (!Array.isArray(edit.dimensions) || edit.dimensions.length === 0) {
         throw new EditError(`${at}.dimensions must be a non-empty array`)
       }
-      const dimensions = edit.dimensions.map((name, index) => text(name, `${at}.dimensions[${index}]`))
+      const dimensions = edit.dimensions.map((name, index) =>
+        text(name, `${at}.dimensions[${index}]`),
+      )
       if (new Set(dimensions).size !== dimensions.length) {
         throw new EditError(`${at}.dimensions names the same axis twice`)
       }
@@ -216,7 +229,9 @@ export function applyStructureEdit(
       }
       const inIt = content.items.filter((item) => item.phase === phase.number).length
       if (inIt > 0) {
-        throw new EditError(`Phase ${phase.number} still has ${inIt} items; move or delete them first`)
+        throw new EditError(
+          `Phase ${phase.number} still has ${inIt} items; move or delete them first`,
+        )
       }
       return {
         ...content,
@@ -279,7 +294,11 @@ export function keepStudyDays(
     const length = studyDaysBetween(item.baselineStartDate, item.baselineEndDate, before)
     if (position < 1 || length < 1) return item
     const start = shiftStudyDays(anchor, position - 1, after)
-    return { ...item, baselineStartDate: start, baselineEndDate: addStudyDays(start, length, after) }
+    return {
+      ...item,
+      baselineStartDate: start,
+      baselineEndDate: addStudyDays(start, length, after),
+    }
   })
 }
 
@@ -312,12 +331,14 @@ function object(value: unknown, at: string): Record<string, unknown> {
 }
 
 function text(value: unknown, at: string): string {
-  if (typeof value !== 'string' || value.trim() === '') throw new EditError(`${at} must not be empty`)
+  if (typeof value !== 'string' || value.trim() === '')
+    throw new EditError(`${at} must not be empty`)
   return value
 }
 
 function phaseNumber(value: unknown, at: string): number {
-  if (typeof value !== 'number' || !Number.isInteger(value)) throw new EditError(`${at} must be a phase number`)
+  if (typeof value !== 'number' || !Number.isInteger(value))
+    throw new EditError(`${at} must be a phase number`)
   return value
 }
 
