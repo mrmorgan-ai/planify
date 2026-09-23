@@ -127,13 +127,30 @@ deleted.
 
 ### What the validator checks
 
-- **Shape**: unique ids, curated order, links, timezone, phase numbering, item counts per phase.
-- **Dates**: nothing starts or ends inside a pause, every item stays in its phase window, and no item spans more than seven study days.
-- **Graph**: dependencies exist and form no cycle; every phase waits on the previous phase's closing milestone; each milestone waits on its whole phase; project tasks follow each other strictly.
-- **Work items**: every item's work item exists, each has at least two parts, and parts never overlap.
-- **Hours and outcomes**: every item has an hours estimate, no week is planned above its capacity, and practice and exam-preparation items state what done means.
-- **Skills**: every skill belongs to a dimension, and every dimension is used.
-- **The plan is born on time**: with nothing done, the engine projects every item exactly onto its planned dates.
+`src/core/validate.ts` checks a whole roadmap at once and sorts what it finds
+by severity, set per rule in its `RULES` table.
+
+**Errors** — data the app cannot run on:
+
+- **Ids**: kebab-case and unique; a work item never reuses an item id.
+- **Phases**: numbered 1 to n without gaps; every item in a defined phase; each closing milestone exists inside its own phase; a unique curated order within each phase.
+- **Settings**: a timezone the runtime knows; links are https or empty.
+- **Dates**: at least one study day, ending on or after the start; never starting or ending inside a pause; never before the plan's start date.
+- **Graph**: dependencies exist, are not the item itself, are not repeated, and form no cycle; every item's work item exists.
+- **Skills**: every skill an item uses is on a radar axis that exists.
+
+**Warnings** — the plan's own conventions:
+
+- No item spans more than seven study days, and no week is planned above its capacity.
+- Phases follow each other without overlapping (their windows are read off the items).
+- Every phase waits on the previous phase's closing milestone, each milestone waits on its whole phase, and project tasks follow each other strictly.
+- Every work item has at least two parts, and they never overlap.
+- Every item has an hours estimate, and practice and exam-preparation items state what done means.
+- Every mapped skill is used, and every radar axis has a skill.
+- **The plan is born on time**: no dependency ends on or after the planned start of an item that waits on it — otherwise the engine shifts that item the moment the plan loads.
+
+`npm run seed:validate` requires every seed file present to pass clean, warnings
+included, and proves each rule fires by breaking a copy of the example seed.
 
 ## API
 

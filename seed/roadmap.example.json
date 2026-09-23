@@ -1,17 +1,11 @@
 {
   "timeZone": "UTC",
   "weeklyHours": { "normal": 15 },
-  "expectedItemsPerPhase": { "1": 9, "2": 2 },
   "phases": [
     { "number": 1, "name": "First phase", "closingMilestoneId": "phase-1-exam" },
     { "number": 2, "name": "Second phase", "closingMilestoneId": null }
   ],
   "blackouts": [{ "from": "2030-01-21", "to": "2030-02-03", "reason": "Planned pause" }],
-  "phaseWindows": {
-    "1": { "from": "2030-01-07", "to": "2030-02-10" },
-    "2": { "from": "2030-02-11", "to": null }
-  },
-  "milestoneDependencyExceptions": {},
   "dimensions": ["First axis", "Second axis"],
   "skills": {
     "Something measurable": "First axis",
