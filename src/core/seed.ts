@@ -118,6 +118,50 @@ export function seedContent(seed: SeedFile): RoadmapContent {
   }
 }
 
+/**
+ * A roadmap as a seed file again: content only, in the order the file is read
+ * in. The inverse of `seedContent` — progress and projections stay behind, and
+ * a start date or capacity that is not set is left out rather than written
+ * empty. Skills are grouped by axis, because the file is edited by hand and the
+ * grouping is what makes a long skill map readable.
+ */
+export function toSeedFile(content: RoadmapContent): SeedFile {
+  const { roadmap } = content
+  const axis = (skill: string) => roadmap.dimensions.indexOf(roadmap.skillDimension[skill] ?? '')
+  const skills = Object.keys(roadmap.skillDimension).sort(
+    (a, b) => axis(a) - axis(b) || a.localeCompare(b),
+  )
+
+  return {
+    timeZone: roadmap.timeZone,
+    ...(roadmap.startDate === '' ? {} : { startDate: roadmap.startDate }),
+    ...(roadmap.weeklyHours.normal > 0 ? { weeklyHours: roadmap.weeklyHours } : {}),
+    phases: roadmap.phases,
+    blackouts: roadmap.blackouts,
+    dimensions: roadmap.dimensions,
+    skills: Object.fromEntries(skills.map((skill) => [skill, roadmap.skillDimension[skill]!])),
+    workItems: content.workItems,
+    items: content.items.map((item) => ({
+      id: item.id,
+      name: item.name,
+      type: item.type,
+      phase: item.phase,
+      workItemId: item.workItemId,
+      skills: item.skills,
+      baselineStartDate: item.baselineStartDate,
+      baselineEndDate: item.baselineEndDate,
+      dependsOn: item.dependsOn,
+      price: item.price,
+      link: item.link,
+      resources: item.resources,
+      duration: item.duration,
+      notes: item.notes,
+      doneWhen: item.doneWhen,
+      sortOrder: item.sortOrder,
+    })),
+  }
+}
+
 function parsePhase(entry: unknown, index: number): Phase {
   const value = requireObject(entry, `phases[${index}]`)
   const number = value.number
