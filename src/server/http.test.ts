@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { EditError } from '../core/edits'
 import type { AppState } from '../core/types'
 import { refusal, revisionOf } from './http'
 import { InvalidWriteError, StaleRevisionError } from './repository'
@@ -44,6 +45,12 @@ describe('refusal', () => {
     const body = (await response?.json()) as { error: string; issues: unknown[] }
     expect(body.issues).toEqual([issue])
     expect(body.error).toContain('x starts inside a pause')
+  })
+
+  it('answers an edit that cannot be applied with 400 and the reason', async () => {
+    const response = refusal(new EditError('x is needed by y'))
+    expect(response?.status).toBe(400)
+    expect(await response?.json()).toEqual({ error: 'x is needed by y' })
   })
 
   it('leaves any other error to the route', () => {

@@ -1,3 +1,4 @@
+import { EditError } from '../core/edits'
 import { InvalidWriteError, StaleRevisionError } from './repository'
 
 /** The revision a write says it was made from, or null when it names none. */
@@ -19,7 +20,8 @@ export function missingRevision(): Response {
  * The response for a write the roadmap refused on its own terms, or null when
  * the error is something else. A stale write answers 409 with the current
  * world, so the client replaces its copy instead of fetching it again; a write
- * that would break a rule answers 422 with the errors it would have introduced.
+ * that would break a rule answers 422 with the errors it would have introduced;
+ * an edit that cannot be applied as asked answers 400 saying why.
  */
 export function refusal(error: unknown): Response | null {
   if (error instanceof StaleRevisionError) {
@@ -27,6 +29,9 @@ export function refusal(error: unknown): Response | null {
   }
   if (error instanceof InvalidWriteError) {
     return Response.json({ error: error.message, issues: error.issues }, { status: 422 })
+  }
+  if (error instanceof EditError) {
+    return Response.json({ error: error.message }, { status: 400 })
   }
   return null
 }
