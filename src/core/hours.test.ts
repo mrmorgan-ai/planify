@@ -3,6 +3,7 @@ import {
   daysLeftInWeek,
   estimatedHours,
   progressHours,
+  hoursByWeek,
   hoursInWeek,
   inWeek,
   planProgress,
@@ -225,6 +226,39 @@ describe('hoursInWeek', () => {
     })
 
     expect(hoursInWeek([exact], week, [])).toBeCloseTo(9)
+  })
+})
+
+describe('hoursByWeek', () => {
+  it('spreads an item over the weeks it touches, keyed by Monday', () => {
+    // Thursday to the next Wednesday: 4 days in the first week, 3 in the second.
+    const across = item('across', {
+      duration: '~7h',
+      projectedStartDate: '2030-02-07',
+      projectedEndDate: '2030-02-13',
+    })
+
+    expect([...hoursByWeek([across], [])]).toEqual([
+      ['2030-02-04', 4],
+      ['2030-02-11', 3],
+    ])
+  })
+
+  it('agrees with hoursInWeek for every week', () => {
+    const blackouts = [{ from: '2030-02-12', to: '2030-02-18', reason: 'Break' }]
+    const spanning = (id: string, duration: string, from: string, to: string) =>
+      item(id, { duration, projectedStartDate: from, projectedEndDate: to })
+    const items = [
+      spanning('long', '~28h', '2030-01-28', '2030-02-24'),
+      spanning('short', '~2.5-3h', '2030-02-05', '2030-02-06'),
+      spanning('paused', '~10h', '2030-02-08', '2030-02-21'),
+      spanning('vague', '', '2030-02-05', '2030-02-08'),
+    ]
+    const byWeek = hoursByWeek(items, blackouts)
+
+    for (const monday of ['2030-01-28', '2030-02-04', '2030-02-11', '2030-02-18', '2030-02-25']) {
+      expect(byWeek.get(monday) ?? 0).toBe(hoursInWeek(items, weekOf(monday, CAPACITY), blackouts))
+    }
   })
 })
 
