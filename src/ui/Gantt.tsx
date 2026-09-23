@@ -57,7 +57,14 @@ const LEGEND = [
  * Dependencies are drawn only for the bar you point at. All 95 of them at once is
  * not a diagram: phase 3 alone would put 32 lines over 17 bars.
  */
-export function Gantt({ state, onReschedule }: { state: AppState; onReschedule: () => void }) {
+export function Gantt({
+  state,
+  onReschedule,
+}: {
+  state: AppState
+  /** Absent in a draft, which is replanned by editing it. */
+  onReschedule?: () => void
+}) {
   const [scope, setScope] = useState<Scope>(() => activePhase(state))
   const [focused, setFocused] = useState<string | null>(null)
   const frame = useRef<HTMLDivElement>(null)
@@ -89,9 +96,11 @@ export function Gantt({ state, onReschedule }: { state: AppState; onReschedule: 
         <h2 className="board-title">
           {phase ? `Phase ${phase.number} · ${phase.name}` : 'The whole plan'}
         </h2>
-        <button type="button" className="button" onClick={onReschedule}>
-          Reschedule plan
-        </button>
+        {onReschedule && (
+          <button type="button" className="button" onClick={onReschedule}>
+            Reschedule plan
+          </button>
+        )}
       </div>
 
       <div className="filters">

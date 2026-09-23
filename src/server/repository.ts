@@ -37,7 +37,7 @@ const ITEM_COLUMNS = `id, name, type, phase, work_item_id, skills, depends_on,
  * full dependency graph on every call anyway.
  */
 export async function loadAppState(db: D1Database): Promise<AppState> {
-  const [items, workItems, phases, blackouts, dimensions, skills, meta] = await db.batch([
+  const [items, workItems, phases, blackouts, dimensions, skills, meta, draft] = await db.batch([
     db.prepare(`SELECT ${ITEM_COLUMNS} FROM items ORDER BY phase, sort_order`),
     db.prepare('SELECT id, name, type, link, resources, notes FROM work_items ORDER BY id'),
     db.prepare('SELECT number, name, closing_milestone_id FROM phases ORDER BY number'),
@@ -45,6 +45,7 @@ export async function loadAppState(db: D1Database): Promise<AppState> {
     db.prepare('SELECT name FROM dimensions ORDER BY sort_order'),
     db.prepare('SELECT name, dimension FROM skills ORDER BY name'),
     db.prepare('SELECT key, value FROM meta'),
+    db.prepare('SELECT started_at, updated_at FROM draft WHERE id = 1'),
   ])
 
   const settings = toMeta((meta?.results ?? []) as MetaRow[])
@@ -62,10 +63,15 @@ export async function loadAppState(db: D1Database): Promise<AppState> {
     skillDimension: toSkillDimension((skills?.results ?? []) as SkillRow[]),
   }
 
+  const drafting = (draft?.results ?? [])[0] as
+    | { started_at: string; updated_at: string }
+    | undefined
+
   return {
     today: todayIn(roadmap.timeZone),
     revision: Number(settings.revision ?? '0'),
     seedVersion: settings.seed_version ?? '0',
+    draft: drafting ? { startedAt: drafting.started_at, updatedAt: drafting.updated_at } : null,
     roadmap,
     workItems: ((workItems?.results ?? []) as WorkItemRow[]).map(toWorkItem),
     items: ((items?.results ?? []) as ItemRow[]).map(toItem),
@@ -89,11 +95,12 @@ export class InvalidWriteError extends Error {
  * catch up instead of guessing.
  */
 export class StaleRevisionError extends Error {
-  constructor(readonly state: AppState) {
-    super(
-      `The roadmap changed since this copy was loaded (it is now at revision ${state.revision}). ` +
-        'It has been reloaded; make the change again.',
-    )
+  constructor(
+    readonly state: AppState,
+    message = `The roadmap changed since this copy was loaded (it is now at revision ${state.revision}). ` +
+      'It has been reloaded; make the change again.',
+  ) {
+    super(message)
   }
 }
 

@@ -1,4 +1,5 @@
 import { EditError } from '../core/edits'
+import { NoDraftError } from './drafts'
 import { InvalidWriteError, StaleRevisionError } from './repository'
 
 /** The revision a write says it was made from, or null when it names none. */
@@ -21,7 +22,8 @@ export function missingRevision(): Response {
  * the error is something else. A stale write answers 409 with the current
  * world, so the client replaces its copy instead of fetching it again; a write
  * that would break a rule answers 422 with the errors it would have introduced;
- * an edit that cannot be applied as asked answers 400 saying why.
+ * an edit that cannot be applied as asked answers 400 saying why; a write to a
+ * draft when none is in progress answers 404.
  */
 export function refusal(error: unknown): Response | null {
   if (error instanceof StaleRevisionError) {
@@ -32,6 +34,9 @@ export function refusal(error: unknown): Response | null {
   }
   if (error instanceof EditError) {
     return Response.json({ error: error.message }, { status: 400 })
+  }
+  if (error instanceof NoDraftError) {
+    return Response.json({ error: error.message }, { status: 404 })
   }
   return null
 }

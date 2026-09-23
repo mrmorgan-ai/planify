@@ -5,6 +5,7 @@ import type { AppState } from '../core/types'
 import { StaleStateError, previewImport } from './api'
 import { ChangeReview, type ReviewWords } from './ChangeReview'
 import { History } from './History'
+import type { Mode } from './useAppState'
 import {
   PausesSettings,
   PhasesSettings,
@@ -50,8 +51,10 @@ export function Settings({
   edit,
   importFile,
   restore,
+  mode,
 }: {
   state: AppState
+  mode: Mode
   error: string | null
   pendingId: string | null
   edit: (edits: Edit[], id?: string) => Promise<boolean>
@@ -89,8 +92,17 @@ export function Settings({
         state={state}
         saver={saver('settings:skills')}
       />
-      <RoadmapFile state={state} importFile={importFile} />
-      <History state={state} restore={restore} />
+      {mode === 'draft' ? (
+        <p className="muted settings-text">
+          The roadmap file and the history act on the live roadmap. Publish the draft, or go back to
+          live, to use them.
+        </p>
+      ) : (
+        <>
+          <RoadmapFile state={state} importFile={importFile} />
+          <History state={state} restore={restore} />
+        </>
+      )}
     </section>
   )
 }

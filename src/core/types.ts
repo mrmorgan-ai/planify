@@ -157,6 +157,15 @@ export type RoadmapContent = {
   items: Item[]
 }
 
+/**
+ * A draft of the plan in progress: changes staged apart from the live roadmap,
+ * published as one. There is one at a time, shared by every device.
+ */
+export type DraftMark = {
+  startedAt: IsoDateTime
+  updatedAt: IsoDateTime
+}
+
 /** What every API response carries: the world, plus the server's idea of today. */
 export type AppState = {
   today: CivilDate
@@ -164,6 +173,11 @@ export type AppState = {
   revision: number
   /** Which seed the database was loaded from — the answer to "is this the roadmap I just edited?". */
   seedVersion: string
+  /**
+   * The draft in progress, or null for none. On the draft's own world it is
+   * always set, and `revision` is the draft's rather than the roadmap's.
+   */
+  draft: DraftMark | null
   roadmap: Roadmap
   workItems: WorkItem[]
   items: Item[]

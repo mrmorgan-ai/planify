@@ -76,6 +76,7 @@ type Review =
 export function GeneratePanel({
   state,
   phase,
+  draft,
   error,
   generate,
   onCancel,
@@ -83,6 +84,8 @@ export function GeneratePanel({
 }: {
   state: AppState
   phase: PhaseNumber
+  /** Place them in the draft rather than the live roadmap. */
+  draft: boolean
   /** The server's answer to the last attempt to add them, when it refused it. */
   error: string | null
   generate: (generator: GenerateRequest, revision: number) => Promise<boolean>
@@ -112,11 +115,11 @@ export function GeneratePanel({
     try {
       let preview: GeneratePreview
       try {
-        preview = await previewGenerate(request, state.revision)
+        preview = await previewGenerate(request, state.revision, draft)
       } catch (cause: unknown) {
         // Another device changed the roadmap: place them in it as it is now.
         if (!(cause instanceof StaleStateError)) throw cause
-        preview = await previewGenerate(request, cause.state.revision)
+        preview = await previewGenerate(request, cause.state.revision, draft)
       }
       setReview({ kind: 'ready', request, preview })
     } catch (cause: unknown) {

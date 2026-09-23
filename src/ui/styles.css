@@ -1418,6 +1418,99 @@ a.button {
   font-size: 0.75rem;
 }
 
+/* Drafts: the line under the header saying which world is on screen. Blue, the
+   accent, so it never reads as the orange of a plan running late. */
+
+.draft-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  padding: 0.45rem 1.25rem;
+  border-bottom: 1px solid var(--accent);
+  background: rgb(124 156 246 / 0.1);
+  color: var(--accent);
+  font-size: 0.9rem;
+}
+
+.draft-bar.drafting {
+  background: rgb(124 156 246 / 0.18);
+  color: var(--text);
+}
+
+.draft-bar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.draft-bar-action {
+  padding: 0.2rem 0.65rem;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.draft-bar-action:hover:not(:disabled) {
+  background: rgb(124 156 246 / 0.15);
+}
+
+.draft-bar-action.primary {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.draft-bar-action.danger {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+/* The draft control joins the header's right-hand group: it takes the push when
+   no plan issues are shown, and the session follows it without a gap. */
+.draft-toggle,
+.draft-badge {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.plan-issues + .draft-toggle,
+.plan-issues + .draft-badge,
+.draft-toggle + .session,
+.draft-badge + .session {
+  margin-left: 0;
+}
+
+.draft-badge {
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* In a draft the header itself says so, whichever view is open. */
+.app.drafting header {
+  border-bottom-color: var(--accent);
+}
+
+.publish-review {
+  width: min(40rem, calc(100vw - 2rem));
+}
+
+.publish-review .import-review {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
 /* Rescheduling: the banner under the header, and the dialog it opens. */
 
 .late-banner {
@@ -2771,6 +2864,11 @@ tr.part .name {
 
   .session-email {
     display: none;
+  }
+
+  .draft-toggle {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.85rem;
   }
 
   /* The footer keeps the credit, the day and the plan figure. The phase is the

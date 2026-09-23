@@ -171,14 +171,33 @@ included, and proves each rule fires by breaking a copy of the example seed.
 ## History
 
 Every change to the plan keeps the plan it replaced: an edit, an import, a date
-moved, a reschedule, a restore. **Settings → History** lists them newest first,
-each with a line saying what the change did. Any of them can be brought back,
-after the same preview an import shows.
+moved, a reschedule, a restore, a generation, a published draft. **Settings →
+History** lists them newest first, each with a line saying what the change did.
+Any of them can be brought back, after the same preview an import shows.
 
 Progress is not a change of plan. Ticking an item off or logging hours keeps
 nothing, and restoring a version keeps what has been done. Edits less than ten
 minutes after the one before count as one change, so a form saved section by
 section is one version, not five. The history keeps the last 50.
+
+## Drafts
+
+**Start a draft** in the header to change the plan without changing the live
+roadmap. Every view then shows the draft — the backlog, the work items, the
+Gantt, the settings and the warnings — and every edit, date moved or generator
+run lands in it. Progress is always the live roadmap's: ticking an item off or
+logging hours is done there, and the draft shows it as it happens.
+
+A draft may break a rule the live roadmap refuses, since staging a change often
+means passing through a state that breaks one. **Review and publish** shows
+what it would change on the live roadmap, the same way an import does, and
+refuses a draft that brings in an error. Publishing is one change: the live
+roadmap's progress stays, the plan it replaces is kept in the history, and the
+draft ends. The review also says when the live plan changed after the draft
+started, since publishing replaces those changes.
+
+There is one draft at a time, kept on the server, so it can be opened from any
+device. **Back to live** leaves it as it is; **Discard** drops it.
 
 ## Generating items
 
@@ -208,12 +227,16 @@ version in the history, so going back to before it undoes it and nothing else.
 |---|---|---|
 | GET | `/api/state` | The whole roadmap with today's date |
 | GET | `/api/export` | The roadmap as a seed file, content only, naming the revision it was taken from |
-| POST | `/api/edits` | Apply a list of edits to items, work items, phases, pauses, settings or skills as one write |
+| POST | `/api/edits` | Apply a list of edits to items, work items, phases, pauses, settings or skills as one write; `draft` sends them to the draft |
 | POST | `/api/import` | Replace the roadmap's content with a seed file's, keeping progress; `dryRun` previews it |
 | PATCH | `/api/items/:id/state` | Set `pending`, `in_progress` or `done`, and recompute |
-| PATCH | `/api/items/:id/dates` | Move an item's planned dates, and recompute |
+| PATCH | `/api/items/:id/dates` | Move an item's planned dates, and recompute; `draft` moves them in the draft |
 | PATCH | `/api/items/:id/hours` | Declare the hours spent so far, without changing the state |
-| POST | `/api/generate` | Add a course, certification, project or practice blocks, placed in the free hours; `dryRun` previews it |
+| POST | `/api/generate` | Add a course, certification, project or practice blocks, placed in the free hours; `dryRun` previews it, `draft` adds to the draft |
+| GET | `/api/draft` | The draft's world: its plan with the live roadmap's progress |
+| POST | `/api/draft` | Start a draft from the live plan, or open the one in progress |
+| DELETE | `/api/draft` | Drop the draft |
+| POST | `/api/draft/publish` | Make the draft the plan, keeping progress; `dryRun` previews it |
 | POST | `/api/reschedule` | Move every unfinished item by whole weeks so the plan restarts in a date's week |
 | POST | `/api/reproject` | Recompute every projection |
 | GET | `/api/versions` | The history: what each change to the plan replaced, newest first |

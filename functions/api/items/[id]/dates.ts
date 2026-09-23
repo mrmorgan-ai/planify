@@ -2,12 +2,14 @@ import { isCivilDate } from '../../../../src/core/dates'
 import { applyBaselineDates } from '../../../../src/core/schedule'
 import type { Item } from '../../../../src/core/types'
 import { missingRevision, only, refusal, revisionOf } from '../../../../src/server/http'
-import { mutate, scheduleOptions, type Env } from '../../../../src/server/repository'
+import { scheduleOptions, type Env } from '../../../../src/server/repository'
+import { mutateItemsIn, targetOf } from '../../../../src/server/target'
 
 /**
  * Moves one item's baseline dates. When it now ends later, everything that
  * depends on it is pushed forward by the same study days in the same write, so
- * the plan stays continuous. Nothing is ever pulled back.
+ * the plan stays continuous. Nothing is ever pulled back. With `draft: true` the
+ * move lands in the draft.
  *
  * The roadmap's start date is enforced here rather than in the engine: a floor
  * inside the engine would quietly clamp bad data instead of reporting it, and
@@ -43,8 +45,9 @@ export const onRequest = only<Env>('PATCH', async ({ env, params, request }) => 
   if (revision === null) return missingRevision()
 
   try {
-    const state = await mutate(
+    const state = await mutateItemsIn(
       env.DB,
+      targetOf(body),
       revision,
       (current) => {
         const floor = current.roadmap.startDate

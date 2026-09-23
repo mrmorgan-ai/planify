@@ -55,6 +55,7 @@ export function Backlog({
   changeDates,
   edit,
   generate,
+  mode,
 }: Store & { state: AppState }) {
   const [filter, setFilter] = useState<ItemFilter>('all')
   const [phase, setPhase] = useState<PhaseSelection>(state.roadmap.phases[0]?.number ?? null)
@@ -148,6 +149,7 @@ export function Backlog({
           <GeneratePanel
             state={state}
             phase={phase ?? state.roadmap.phases[0]?.number ?? 1}
+            draft={mode === 'draft'}
             error={error}
             generate={generate}
             onCancel={() => setGenerating(false)}
