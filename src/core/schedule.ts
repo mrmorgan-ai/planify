@@ -218,7 +218,8 @@ export function applyHoursDone(
  * through them: they ended when they ended.
  *
  * An item that depends on nothing keeps its own dates, because nothing about its
- * plan changed.
+ * plan changed — unless it is the next part of the same work item and the move
+ * now overlaps it, in which case it is set apart (see `separateParts`).
  */
 export function applyBaselineDates(
   items: readonly Item[],
@@ -239,21 +240,88 @@ export function applyBaselineDates(
   )
 
   const push = pushedBy(before, moved, id, options)
-  if (push === 0) return moved
-
-  const followers = followersOf(moved, id)
-  return recomputeProjections(
-    moved.map((item) =>
-      followers.has(item.id)
-        ? {
-            ...item,
-            baselineStartDate: shiftStudyDays(item.baselineStartDate, push, options.blackouts),
-            baselineEndDate: shiftStudyDays(item.baselineEndDate, push, options.blackouts),
-          }
-        : item,
-    ),
-    options,
+  const followers = push === 0 ? new Set<string>() : followersOf(moved, id)
+  const pushed = moved.map((item) =>
+    followers.has(item.id) ? shiftBaseline(item, push, options) : item,
   )
+  return recomputeProjections(separateParts(items, pushed, options), options)
+}
+
+/**
+ * The parts of a work item that a move made overlap, set apart again.
+ *
+ * The parts of a book or a practice block are rarely chained by dependencies,
+ * so a push along dependencies leaves the part after a moved one where it was —
+ * now inside it. That next part moves to the study day after the moved one
+ * ends, taking what depends on it along by the same amount, and so on down the
+ * work item. Only as far as needed: a part with room before it stays, so a
+ * slipped first chapter does not drag chapters planned months later.
+ *
+ * Only overlaps behind a part this change moved are resolved; one the plan
+ * already had is left for the validator to report.
+ */
+function separateParts(
+  original: readonly Item[],
+  planned: Item[],
+  options: ScheduleOptions,
+): Item[] {
+  const was = new Map(original.map((item) => [item.id, item]))
+  const hasMoved = (item: Item) => {
+    const old = was.get(item.id)
+    return (
+      old !== undefined &&
+      (old.baselineStartDate !== item.baselineStartDate ||
+        old.baselineEndDate !== item.baselineEndDate)
+    )
+  }
+
+  let items = planned
+  // Each round moves at least one part later, and there are finitely many.
+  for (let round = 0; round < items.length; round++) {
+    const overlap = firstOverlap(items, hasMoved, options)
+    if (!overlap) break
+    const moving = followersOf(items, overlap.part.id).add(overlap.part.id)
+    items = items.map((item) =>
+      moving.has(item.id) ? shiftBaseline(item, overlap.by, options) : item,
+    )
+  }
+  return items
+}
+
+/** The first unfinished part that starts before the moved part ahead of it ends. */
+function firstOverlap(
+  items: readonly Item[],
+  hasMoved: (item: Item) => boolean,
+  options: ScheduleOptions,
+): { part: Item; by: number } | null {
+  const workItems = new Set(items.filter(hasMoved).map((item) => item.workItemId))
+  for (const workItemId of workItems) {
+    if (workItemId === null) continue
+    const parts = items
+      .filter((item) => item.workItemId === workItemId)
+      .sort((a, b) => a.phase - b.phase || a.sortOrder - b.sortOrder)
+    for (let index = 1; index < parts.length; index++) {
+      const previous = parts[index - 1]!
+      const part = parts[index]!
+      if (
+        hasMoved(previous) &&
+        part.state !== 'done' &&
+        part.baselineStartDate <= previous.baselineEndDate
+      ) {
+        const by = studyDaysBetween(part.baselineStartDate, previous.baselineEndDate, options.blackouts)
+        if (by > 0) return { part, by }
+      }
+    }
+  }
+  return null
+}
+
+function shiftBaseline(item: Item, days: number, options: ScheduleOptions): Item {
+  return {
+    ...item,
+    baselineStartDate: shiftStudyDays(item.baselineStartDate, days, options.blackouts),
+    baselineEndDate: shiftStudyDays(item.baselineEndDate, days, options.blackouts),
+  }
 }
 
 /** Study days the item's projected end moved later by. Zero when it did not. */
