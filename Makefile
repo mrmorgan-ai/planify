@@ -61,7 +61,7 @@ start:
 	@echo "→ applying migrations to the local database"
 	@npx wrangler d1 migrations apply planify --local >/dev/null 2>&1
 	@echo "→ starting the API on $(API_PORT)"
-	@npx wrangler pages dev --port $(API_PORT) > $(RUN_DIR)/api.log 2>&1 & echo $$! > $(RUN_DIR)/api.pid
+	@npx wrangler pages dev --port $(API_PORT) --binding DEV_IDENTITY=dev@localhost > $(RUN_DIR)/api.log 2>&1 & echo $$! > $(RUN_DIR)/api.pid
 	@echo "→ starting the web app on $(WEB_PORT)"
 	@# The host is explicit: left to itself Vite binds "localhost", which Ubuntu
 	@# resolves to ::1 only, and the check below — and the URL printed at the
