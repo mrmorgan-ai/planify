@@ -157,6 +157,7 @@ included, and proves each rule fires by breaking a copy of the example seed.
 | Method | Path | Does |
 |---|---|---|
 | GET | `/api/state` | The whole roadmap with today's date |
+| GET | `/api/export` | The roadmap as a seed file, content only, naming the revision it was taken from |
 | PATCH | `/api/items/:id/state` | Set `pending`, `in_progress` or `done`, and recompute |
 | PATCH | `/api/items/:id/dates` | Move an item's planned dates, and recompute |
 | PATCH | `/api/items/:id/hours` | Declare the hours spent so far, without changing the state |
