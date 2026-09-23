@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AppState, State } from '../core/types'
-import { fetchState, reschedule, setItemDates, setItemHours, setItemState } from './api'
+import {
+  StaleStateError,
+  fetchState,
+  reschedule,
+  setItemDates,
+  setItemHours,
+  setItemState,
+} from './api'
 
 export type Store = {
   state: AppState | null
@@ -50,17 +57,56 @@ export function useAppState(): Store {
     }
   }, [])
 
+  // Coming back to the tab is when another device's changes are most likely to
+  // be waiting. A refresh only ever moves the copy forward: one that started
+  // before a write and landed after it must not put the older world back. A
+  // failed refresh keeps what is on screen; the next write or return retries.
+  useEffect(() => {
+    let inFlight = false
+    const refresh = () => {
+      if (document.visibilityState !== 'visible' || inFlight) return
+      inFlight = true
+      fetchState()
+        .then((loaded) => {
+          setState((current) =>
+            current === null ||
+            loaded.revision > current.revision ||
+            (loaded.revision === current.revision && loaded.today !== current.today)
+              ? loaded
+              : current,
+          )
+        })
+        .catch(() => {})
+        .finally(() => {
+          inFlight = false
+        })
+    }
+    document.addEventListener('visibilitychange', refresh)
+    window.addEventListener('focus', refresh)
+    return () => {
+      document.removeEventListener('visibilitychange', refresh)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [])
+
+  // A write refused as stale arrives with the current world: take it, so the
+  // next attempt is made from the right revision without a reload.
+  const fail = useCallback((cause: unknown) => {
+    if (cause instanceof StaleStateError) setState(cause.state)
+    setError(messageOf(cause))
+  }, [])
+
   const changeState = useCallback(async (id: string, next: State) => {
     setPendingId(id)
     setError(null)
     try {
       setState(await setItemState(id, next, revision.current))
     } catch (cause: unknown) {
-      setError(messageOf(cause))
+      fail(cause)
     } finally {
       setPendingId(null)
     }
-  }, [])
+  }, [fail])
 
   const changeDates = useCallback(async (id: string, start: string, end: string) => {
     setPendingId(id)
@@ -69,12 +115,12 @@ export function useAppState(): Store {
       setState(await setItemDates(id, start, end, revision.current))
       return true
     } catch (cause: unknown) {
-      setError(messageOf(cause))
+      fail(cause)
       return false
     } finally {
       setPendingId(null)
     }
-  }, [])
+  }, [fail])
 
   const changeHours = useCallback(async (id: string, hours: number) => {
     setPendingId(id)
@@ -83,12 +129,12 @@ export function useAppState(): Store {
       setState(await setItemHours(id, hours, revision.current))
       return true
     } catch (cause: unknown) {
-      setError(messageOf(cause))
+      fail(cause)
       return false
     } finally {
       setPendingId(null)
     }
-  }, [])
+  }, [fail])
 
   const reschedulePlan = useCallback(async (restartDate: string) => {
     setRescheduling(true)
@@ -97,12 +143,12 @@ export function useAppState(): Store {
       setState(await reschedule(restartDate, revision.current))
       return true
     } catch (cause: unknown) {
-      setError(messageOf(cause))
+      fail(cause)
       return false
     } finally {
       setRescheduling(false)
     }
-  }, [])
+  }, [fail])
 
   return {
     state,

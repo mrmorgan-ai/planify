@@ -10,10 +10,22 @@ async function call(url: string, init?: RequestInit): Promise<AppState> {
   const body: unknown = await response.json().catch(() => null)
 
   if (!response.ok) {
-    const reported = (body as { error?: string } | null)?.error
-    throw new Error(reported ?? `HTTP ${response.status}`)
+    const { error: reported, state } = (body ?? {}) as { error?: string; state?: AppState }
+    const message = reported ?? `HTTP ${response.status}`
+    if (response.status === 409 && state) throw new StaleStateError(message, state)
+    throw new Error(message)
   }
   return body as AppState
+}
+
+/** A write refused for being made from an old copy. Carries the current one. */
+export class StaleStateError extends Error {
+  constructor(
+    message: string,
+    readonly state: AppState,
+  ) {
+    super(message)
+  }
 }
 
 export function fetchState(): Promise<AppState> {
