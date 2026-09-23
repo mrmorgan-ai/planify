@@ -3,7 +3,8 @@ import { writeFileSync } from 'node:fs'
 
 // Rebuilds seed/roadmap.json from the database. The roadmap is private and not
 // in this repository, so D1 is its durable home — this is the way back from the
-// database to a file you can edit, on this machine or a new one.
+// database to a file you can edit, on this machine or a new one. For the live
+// roadmap, Settings → Download in the app gives the same file without wrangler.
 //
 //   node tools/seed/from-d1.mjs --remote    (production)
 //   node tools/seed/from-d1.mjs --local     (the local dev database)

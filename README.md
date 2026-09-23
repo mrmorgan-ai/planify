@@ -111,6 +111,16 @@ curl -X POST http://127.0.0.1:8788/api/reproject
 A roadmap is one JSON file: its phases, declared pauses, weekly capacity, skill
 map, work items and items. `seed/roadmap.example.json` shows every field in use.
 
+The roadmap lives in the database. To change it as a file, download it from
+**Settings**, edit it anywhere, and import it back there. Before anything is
+saved, the preview lists what would be added, removed and edited, the progress a
+removal would lose, and any rule the file breaks. A file exported before the
+roadmap last changed is refused rather than undoing what changed since. Scripts
+do the same through `GET /api/export` and `POST /api/import`.
+
+The SQL loader is for the local database only — to set it up, or to reset it to
+a seed:
+
 ```bash
 npm run seed:validate                       # every rule, on every seed file present
 npm run seed:sql                            # → build/seed.sql (an upsert)
@@ -157,6 +167,8 @@ included, and proves each rule fires by breaking a copy of the example seed.
 | Method | Path | Does |
 |---|---|---|
 | GET | `/api/state` | The whole roadmap with today's date |
+| GET | `/api/export` | The roadmap as a seed file, content only, naming the revision it was taken from |
+| POST | `/api/import` | Replace the roadmap's content with a seed file's, keeping progress; `dryRun` previews it |
 | PATCH | `/api/items/:id/state` | Set `pending`, `in_progress` or `done`, and recompute |
 | PATCH | `/api/items/:id/dates` | Move an item's planned dates, and recompute |
 | PATCH | `/api/items/:id/hours` | Declare the hours spent so far, without changing the state |
@@ -176,6 +188,14 @@ A write that moves planned dates is checked against the validator before it
 lands. One that would bring in an error the roadmap did not already have — an
 item starting inside a pause, say — is refused with `422` and the errors it
 would have introduced. Warnings never refuse a write.
+
+An import sends `{ revision, roadmap }`: the file, and the revision it was
+exported from, so a file edited while the app moved on is refused rather than
+undoing what changed since. The file defines the content, planned dates
+included; items it keeps keep their progress, new ones start pending, and items
+it drops are deleted with theirs. With `dryRun: true` nothing is written and the
+answer lists what would be added, removed (with the progress lost) and edited,
+plus every issue the imported roadmap has.
 
 ## Checks
 

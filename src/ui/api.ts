@@ -1,3 +1,4 @@
+import type { ImportPreview } from '../core/importing'
 import type { AppState, CivilDate, State } from '../core/types'
 
 /**
@@ -5,7 +6,7 @@ import type { AppState, CivilDate, State } from '../core/types'
  * instead of merging a patch. The API reports the error message itself; falling
  * back to the status code only matters when the response is not JSON at all.
  */
-async function call(url: string, init?: RequestInit): Promise<AppState> {
+async function call<T = AppState>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init)
   const body: unknown = await response.json().catch(() => null)
 
@@ -15,7 +16,7 @@ async function call(url: string, init?: RequestInit): Promise<AppState> {
     if (response.status === 409 && state) throw new StaleStateError(message, state)
     throw new Error(message)
   }
-  return body as AppState
+  return body as T
 }
 
 /** A write refused for being made from an old copy. Carries the current one. */
@@ -75,5 +76,27 @@ export function reschedule(restartDate: CivilDate, revision: number): Promise<Ap
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ restartDate, revision }),
+  })
+}
+
+/**
+ * What importing a roadmap file would change, without changing it. `roadmap` is
+ * the file as read — the server parses it, so a file that is not a roadmap comes
+ * back as an error naming the first field that is wrong.
+ */
+export function previewImport(roadmap: unknown, revision: number): Promise<ImportPreview> {
+  return call<ImportPreview>('/api/import', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ roadmap, revision, dryRun: true }),
+  })
+}
+
+/** Replaces the roadmap's content with the file's. Progress on kept items stays. */
+export function importRoadmap(roadmap: unknown, revision: number): Promise<AppState> {
+  return call('/api/import', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ roadmap, revision }),
   })
 }

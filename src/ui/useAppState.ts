@@ -3,6 +3,7 @@ import type { AppState, State } from '../core/types'
 import {
   StaleStateError,
   fetchState,
+  importRoadmap,
   reschedule,
   setItemDates,
   setItemHours,
@@ -23,6 +24,8 @@ export type Store = {
   rescheduling: boolean
   /** Restarts the plan on a date. Resolves true when the server accepted it. */
   reschedulePlan: (restartDate: string) => Promise<boolean>
+  /** Replaces the roadmap with a file's, from the revision its preview was made at. */
+  importFile: (roadmap: unknown, revision: number) => Promise<boolean>
 }
 
 /**
@@ -150,6 +153,17 @@ export function useAppState(): Store {
     }
   }, [fail])
 
+  const importFile = useCallback(async (roadmap: unknown, revision: number) => {
+    setError(null)
+    try {
+      setState(await importRoadmap(roadmap, revision))
+      return true
+    } catch (cause: unknown) {
+      fail(cause)
+      return false
+    }
+  }, [fail])
+
   return {
     state,
     error,
@@ -159,6 +173,7 @@ export function useAppState(): Store {
     changeHours,
     rescheduling,
     reschedulePlan,
+    importFile,
   }
 }
 
