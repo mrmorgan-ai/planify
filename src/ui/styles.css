@@ -1002,6 +1002,121 @@ tr.detail td {
   max-width: 46rem;
 }
 
+.settings-section + .settings-section {
+  margin-top: 1rem;
+}
+
+.settings input:not([type='checkbox']) {
+  width: 100%;
+  min-width: 0;
+  padding: 0.3rem 0.45rem;
+  background: var(--raised);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.92rem;
+}
+
+.settings input:focus,
+.settings select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.75rem;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.settings-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* One stored thing per line: its fields, then its remove button. */
+.settings-row {
+  display: grid;
+  gap: 0.4rem;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.settings-phase {
+  grid-template-columns: 1.4rem minmax(0, 1fr) minmax(0, 1.2fr) 1.4rem;
+}
+
+.settings-pause {
+  grid-template-columns: minmax(0, 18rem) minmax(0, 1fr) 1.4rem;
+}
+
+.axis + .axis {
+  margin-top: 0.9rem;
+}
+
+.settings-axis-line {
+  grid-template-columns: minmax(0, 1fr) auto auto 1.4rem;
+}
+
+.settings .axis-name {
+  font-weight: 600;
+}
+
+.skills-list {
+  margin-left: 1rem;
+}
+
+.settings-skill {
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 4.5rem 1.4rem;
+}
+
+.skill-uses {
+  font-size: 0.8rem;
+  text-align: right;
+}
+
+.settings-number {
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.settings-add {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+.settings-add .button {
+  flex: none;
+}
+
+.settings .skills-list + .settings-add {
+  margin-left: 1rem;
+}
+
+.settings-check {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin-top: 0.7rem;
+  font-size: 0.9rem;
+}
+
+.settings-check input {
+  margin-top: 0.2rem;
+}
+
 .settings-text {
   margin: 0 0 0.9rem;
   color: var(--muted);
@@ -2658,5 +2773,34 @@ tr.part .name {
 
   .skills {
     margin-left: 0;
+  }
+
+  /* Settings lines wrap: the fields share the width, the remove button keeps
+     its corner. */
+  .settings-pause,
+  .settings-skill {
+    grid-template-columns: minmax(0, 1fr) 1.4rem;
+  }
+
+  .settings-pause .form-dates {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .settings-skill select {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .settings-skill .skill-uses {
+    display: none;
+  }
+
+  .settings-phase {
+    grid-template-columns: 1.4rem minmax(0, 1fr) 1.4rem;
+  }
+
+  .settings-phase select {
+    grid-column: 2 / -1;
   }
 }

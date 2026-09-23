@@ -116,7 +116,7 @@ export function App() {
             <Route path="/work-items" element={<WorkItems state={state} />} />
             <Route
               path="/settings"
-              element={<Settings state={state} importFile={store.importFile} />}
+              element={<Settings {...store} state={state} />}
             />
             <Route path="*" element={<Placeholder view="Not found" />} />
           </Routes>
