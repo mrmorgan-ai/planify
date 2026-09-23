@@ -114,7 +114,8 @@ A roadmap is one JSON file: its phases, declared pauses, weekly capacity, skill
 map, work items and items. `seed/roadmap.example.json` shows every field in use.
 
 The roadmap lives in the database. To change it as a file, download it from
-**Settings**, edit it anywhere, and import it back there. Before anything is
+**Settings** — it is named for when it was taken, `roadmap-2026-09-23-1332.json`
+— edit it anywhere, and import it back there. Before anything is
 saved, the preview lists what would be added, removed and edited, the progress a
 removal would lose, and any rule the file breaks. A file exported before the
 roadmap last changed is refused rather than undoing what changed since. Scripts
@@ -168,8 +169,8 @@ included, and proves each rule fires by breaking a copy of the example seed.
 
 Every change to the plan keeps the plan it replaced: an edit, an import, a date
 moved, a reschedule, a restore. **Settings → History** lists them newest first,
-each with a line saying what the change did. Any of them can be brought back —
-with the same preview an import shows — or downloaded as a roadmap file.
+each with a line saying what the change did. Any of them can be brought back,
+after the same preview an import shows.
 
 Progress is not a change of plan. Ticking an item off or logging hours keeps
 nothing, and restoring a version keeps what has been done. Edits less than ten
@@ -190,7 +191,7 @@ section is one version, not five. The history keeps the last 50.
 | POST | `/api/reschedule` | Move every unfinished item by whole weeks so the plan restarts in a date's week |
 | POST | `/api/reproject` | Recompute every projection |
 | GET | `/api/versions` | The history: what each change to the plan replaced, newest first |
-| GET | `/api/versions/:id` | One version as a seed file, naming the revision it was the plan at |
+| GET | `/api/versions/:id` | One version as a seed file, naming the revision it was the plan at, for scripts |
 | POST | `/api/versions/:id/restore` | Bring a version back, keeping progress; `dryRun` previews it |
 | GET | `/api/health` | Liveness |
 

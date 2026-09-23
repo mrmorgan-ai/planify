@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { applyEdits, type Edit, type NewItem } from '../../src/core/edits'
-import { describeChanges, versionFileName } from '../../src/core/history'
+import { describeChanges } from '../../src/core/history'
 import { seedContent } from '../../src/core/seed'
 import { EXAMPLE_SEED, readSeedFile } from './load'
 
@@ -52,22 +52,5 @@ describe('describeChanges', () => {
 
   it('says so when the plan did not change', () => {
     expect(describeChanges(example, structuredClone(example))).toBe('No change to the plan')
-  })
-})
-
-describe('versionFileName', () => {
-  it('stamps the time in the roadmap’s timezone, then the version’s number', () => {
-    const version = { id: 5, createdAt: '2026-09-23T18:32:05.123Z' }
-    expect(versionFileName(version, 'America/Lima')).toBe('roadmap-2026-09-23-1332-v5.json')
-  })
-
-  it('takes the date from the timezone too, not from UTC', () => {
-    const version = { id: 12, createdAt: '2026-09-24T03:10:00Z' }
-    expect(versionFileName(version, 'America/Lima')).toBe('roadmap-2026-09-23-2210-v12.json')
-  })
-
-  it('falls back to UTC for a timezone the runtime does not know', () => {
-    const version = { id: 1, createdAt: '2026-09-24T03:10:00Z' }
-    expect(versionFileName(version, 'Not/AZone')).toBe('roadmap-2026-09-24-0310-v1.json')
   })
 })

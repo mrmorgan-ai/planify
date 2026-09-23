@@ -1,4 +1,4 @@
-import { versionFileName } from '../../../../src/core/history'
+import { roadmapFileName } from '../../../../src/core/seed'
 import { loadVersion, versionId } from '../../../../src/server/history'
 import { only } from '../../../../src/server/http'
 import { loadAppState, type Env } from '../../../../src/server/repository'
@@ -14,7 +14,7 @@ export const onRequest = only<Env>('GET', async ({ env, params }) => {
   if (!kept) return Response.json({ error: 'No such version' }, { status: 404 })
 
   const { roadmap } = await loadAppState(env.DB)
-  const name = versionFileName(kept.version, roadmap.timeZone)
+  const name = roadmapFileName(kept.version.createdAt, roadmap.timeZone, kept.version.id)
   const file = { revision: kept.version.revision, ...kept.plan }
   return new Response(`${JSON.stringify(file, null, 2)}\n`, {
     headers: {

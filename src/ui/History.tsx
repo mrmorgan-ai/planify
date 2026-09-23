@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { versionFileName, type PlanVersion, type VersionReason } from '../core/history'
+import type { PlanVersion, VersionReason } from '../core/history'
 import type { ImportPreview } from '../core/importing'
 import type { AppState } from '../core/types'
 import { StaleStateError, fetchVersionPlan, fetchVersions, previewRestore } from './api'
@@ -31,7 +31,8 @@ type Review =
 
 /**
  * The plans changes replaced, newest first. Each can be looked at against the
- * roadmap as it is now, brought back, or downloaded as a roadmap file.
+ * roadmap as it is now and brought back. Getting the plan as a file is the
+ * roadmap file's job: restore a version, then download it there.
  *
  * Reloaded whenever the roadmap's revision moves, since any change to the plan
  * — from this page or another device — may have kept a version.
@@ -155,13 +156,6 @@ export function History({
                   >
                     {open ? 'Close' : 'Go back to before this…'}
                   </button>
-                  <a
-                    className="button"
-                    href={`/api/versions/${version.id}`}
-                    download={versionFileName(version, state.roadmap.timeZone)}
-                  >
-                    Download
-                  </a>
                 </div>
 
                 {open && review.kind === 'checking' && <p className="muted">Comparing…</p>}
