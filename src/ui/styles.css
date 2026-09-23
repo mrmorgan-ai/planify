@@ -800,6 +800,99 @@ tr.detail td {
   cursor: not-allowed;
 }
 
+/* Settings */
+
+.settings {
+  max-width: 46rem;
+}
+
+.settings-text {
+  margin: 0 0 0.9rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.settings-actions,
+.import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* A download link dressed as a button, the same size as its neighbour. */
+a.button {
+  display: inline-block;
+  text-decoration: none;
+}
+
+.import-actions {
+  justify-content: flex-end;
+  margin-top: 0.9rem;
+}
+
+.import-review {
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.92rem;
+}
+
+.settings .import-review h3 {
+  margin: 0 0 0.5rem;
+  color: var(--text);
+  font-size: 1rem;
+  /* A file name, shown as it was typed. */
+  text-transform: none;
+  letter-spacing: normal;
+  overflow-wrap: anywhere;
+}
+
+.import-review p {
+  margin: 0 0 0.6rem;
+}
+
+.import-summary {
+  margin: 0 0 0.8rem;
+  padding-left: 1.1rem;
+  line-height: 1.6;
+}
+
+.notice.bad-notice {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+.notice ul {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.import-details {
+  margin-top: 0.6rem;
+  font-size: 0.88rem;
+}
+
+.import-details summary {
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.import-details h4 {
+  margin: 0.6rem 0 0.2rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.import-details ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 /* What the plan breaks: a count in the header that opens the list. Orange for
    warnings, red once any error is in it — the same two meanings as everywhere
    else. It takes the header's push to the right when it is there. */
@@ -2218,7 +2311,7 @@ tr.part .name {
     padding: 0.6rem 0.8rem;
   }
 
-  /* The five views scroll sideways rather than wrapping into a second row that
+  /* The views scroll sideways rather than wrapping into a second row that
      pushes the work off the screen. */
   nav {
     overflow-x: auto;

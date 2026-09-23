@@ -1,6 +1,7 @@
 import { recomputeProjections } from './schedule'
 import { seedContent, toSeedFile, type SeedFile } from './seed'
 import type { Item, RoadmapContent, State } from './types'
+import type { Issue } from './validate'
 
 /**
  * The roadmap a seed file turns the current one into. The file defines the
@@ -57,6 +58,17 @@ export type ImportChanges = {
   workItems: { added: string[]; removed: string[]; changed: string[] }
   /** The roadmap-wide sections that differ: phases, pauses, capacity, axes… */
   settings: string[]
+}
+
+/** What an import would do, worked out without writing anything. */
+export type ImportPreview = {
+  /** The revision the preview was made against; applying from it is safe. */
+  revision: number
+  changes: ImportChanges
+  /** Errors the import would bring in. Any at all and applying it is refused. */
+  introduced: Issue[]
+  /** Everything the imported roadmap breaks, warnings included. */
+  issues: Issue[]
 }
 
 /**

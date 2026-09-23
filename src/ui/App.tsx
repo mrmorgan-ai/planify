@@ -10,6 +10,7 @@ import { Kanban } from './Kanban'
 import { PlanIssues } from './PlanIssues'
 import { LateBanner, RescheduleDialog, useLateAlert } from './Reschedule'
 import { Session } from './Session'
+import { Settings } from './Settings'
 import { useAppState } from './useAppState'
 import { WorkItems } from './WorkItems'
 
@@ -19,6 +20,7 @@ const VIEWS = [
   { path: '/work-items', label: 'Work items' },
   { path: '/kanban', label: 'Kanban' },
   { path: '/gantt', label: 'Gantt' },
+  { path: '/settings', label: 'Settings' },
 ] as const
 
 function Placeholder({ view }: { view: string }) {
@@ -112,6 +114,10 @@ export function App() {
             <Route path="/backlog" element={<Backlog {...store} state={state} />} />
             <Route path="/kanban" element={<Kanban {...store} state={state} />} />
             <Route path="/work-items" element={<WorkItems state={state} />} />
+            <Route
+              path="/settings"
+              element={<Settings state={state} importFile={store.importFile} />}
+            />
             <Route path="*" element={<Placeholder view="Not found" />} />
           </Routes>
         )}
