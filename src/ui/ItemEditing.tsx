@@ -3,7 +3,7 @@ import { addDays, firstStudyDayFrom, maxDate } from '../core/dates'
 import { dependentsOf, hasProgress, newItemId, type Edit } from '../core/edits'
 import type { AppState, CivilDate, Item, PhaseNumber } from '../core/types'
 import { DatePicker } from './DatePicker'
-import { Field, ItemForm, blankDraft, fieldsOf } from './ItemForm'
+import { Field, ItemForm, blankDraft, draftOf, editsFor, fieldsOf } from './ItemForm'
 
 const STATE_WORD = { pending: 'pending', in_progress: 'in progress', done: 'done' } as const
 
@@ -183,7 +183,9 @@ export function DeleteItem({
                 deleted with it.
               </li>
             )}
-            {dependents.length === 0 && !progress && <li>Nothing waits on it, and it has no progress.</li>}
+            {dependents.length === 0 && !progress && (
+              <li>Nothing waits on it, and it has no progress.</li>
+            )}
           </ul>
         </>
       )}
@@ -218,7 +220,104 @@ function nextFreeDay(state: AppState, phase: PhaseNumber): CivilDate {
   const { roadmap, today } = state
   const last = state.items
     .filter((item) => item.phase === phase)
-    .reduce<CivilDate | null>((max, item) => (max === null || item.baselineEndDate > max ? item.baselineEndDate : max), null)
+    .reduce<CivilDate | null>(
+      (max, item) => (max === null || item.baselineEndDate > max ? item.baselineEndDate : max),
+      null,
+    )
   const from = last === null ? maxDate(today, roadmap.startDate || today) : addDays(last, 1)
   return firstStudyDayFrom(from, roadmap.blackouts)
+}
+
+type Place = 'keep' | 'first' | `after:${string}`
+
+/**
+ * An existing item's form, plus where it sits: its phase and its place in that
+ * phase's order. A move is sent after the field edits, in the same write, so a
+ * renamed item that also changes phase lands whole or not at all.
+ */
+export function EditItemForm({
+  state,
+  item,
+  busy,
+  error,
+  onSave,
+  onDelete,
+  onCancel,
+}: {
+  state: AppState
+  item: Item
+  busy: boolean
+  error: string | null
+  /** `phase` is where the item ends up, so the view can follow it. */
+  onSave: (edits: Edit[], phase: PhaseNumber) => void
+  onDelete: (edit: Edit) => void
+  onCancel: () => void
+}) {
+  const [phase, setPhase] = useState<PhaseNumber>(item.phase)
+  const [place, setPlace] = useState<Place>('keep')
+  const others = state.items
+    .filter((each) => each.phase === phase && each.id !== item.id)
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+
+  const move = (): Edit[] => {
+    if (phase === item.phase && place === 'keep') return []
+    const at =
+      place === 'first'
+        ? 0
+        : place === 'keep'
+          ? others.length
+          : others.findIndex((each) => `after:${each.id}` === place) + 1
+    return [{ op: 'moveItem', id: item.id, phase, before: others[at]?.id ?? null }]
+  }
+
+  return (
+    <ItemForm
+      state={state}
+      self={item.id}
+      initial={draftOf(item)}
+      busy={busy}
+      error={error}
+      submitLabel="Save"
+      extra={
+        <Field label="Place" htmlFor={`place-${item.id}`}>
+          <div className="form-place">
+            <select
+              aria-label={`Phase of ${item.name}`}
+              value={phase}
+              disabled={busy}
+              onChange={(event) => {
+                const next = Number(event.target.value) as PhaseNumber
+                setPhase(next)
+                setPlace('keep')
+              }}
+            >
+              {state.roadmap.phases.map((each) => (
+                <option key={each.number} value={each.number}>
+                  Phase {each.number} · {each.name}
+                </option>
+              ))}
+            </select>
+            <select
+              id={`place-${item.id}`}
+              aria-label={`Place of ${item.name} in its phase`}
+              value={place}
+              disabled={busy}
+              onChange={(event) => setPlace(event.target.value as Place)}
+            >
+              <option value="keep">{phase === item.phase ? 'Where it is' : 'Last'}</option>
+              <option value="first">First</option>
+              {others.map((each) => (
+                <option key={each.id} value={`after:${each.id}`}>
+                  After {each.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </Field>
+      }
+      danger={<DeleteItem state={state} item={item} busy={busy} onDelete={onDelete} />}
+      onCancel={onCancel}
+      onSubmit={(draft) => onSave([...editsFor(item, draft), ...move()], phase)}
+    />
+  )
 }

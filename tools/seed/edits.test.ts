@@ -36,7 +36,7 @@ describe('parseEdits', () => {
   it.each([
     ['nothing', undefined, /non-empty array/],
     ['an empty list', [], /non-empty array/],
-    ['an unknown operation', [{ op: 'renameEverything' }], /op must be/],
+    ['an unknown operation', [{ op: 'renameEverything' }], /not an edit this roadmap knows/],
     ['a phase change', [{ op: 'updateItem', id: 'x', fields: { phase: 2 } }], /phase cannot be edited/],
     ['a date change', [{ op: 'updateItem', id: 'x', fields: { baselineStartDate: '2030-01-01' } }], /cannot be edited/],
     ['an id change', [{ op: 'updateItem', id: 'x', fields: { id: 'y' } }], /id cannot be edited/],
