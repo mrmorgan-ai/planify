@@ -1,4 +1,4 @@
-import { recomputeProjections } from './schedule'
+import { projectWherePossible } from './schedule'
 import { seedContent, toSeedFile, type SeedFile } from './seed'
 import type { Item, RoadmapContent, State } from './types'
 import type { Issue } from './validate'
@@ -20,22 +20,10 @@ export function importedContent(current: RoadmapContent, seed: SeedFile): Roadma
       ? { ...item, state: kept.state, completedAt: kept.completedAt, hoursDone: kept.hoursDone }
       : item
   })
-  return { ...next, items: projected(items, next) }
-}
-
-/**
- * The engine cannot place a plan whose graph or dates are broken — a missing
- * dependency, a cycle, a span with no study day — and says so by throwing.
- * The file is still worth previewing: its items then keep projections equal to
- * their plan, and the validator names what is wrong, as errors that refuse
- * the import.
- */
-function projected(items: Item[], { roadmap }: RoadmapContent): Item[] {
-  try {
-    return recomputeProjections(items, { blackouts: roadmap.blackouts, timeZone: roadmap.timeZone })
-  } catch {
-    return items
-  }
+  // A file the engine cannot place still previews: its items keep projections
+  // equal to their plan, and the validator names what is wrong.
+  const options = { blackouts: next.roadmap.blackouts, timeZone: next.roadmap.timeZone }
+  return { ...next, items: projectWherePossible(items, options) }
 }
 
 /** An item an import removes, with what it had to show for itself. */
