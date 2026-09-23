@@ -1,5 +1,6 @@
 import { DEFAULT_TIME_ZONE } from '../core/constants'
 import { recomputeProjections } from '../core/schedule'
+import { introducedErrors, type Issue } from '../core/validate'
 import type { AppState, Item, Roadmap, ScheduleOptions } from '../core/types'
 import { todayIn } from './clock'
 import {
@@ -74,24 +75,68 @@ export function scheduleOptions(roadmap: Roadmap): ScheduleOptions {
 }
 
 /**
+ * A write made from a copy of the roadmap that is no longer current: another
+ * device or tab saved in between. Carries the current world, so the client can
+ * catch up instead of guessing.
+ */
+/** A write that would give the roadmap an error it did not have. Nothing is written. */
+export class InvalidWriteError extends Error {
+  constructor(readonly issues: Issue[]) {
+    super(`This change would break the roadmap: ${issues.map((issue) => issue.message).join('; ')}`)
+  }
+}
+
+export class StaleRevisionError extends Error {
+  constructor(readonly state: AppState) {
+    super(
+      `The roadmap changed since this copy was loaded (it is now at revision ${state.revision}). ` +
+        'It has been reloaded; make the change again.',
+    )
+  }
+}
+
+/**
  * Loads, transforms, writes back only what moved, and returns the new world
  * without reading the database again. D1 has no interactive transactions, so the
  * writes go out as one batch — which it runs as a single implicit transaction.
  *
- * Two browser tabs racing is last-write-wins by design: a full recompute always
- * lands a consistent world, and the loser self-heals on its next read. That is
- * what `revision` is there to make visible.
+ * Every write is a compare-and-swap on `revision`. The client says which
+ * revision it was looking at, and a write from an older one is refused before
+ * anything runs. The batch then re-checks the revision it read against the one
+ * stored, inside the transaction, so a write that lands between the read and the
+ * batch is caught too rather than overwritten.
  */
 export async function mutate(
   db: D1Database,
+  /** The revision the client made this change from; null accepts any. */
+  expectedRevision: number | null,
   transform: (state: AppState) => Item[],
   /** More writes for the same batch, which lands whole or not at all. */
   alongside: (state: AppState) => D1PreparedStatement[] = () => [],
 ): Promise<AppState> {
   const state = await loadAppState(db)
+  if (expectedRevision !== null && expectedRevision !== state.revision) {
+    throw new StaleRevisionError(state)
+  }
+
   const items = transform(state)
   const changed = changedItems(state.items, items)
   const revision = state.revision + 1
+
+  // Only planned dates are content among the columns a write touches here, so
+  // a change of state or hours cannot break a rule and skips the check.
+  const before = new Map(state.items.map((item) => [item.id, item]))
+  const replanned = changed.some((item) => {
+    const previous = before.get(item.id)
+    return (
+      previous?.baselineStartDate !== item.baselineStartDate ||
+      previous.baselineEndDate !== item.baselineEndDate
+    )
+  })
+  if (replanned) {
+    const broken = introducedErrors(state, { ...state, items })
+    if (broken.length > 0) throw new InvalidWriteError(broken)
+  }
 
   const writes = changed.map((item) =>
     db
@@ -114,11 +159,29 @@ export async function mutate(
       ),
   )
   writes.unshift(...alongside(state))
+  // The guard: when the stored revision is no longer the one read above, this
+  // selects a row, the insert collides with the existing 'revision' key, and the
+  // whole batch rolls back before any of it lands.
+  writes.unshift(
+    db
+      .prepare(
+        `INSERT INTO meta (key, value)
+         SELECT 'revision', '' WHERE (SELECT value FROM meta WHERE key = 'revision') <> ?`,
+      )
+      .bind(String(state.revision)),
+  )
   writes.push(
     db.prepare("UPDATE meta SET value = ? WHERE key = 'revision'").bind(String(revision)),
   )
 
-  await db.batch(writes)
+  try {
+    await db.batch(writes)
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('UNIQUE constraint failed: meta.key')) {
+      throw new StaleRevisionError(await loadAppState(db))
+    }
+    throw error
+  }
 
   return { ...state, revision, items }
 }

@@ -160,10 +160,22 @@ included, and proves each rule fires by breaking a copy of the example seed.
 | PATCH | `/api/items/:id/state` | Set `pending`, `in_progress` or `done`, and recompute |
 | PATCH | `/api/items/:id/dates` | Move an item's planned dates, and recompute |
 | PATCH | `/api/items/:id/hours` | Declare the hours spent so far, without changing the state |
+| POST | `/api/reschedule` | Move every unfinished item so the plan restarts on a date, keeping the old plan |
 | POST | `/api/reproject` | Recompute every projection |
 | GET | `/api/health` | Liveness |
 
-Every write returns the whole new state.
+Every write returns the whole new state, and every write body carries the
+`revision` of the state it was made from. A write made from an older revision is
+refused with `409` and the current state, so a second device or tab catches up
+instead of overwriting what the first one saved. The check runs again inside the
+write's own transaction, so two writes racing from the same revision cannot both
+land. `reproject` alone accepts no revision: it only recomputes from what is
+stored, and scripts call it without a body.
+
+A write that moves planned dates is checked against the validator before it
+lands. One that would bring in an error the roadmap did not already have — an
+item starting inside a pause, say — is refused with `422` and the errors it
+would have introduced. Warnings never refuse a write.
 
 ## Checks
 
