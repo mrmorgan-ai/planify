@@ -1,19 +1,8 @@
-import { importChanges, importedContent, type ImportChanges } from '../core/importing'
+import { importChanges, importedContent, type ImportPreview } from '../core/importing'
 import type { SeedFile } from '../core/seed'
 import type { AppState } from '../core/types'
-import { introducedErrors, validate, type Issue } from '../core/validate'
+import { introducedErrors, validate } from '../core/validate'
 import { StaleRevisionError, loadAppState, mutateContent } from './repository'
-
-/** What an import would do, worked out without writing anything. */
-export type ImportPreview = {
-  /** The revision the preview was made against; applying from it is safe. */
-  revision: number
-  changes: ImportChanges
-  /** Errors the import would bring in. Any at all and applying it is refused. */
-  introduced: Issue[]
-  /** Everything the imported roadmap breaks, warnings included. */
-  issues: Issue[]
-}
 
 /**
  * The preview runs the same function the import runs, on the same data, so
