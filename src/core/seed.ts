@@ -9,6 +9,7 @@ import type {
   Phase,
   PhaseNumber,
   Resource,
+  RoadmapContent,
   WeeklyHours,
   WorkItem,
 } from './types'
@@ -70,6 +71,8 @@ export function parseSeed(raw: unknown): SeedFile {
 
   return {
     timeZone: requireString(file.timeZone, 'timeZone'),
+    startDate:
+      file.startDate === undefined ? undefined : requireCivilDate(file.startDate, 'startDate'),
     weeklyHours: parseWeeklyHours(file.weeklyHours),
     phases: requireArray(file.phases, 'phases').map((entry, index) => parsePhase(entry, index)),
     blackouts: requireArray(file.blackouts, 'blackouts').map((entry, index) =>
@@ -100,6 +103,32 @@ export function asItems(seed: SeedFile): Item[] {
     completedAt: null,
     hoursDone: 0,
   }))
+}
+
+/**
+ * A seed as the rest of the app sees a roadmap, before any progress. An absent
+ * start date is the earliest planned start, which is what it means anyway, and
+ * an absent capacity is zero, which reads downstream as "not declared".
+ */
+export function seedContent(seed: SeedFile): RoadmapContent {
+  const items = asItems(seed)
+  const earliest = items.reduce<CivilDate | ''>(
+    (min, item) => (min === '' || item.baselineStartDate < min ? item.baselineStartDate : min),
+    '',
+  )
+  return {
+    roadmap: {
+      timeZone: seed.timeZone,
+      startDate: seed.startDate ?? earliest,
+      weeklyHours: seed.weeklyHours ?? { normal: 0 },
+      phases: seed.phases,
+      blackouts: seed.blackouts,
+      dimensions: seed.dimensions,
+      skillDimension: seed.skills,
+    },
+    workItems: seed.workItems,
+    items,
+  }
 }
 
 function parsePhase(entry: unknown, index: number): Phase {
