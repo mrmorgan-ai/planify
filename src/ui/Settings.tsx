@@ -1,7 +1,15 @@
 import { useRef, useState } from 'react'
+import type { Edit } from '../core/edits'
 import type { ImportChanges, ImportPreview } from '../core/importing'
 import type { AppState } from '../core/types'
 import { StaleStateError, previewImport } from './api'
+import {
+  PausesSettings,
+  PhasesSettings,
+  PlanSettings,
+  SkillsSettings,
+  type Saver,
+} from './RoadmapSettings'
 
 /** A roadmap file as read from disk, split from the revision it names. */
 type ChosenFile = {
@@ -29,11 +37,55 @@ const SECTION_LABEL: Record<string, string> = {
 }
 
 /**
+ * The roadmap's own settings — the plan, its phases, its pauses, its skills —
+ * and the roadmap as a file.
+ *
+ * Each section keeps its own draft and saves on its own. They are keyed by the
+ * revision, so every draft starts again from what is stored once anything saves.
+ */
+export function Settings({
+  state,
+  error,
+  pendingId,
+  edit,
+  importFile,
+}: {
+  state: AppState
+  error: string | null
+  pendingId: string | null
+  edit: (edits: Edit[], id?: string) => Promise<boolean>
+  importFile: (roadmap: unknown, revision: number) => Promise<boolean>
+}) {
+  /** The section whose last save was refused, so the error shows there. */
+  const [refused, setRefused] = useState<string | null>(null)
+  const saver = (key: string): Saver => ({
+    busy: pendingId === key,
+    error: refused === key ? error : null,
+    save: async (edits) => {
+      const saved = await edit(edits, key)
+      setRefused(saved ? null : key)
+      return saved
+    },
+  })
+
+  return (
+    <section className="settings">
+      <h2 className="board-title">Settings</h2>
+      <PlanSettings key={`plan-${state.revision}`} state={state} saver={saver('settings:plan')} />
+      <PhasesSettings key={`phases-${state.revision}`} state={state} saver={saver('settings:phases')} />
+      <PausesSettings key={`pauses-${state.revision}`} state={state} saver={saver('settings:pauses')} />
+      <SkillsSettings key={`skills-${state.revision}`} state={state} saver={saver('settings:skills')} />
+      <RoadmapFile state={state} importFile={importFile} />
+    </section>
+  )
+}
+
+/**
  * The roadmap as a file: download it, edit it anywhere, bring it back. Nothing
  * is written until the preview has been read and confirmed, and the preview is
  * computed by the server from the same merge the import runs.
  */
-export function Settings({
+function RoadmapFile({
   state,
   importFile,
 }: {
@@ -84,90 +136,86 @@ export function Settings({
   }
 
   return (
-    <section className="settings">
-      <h2 className="board-title">Settings</h2>
+    <section className="block settings-section">
+      <h2>Roadmap file</h2>
+      <p className="settings-text">
+        The whole roadmap as one JSON file: items, work items, phases, pauses, capacity and
+        skills. Progress stays in the app. Edit the file anywhere and import it back — you see
+        what changes before anything is saved.
+      </p>
 
-      <section className="block">
-        <h2>Roadmap file</h2>
-        <p className="settings-text">
-          The whole roadmap as one JSON file: items, work items, phases, pauses, capacity and
-          skills. Progress stays in the app. Edit the file anywhere and import it back — you see
-          what changes before anything is saved.
+      <div className="settings-actions">
+        <a className="button" href="/api/export" download="roadmap.json">
+          Download roadmap.json
+        </a>
+        <button
+          type="button"
+          className="button"
+          disabled={busy || review?.kind === 'checking'}
+          onClick={() => input.current?.click()}
+        >
+          Import a file…
+        </button>
+        <input
+          ref={input}
+          type="file"
+          accept="application/json,.json"
+          hidden
+          onChange={(event) => {
+            const chosen = event.target.files?.[0]
+            // Cleared, so choosing the same file again after editing it still fires.
+            event.target.value = ''
+            if (chosen) void choose(chosen)
+          }}
+        />
+      </div>
+
+      {review?.kind === 'checking' && <p className="muted">Comparing {review.file.name}…</p>}
+
+      {review?.kind === 'unreadable' && (
+        <p className="notice bad-notice" role="alert">
+          {review.message}
         </p>
+      )}
 
-        <div className="settings-actions">
-          <a className="button" href="/api/export" download="roadmap.json">
-            Download roadmap.json
-          </a>
-          <button
-            type="button"
-            className="button"
-            disabled={busy || review?.kind === 'checking'}
-            onClick={() => input.current?.click()}
-          >
-            Import a file…
-          </button>
-          <input
-            ref={input}
-            type="file"
-            accept="application/json,.json"
-            hidden
-            onChange={(event) => {
-              const chosen = event.target.files?.[0]
-              // Cleared, so choosing the same file again after editing it still fires.
-              event.target.value = ''
-              if (chosen) void choose(chosen)
-            }}
-          />
-        </div>
-
-        {review?.kind === 'checking' && <p className="muted">Comparing {review.file.name}…</p>}
-
-        {review?.kind === 'unreadable' && (
-          <p className="notice bad-notice" role="alert">
-            {review.message}
+      {review?.kind === 'stale' && (
+        <div className="import-review" role="status">
+          <p className="notice">
+            {review.file.revision === null
+              ? `The roadmap changed while this page was open (it is now at revision ${review.current}).`
+              : `${review.file.name} was exported at revision ${review.file.revision}, and the roadmap has changed since (it is now at revision ${review.current}). Importing it would undo those changes.`}
           </p>
-        )}
-
-        {review?.kind === 'stale' && (
-          <div className="import-review" role="status">
-            <p className="notice">
-              {review.file.revision === null
-                ? `The roadmap changed while this page was open (it is now at revision ${review.current}).`
-                : `${review.file.name} was exported at revision ${review.file.revision}, and the roadmap has changed since (it is now at revision ${review.current}). Importing it would undo those changes.`}
-            </p>
-            <div className="import-actions">
-              <button type="button" className="button" onClick={() => setReview(null)}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="button"
-                onClick={() => void compare(review.file, review.current)}
-              >
-                Compare with the current roadmap
-              </button>
-            </div>
+          <div className="import-actions">
+            <button type="button" className="button" onClick={() => setReview(null)}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="button"
+              onClick={() => void compare(review.file, review.current)}
+            >
+              Compare with the current roadmap
+            </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {review?.kind === 'ready' && (
-          <ImportReview
-            state={state}
-            file={review.file}
-            preview={review.preview}
-            busy={busy}
-            onCancel={() => setReview(null)}
-            onApply={() => void apply(review.file, review.preview)}
-          />
-        )}
+      {review?.kind === 'ready' && (
+        <ImportReview
+          state={state}
+          file={review.file}
+          preview={review.preview}
+          busy={busy}
+          onCancel={() => setReview(null)}
+          onApply={() => void apply(review.file, review.preview)}
+        />
+      )}
 
-        {review?.kind === 'imported' && (
-          <p className="good" role="status">
-            Imported. The roadmap is at revision {state.revision}.
-          </p>
-        )}
-      </section>
+      {review?.kind === 'imported' && (
+        <p className="good" role="status">
+          Imported. The roadmap is at revision {state.revision}.
+        </p>
+      )}
     </section>
   )
 }
