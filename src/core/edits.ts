@@ -2,7 +2,12 @@ import { projectWherePossible } from './schedule'
 import { parseSeedItem, type SeedItem } from './seed'
 import type { Item, RoadmapContent } from './types'
 import { EditError, newItemId, takenIds } from './editing'
-import { applyStructureEdit, isStructureOp, parseStructureEdit, type StructureEdit } from './structure'
+import {
+  applyStructureEdit,
+  isStructureOp,
+  parseStructureEdit,
+  type StructureEdit,
+} from './structure'
 
 export { EditError, newItemId, slugOf } from './editing'
 
@@ -90,7 +95,11 @@ export function parseEdits(raw: unknown): Edit[] {
         return { op: 'updateItem', id: idOf(edit, at), fields: fields as ItemFields }
       }
       case 'setDependencies':
-        return { op: 'setDependencies', id: idOf(edit, at), dependsOn: strings(edit.dependsOn, `${at}.dependsOn`) }
+        return {
+          op: 'setDependencies',
+          id: idOf(edit, at),
+          dependsOn: strings(edit.dependsOn, `${at}.dependsOn`),
+        }
       case 'createItem': {
         const item = edit.item
         if (typeof item !== 'object' || item === null || Array.isArray(item)) {
@@ -140,7 +149,10 @@ export function applyEdits(content: RoadmapContent, edits: readonly Edit[]): Roa
       case 'updateItem': {
         const target = find(items, edit.id)
         const parsed = parse({ ...seedItemOf(target), ...edit.fields }, at)
-        next = { ...next, items: items.map((item) => (item.id === target.id ? { ...item, ...pick(parsed) } : item)) }
+        next = {
+          ...next,
+          items: items.map((item) => (item.id === target.id ? { ...item, ...pick(parsed) } : item)),
+        }
         break
       }
       case 'setDependencies': {
@@ -227,12 +239,17 @@ function moved(content: RoadmapContent, edit: Extract<Edit, { op: 'moveItem' }>)
       .filter((item) => item.phase === number && item.id !== target.id)
       .sort((a, b) => a.sortOrder - b.sortOrder)
   const destination = inOrder(phase.number)
-  const at = edit.before == null ? destination.length : destination.findIndex((item) => item.id === edit.before)
+  const at =
+    edit.before == null
+      ? destination.length
+      : destination.findIndex((item) => item.id === edit.before)
   if (at < 0) throw new EditError(`${edit.before} is not in phase ${phase.number}`)
   destination.splice(at, 0, { ...target, phase: phase.number })
 
   const order = new Map<string, { phase: Item['phase']; sortOrder: number }>()
-  destination.forEach((item, index) => order.set(item.id, { phase: phase.number, sortOrder: index + 1 }))
+  destination.forEach((item, index) =>
+    order.set(item.id, { phase: phase.number, sortOrder: index + 1 }),
+  )
   if (target.phase !== phase.number) {
     inOrder(target.phase).forEach((item, index) =>
       order.set(item.id, { phase: target.phase, sortOrder: index + 1 }),
@@ -313,7 +330,8 @@ function find(items: readonly Item[], id: string): Item {
 }
 
 function idOf(edit: Record<string, unknown>, at: string): string {
-  if (typeof edit.id !== 'string' || edit.id === '') throw new EditError(`${at}.id must be a string`)
+  if (typeof edit.id !== 'string' || edit.id === '')
+    throw new EditError(`${at}.id must be a string`)
   return edit.id
 }
 

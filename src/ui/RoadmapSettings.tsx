@@ -162,9 +162,13 @@ export function PhasesSettings({ state, saver }: { state: AppState; saver: Saver
         ? { closingMilestoneId: phase.closingMilestoneId }
         : {}),
     }
-    return Object.keys(fields).length > 0 ? [{ op: 'updatePhase', number: phase.number, fields }] : []
+    return Object.keys(fields).length > 0
+      ? [{ op: 'updatePhase', number: phase.number, fields }]
+      : []
   })
-  const problems = draft.some((phase) => phase.name.trim() === '') ? ['Every phase needs a name.'] : []
+  const problems = draft.some((phase) => phase.name.trim() === '')
+    ? ['Every phase needs a name.']
+    : []
   const last = roadmap.phases.at(-1)
   const lastIsEmpty = last !== undefined && !state.items.some((item) => item.phase === last.number)
 
@@ -187,7 +191,11 @@ export function PhasesSettings({ state, saver }: { state: AppState; saver: Saver
               value={phase.name}
               disabled={saver.busy}
               onChange={(event) =>
-                setDraft(draft.map((each, at) => (at === index ? { ...each, name: event.target.value } : each)))
+                setDraft(
+                  draft.map((each, at) =>
+                    at === index ? { ...each, name: event.target.value } : each,
+                  ),
+                )
               }
             />
             <select
@@ -197,7 +205,9 @@ export function PhasesSettings({ state, saver }: { state: AppState; saver: Saver
               onChange={(event) =>
                 setDraft(
                   draft.map((each, at) =>
-                    at === index ? { ...each, closingMilestoneId: event.target.value || null } : each,
+                    at === index
+                      ? { ...each, closingMilestoneId: event.target.value || null }
+                      : each,
                   ),
                 )
               }
@@ -265,8 +275,12 @@ export function PausesSettings({ state, saver }: { state: AppState; saver: Saver
 
   const sorted = [...draft].sort((a, b) => a.from.localeCompare(b.from))
   const problems = [
-    ...(draft.some((blackout) => blackout.reason.trim() === '') ? ['Every pause needs a reason.'] : []),
-    ...(draft.some((blackout) => blackout.to < blackout.from) ? ['A pause cannot end before it starts.'] : []),
+    ...(draft.some((blackout) => blackout.reason.trim() === '')
+      ? ['Every pause needs a reason.']
+      : []),
+    ...(draft.some((blackout) => blackout.to < blackout.from)
+      ? ['A pause cannot end before it starts.']
+      : []),
     ...(sorted.some((blackout, index) => index > 0 && blackout.from <= sorted[index - 1]!.to)
       ? ['Two pauses overlap.']
       : []),
@@ -309,7 +323,9 @@ export function PausesSettings({ state, saver }: { state: AppState; saver: Saver
                 value={blackout.from}
                 disabled={saver.busy}
                 label={`First day of pause ${index + 1}`}
-                onChange={(from) => update(index, { from, to: blackout.to < from ? from : blackout.to })}
+                onChange={(from) =>
+                  update(index, { from, to: blackout.to < from ? from : blackout.to })
+                }
               />
               <span className="faint">to</span>
               <DatePicker
@@ -350,13 +366,21 @@ export function PausesSettings({ state, saver }: { state: AppState; saver: Saver
       </button>
       {dirty && (
         <label className="settings-check">
-          <input type="checkbox" checked={keep} disabled={saver.busy} onChange={(event) => setKeep(event.target.checked)} />
+          <input
+            type="checkbox"
+            checked={keep}
+            disabled={saver.busy}
+            onChange={(event) => setKeep(event.target.checked)}
+          />
           <span>
             Keep the plan's study days: move unfinished items around the change
             {keep && problems.length === 0 && (
               <span className="muted">
                 {' '}
-                — {moving === 0 ? 'nothing moves' : `${moving} ${moving === 1 ? 'item moves' : 'items move'}`}
+                —{' '}
+                {moving === 0
+                  ? 'nothing moves'
+                  : `${moving} ${moving === 1 ? 'item moves' : 'items move'}`}
               </span>
             )}
           </span>
@@ -390,13 +414,16 @@ export function SkillsSettings({ state, saver }: { state: AppState; saver: Saver
 
   const uses = useMemo(() => {
     const count = new Map<string, number>()
-    for (const item of state.items) for (const skill of item.skills) count.set(skill, (count.get(skill) ?? 0) + 1)
+    for (const item of state.items)
+      for (const skill of item.skills) count.set(skill, (count.get(skill) ?? 0) + 1)
     return count
   }, [state.items])
 
   const axisName = new Map(axes.map((axis) => [axis.key, axis.name.trim()]))
   const dimensions = axes.map((axis) => axis.name.trim())
-  const map = Object.fromEntries(skills.map((skill) => [skill.name.trim(), axisName.get(skill.axis) ?? '']))
+  const map = Object.fromEntries(
+    skills.map((skill) => [skill.name.trim(), axisName.get(skill.axis) ?? '']),
+  )
   const renamed = Object.fromEntries(
     skills
       .filter((skill) => skill.original !== null && skill.original !== skill.name.trim())
@@ -404,7 +431,8 @@ export function SkillsSettings({ state, saver }: { state: AppState; saver: Saver
   )
   const dirty =
     JSON.stringify(dimensions) !== JSON.stringify(roadmap.dimensions) ||
-    JSON.stringify(Object.entries(map).sort()) !== JSON.stringify(Object.entries(roadmap.skillDimension).sort())
+    JSON.stringify(Object.entries(map).sort()) !==
+      JSON.stringify(Object.entries(roadmap.skillDimension).sort())
   const problems = [
     ...(dimensions.some((name) => name === '') || skills.some((skill) => skill.name.trim() === '')
       ? ['Every axis and skill needs a name.']
@@ -446,13 +474,29 @@ export function SkillsSettings({ state, saver }: { state: AppState; saver: Saver
                 value={axis.name}
                 disabled={saver.busy}
                 onChange={(event) =>
-                  setAxes(axes.map((each) => (each.key === axis.key ? { ...each, name: event.target.value } : each)))
+                  setAxes(
+                    axes.map((each) =>
+                      each.key === axis.key ? { ...each, name: event.target.value } : each,
+                    ),
+                  )
                 }
               />
-              <button type="button" className="icon-button" aria-label={`Move ${axis.name} up`} disabled={saver.busy || index === 0} onClick={() => move(index, -1)}>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label={`Move ${axis.name} up`}
+                disabled={saver.busy || index === 0}
+                onClick={() => move(index, -1)}
+              >
                 ↑
               </button>
-              <button type="button" className="icon-button" aria-label={`Move ${axis.name} down`} disabled={saver.busy || index === axes.length - 1} onClick={() => move(index, 1)}>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label={`Move ${axis.name} down`}
+                disabled={saver.busy || index === axes.length - 1}
+                onClick={() => move(index, 1)}
+              >
                 ↓
               </button>
               <button
@@ -476,7 +520,11 @@ export function SkillsSettings({ state, saver }: { state: AppState; saver: Saver
                       value={skill.name}
                       disabled={saver.busy}
                       onChange={(event) =>
-                        setSkills(skills.map((each) => (each.key === skill.key ? { ...each, name: event.target.value } : each)))
+                        setSkills(
+                          skills.map((each) =>
+                            each.key === skill.key ? { ...each, name: event.target.value } : each,
+                          ),
+                        )
                       }
                     />
                     <select
@@ -484,7 +532,11 @@ export function SkillsSettings({ state, saver }: { state: AppState; saver: Saver
                       value={skill.axis}
                       disabled={saver.busy}
                       onChange={(event) =>
-                        setSkills(skills.map((each) => (each.key === skill.key ? { ...each, axis: event.target.value } : each)))
+                        setSkills(
+                          skills.map((each) =>
+                            each.key === skill.key ? { ...each, axis: event.target.value } : each,
+                          ),
+                        )
                       }
                     >
                       {axes.map((each) => (
@@ -493,12 +545,18 @@ export function SkillsSettings({ state, saver }: { state: AppState; saver: Saver
                         </option>
                       ))}
                     </select>
-                    <span className="faint skill-uses">{used === 0 ? 'unused' : `${used} ${used === 1 ? 'item' : 'items'}`}</span>
+                    <span className="faint skill-uses">
+                      {used === 0 ? 'unused' : `${used} ${used === 1 ? 'item' : 'items'}`}
+                    </span>
                     <button
                       type="button"
                       className="chip-remove"
                       aria-label={`Remove skill ${skill.name}`}
-                      title={used > 0 ? `Used by ${used} ${used === 1 ? 'item' : 'items'}` : 'Remove this skill'}
+                      title={
+                        used > 0
+                          ? `Used by ${used} ${used === 1 ? 'item' : 'items'}`
+                          : 'Remove this skill'
+                      }
                       disabled={saver.busy || used > 0}
                       onClick={() => setSkills(skills.filter((each) => each.key !== skill.key))}
                     >
@@ -522,7 +580,10 @@ export function SkillsSettings({ state, saver }: { state: AppState; saver: Saver
                 disabled={saver.busy || (adding[axis.key] ?? '').trim() === ''}
                 onClick={() => {
                   const name = (adding[axis.key] ?? '').trim()
-                  setSkills([...skills, { key: `new:${name}:${skills.length}`, original: null, name, axis: axis.key }])
+                  setSkills([
+                    ...skills,
+                    { key: `new:${name}:${skills.length}`, original: null, name, axis: axis.key },
+                  ])
                   setAdding({ ...adding, [axis.key]: '' })
                 }}
               >
@@ -545,7 +606,10 @@ export function SkillsSettings({ state, saver }: { state: AppState; saver: Saver
           className="button"
           disabled={saver.busy || newAxis.trim() === ''}
           onClick={() => {
-            setAxes([...axes, { key: `new:${newAxis.trim()}:${axes.length}`, name: newAxis.trim() }])
+            setAxes([
+              ...axes,
+              { key: `new:${newAxis.trim()}:${axes.length}`, name: newAxis.trim() },
+            ])
             setNewAxis('')
           }}
         >

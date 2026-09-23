@@ -83,7 +83,8 @@ export function editsFor(item: Item, draft: Draft): Edit[] {
     ),
   ) as ItemFields
   const edits: Edit[] = []
-  if (Object.keys(changed).length > 0) edits.push({ op: 'updateItem', id: item.id, fields: changed })
+  if (Object.keys(changed).length > 0)
+    edits.push({ op: 'updateItem', id: item.id, fields: changed })
   if (JSON.stringify(item.dependsOn) !== JSON.stringify(draft.dependsOn)) {
     edits.push({ op: 'setDependencies', id: item.id, dependsOn: draft.dependsOn })
   }
@@ -103,7 +104,11 @@ export function problemsOf(draft: Draft): string[] {
   if (fields.link !== null && !fields.link.startsWith('https://')) {
     problems.push('The link must start with https://.')
   }
-  if (fields.resources.some((resource) => resource.label === '' || !resource.url.startsWith('https://'))) {
+  if (
+    fields.resources.some(
+      (resource) => resource.label === '' || !resource.url.startsWith('https://'),
+    )
+  ) {
     problems.push('Each extra link needs a label and an https:// address.')
   }
   return problems
@@ -234,7 +239,12 @@ export function ItemForm({
                 placeholder="Label"
                 disabled={busy}
                 onChange={(event) =>
-                  set('resources', draft.resources.map((each, at) => (at === index ? { ...each, label: event.target.value } : each)))
+                  set(
+                    'resources',
+                    draft.resources.map((each, at) =>
+                      at === index ? { ...each, label: event.target.value } : each,
+                    ),
+                  )
                 }
               />
               <input
@@ -244,13 +254,23 @@ export function ItemForm({
                 placeholder="https://…"
                 disabled={busy}
                 onChange={(event) =>
-                  set('resources', draft.resources.map((each, at) => (at === index ? { ...each, url: event.target.value } : each)))
+                  set(
+                    'resources',
+                    draft.resources.map((each, at) =>
+                      at === index ? { ...each, url: event.target.value } : each,
+                    ),
+                  )
                 }
               />
               <RemoveButton
                 label={`Remove link ${index + 1}`}
                 disabled={busy}
-                onClick={() => set('resources', draft.resources.filter((_, at) => at !== index))}
+                onClick={() =>
+                  set(
+                    'resources',
+                    draft.resources.filter((_, at) => at !== index),
+                  )
+                }
               />
             </div>
           ))}
@@ -289,7 +309,12 @@ export function ItemForm({
             values={draft.skills}
             labelOf={(skill) => skill}
             disabled={busy}
-            onRemove={(skill) => set('skills', draft.skills.filter((each) => each !== skill))}
+            onRemove={(skill) =>
+              set(
+                'skills',
+                draft.skills.filter((each) => each !== skill),
+              )
+            }
           />
           <select
             aria-label="Add a skill"
@@ -301,7 +326,10 @@ export function ItemForm({
             {roadmap.dimensions.map((dimension) => (
               <optgroup key={dimension} label={dimension}>
                 {Object.keys(roadmap.skillDimension)
-                  .filter((skill) => roadmap.skillDimension[skill] === dimension && !draft.skills.includes(skill))
+                  .filter(
+                    (skill) =>
+                      roadmap.skillDimension[skill] === dimension && !draft.skills.includes(skill),
+                  )
                   .sort((a, b) => a.localeCompare(b))
                   .map((skill) => (
                     <option key={skill}>{skill}</option>
@@ -328,7 +356,12 @@ export function ItemForm({
             values={draft.dependsOn}
             labelOf={(dependency) => names.get(dependency) ?? dependency}
             disabled={busy}
-            onRemove={(dependency) => set('dependsOn', draft.dependsOn.filter((each) => each !== dependency))}
+            onRemove={(dependency) =>
+              set(
+                'dependsOn',
+                draft.dependsOn.filter((each) => each !== dependency),
+              )
+            }
           />
           <select
             aria-label="Add a dependency"
@@ -340,7 +373,12 @@ export function ItemForm({
             {roadmap.phases.map((phase) => (
               <optgroup key={phase.number} label={`Phase ${phase.number} · ${phase.name}`}>
                 {state.items
-                  .filter((item) => item.phase === phase.number && item.id !== self && !draft.dependsOn.includes(item.id))
+                  .filter(
+                    (item) =>
+                      item.phase === phase.number &&
+                      item.id !== self &&
+                      !draft.dependsOn.includes(item.id),
+                  )
                   .sort((a, b) => a.sortOrder - b.sortOrder)
                   .map((item) => (
                     <option key={item.id} value={item.id}>
@@ -419,7 +457,11 @@ function Chips({
       {values.map((value) => (
         <span key={value} className="form-chip">
           {labelOf(value)}
-          <RemoveButton label={`Remove ${labelOf(value)}`} disabled={disabled} onClick={() => onRemove(value)} />
+          <RemoveButton
+            label={`Remove ${labelOf(value)}`}
+            disabled={disabled}
+            onClick={() => onRemove(value)}
+          />
         </span>
       ))}
     </div>
@@ -436,7 +478,14 @@ function RemoveButton({
   onClick: () => void
 }) {
   return (
-    <button type="button" className="chip-remove" aria-label={label} title="Remove" disabled={disabled} onClick={onClick}>
+    <button
+      type="button"
+      className="chip-remove"
+      aria-label={label}
+      title="Remove"
+      disabled={disabled}
+      onClick={onClick}
+    >
       ×
     </button>
   )

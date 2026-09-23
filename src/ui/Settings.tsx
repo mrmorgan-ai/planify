@@ -72,9 +72,21 @@ export function Settings({
     <section className="settings">
       <h2 className="board-title">Settings</h2>
       <PlanSettings key={`plan-${state.revision}`} state={state} saver={saver('settings:plan')} />
-      <PhasesSettings key={`phases-${state.revision}`} state={state} saver={saver('settings:phases')} />
-      <PausesSettings key={`pauses-${state.revision}`} state={state} saver={saver('settings:pauses')} />
-      <SkillsSettings key={`skills-${state.revision}`} state={state} saver={saver('settings:skills')} />
+      <PhasesSettings
+        key={`phases-${state.revision}`}
+        state={state}
+        saver={saver('settings:phases')}
+      />
+      <PausesSettings
+        key={`pauses-${state.revision}`}
+        state={state}
+        saver={saver('settings:pauses')}
+      />
+      <SkillsSettings
+        key={`skills-${state.revision}`}
+        state={state}
+        saver={saver('settings:skills')}
+      />
       <RoadmapFile state={state} importFile={importFile} />
     </section>
   )
@@ -139,9 +151,9 @@ function RoadmapFile({
     <section className="block settings-section">
       <h2>Roadmap file</h2>
       <p className="settings-text">
-        The whole roadmap as one JSON file: items, work items, phases, pauses, capacity and
-        skills. Progress stays in the app. Edit the file anywhere and import it back — you see
-        what changes before anything is saved.
+        The whole roadmap as one JSON file: items, work items, phases, pauses, capacity and skills.
+        Progress stays in the app. Edit the file anywhere and import it back — you see what changes
+        before anything is saved.
       </p>
 
       <div className="settings-actions">
@@ -237,7 +249,9 @@ function ImportReview({
 }) {
   const { changes, introduced, issues } = preview
   const warnings = issues.filter((issue) => issue.severity === 'warning')
-  const lost = changes.items.removed.filter((item) => item.state !== 'pending' || item.hoursDone > 0)
+  const lost = changes.items.removed.filter(
+    (item) => item.state !== 'pending' || item.hoursDone > 0,
+  )
   const nothing = isEmpty(changes)
   const nameOf = namer(state, file)
 
@@ -246,8 +260,8 @@ function ImportReview({
       <h3>{file.name}</h3>
       {file.revision === null && (
         <p className="muted">
-          This file does not say which revision it came from, so it is compared with the roadmap
-          as it is now.
+          This file does not say which revision it came from, so it is compared with the roadmap as
+          it is now.
         </p>
       )}
 
@@ -256,8 +270,7 @@ function ImportReview({
       ) : (
         <ul className="import-summary">
           <li>
-            Items: {changes.items.added.length} added ·{' '}
-            {changes.items.removed.length} removed ·{' '}
+            Items: {changes.items.added.length} added · {changes.items.removed.length} removed ·{' '}
             {changes.items.changed.length} edited
           </li>
           {(changes.workItems.added.length > 0 ||
@@ -265,12 +278,13 @@ function ImportReview({
             changes.workItems.changed.length > 0) && (
             <li>
               Work items: {changes.workItems.added.length} added ·{' '}
-              {changes.workItems.removed.length} removed ·{' '}
-              {changes.workItems.changed.length} edited
+              {changes.workItems.removed.length} removed · {changes.workItems.changed.length} edited
             </li>
           )}
           {changes.settings.length > 0 && (
-            <li>Also changes the {changes.settings.map((key) => SECTION_LABEL[key] ?? key).join(', ')}</li>
+            <li>
+              Also changes the {changes.settings.map((key) => SECTION_LABEL[key] ?? key).join(', ')}
+            </li>
           )}
         </ul>
       )}
@@ -292,8 +306,8 @@ function ImportReview({
       {introduced.length > 0 && (
         <div className="notice bad-notice" role="alert">
           The file breaks {introduced.length === 1 ? 'a rule' : `${introduced.length} rules`} the
-          roadmap does not. Fix {introduced.length === 1 ? 'it' : 'them'} in the file and choose
-          it again:
+          roadmap does not. Fix {introduced.length === 1 ? 'it' : 'them'} in the file and choose it
+          again:
           <ul>
             {introduced.map((issue, index) => (
               <li key={index}>{issue.message}</li>
@@ -306,13 +320,12 @@ function ImportReview({
         <details className="import-details">
           <summary>See every change</summary>
           <ChangeList title="Added" lines={changes.items.added.map(nameOf)} />
-          <ChangeList
-            title="Removed"
-            lines={changes.items.removed.map((item) => item.name)}
-          />
+          <ChangeList title="Removed" lines={changes.items.removed.map((item) => item.name)} />
           <ChangeList
             title="Edited"
-            lines={changes.items.changed.map(({ id, fields }) => `${nameOf(id)}: ${fields.join(', ')}`)}
+            lines={changes.items.changed.map(
+              ({ id, fields }) => `${nameOf(id)}: ${fields.join(', ')}`,
+            )}
           />
           <ChangeList title="Work items added" lines={changes.workItems.added} />
           <ChangeList title="Work items removed" lines={changes.workItems.removed} />
@@ -365,7 +378,8 @@ function ChangeList({ title, lines }: { title: string; lines: string[] }) {
 /** An item's name from the roadmap, or from the file for one the file adds. */
 function namer(state: AppState, file: ChosenFile): (id: string) => string {
   const names = new Map(state.items.map((item) => [item.id, item.name]))
-  const fileItems = (file.roadmap as { items?: Array<{ id?: unknown; name?: unknown }> }).items ?? []
+  const fileItems =
+    (file.roadmap as { items?: Array<{ id?: unknown; name?: unknown }> }).items ?? []
   for (const item of fileItems) {
     if (typeof item.id === 'string' && typeof item.name === 'string') names.set(item.id, item.name)
   }
