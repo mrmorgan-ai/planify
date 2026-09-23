@@ -44,9 +44,11 @@ at and highlight it.
 
 When the oldest unfinished item is a week or more past its end, the app offers
 to reschedule: a pop-up once a week, then a banner on every view. Rescheduling
-picks a restart date and moves every unfinished item forward by the same study
-days, so the earliest one starts that day and the plan keeps its shape. It
-shows what moves before writing anything, and the plan it replaces is kept in
+picks the week the plan restarts in and moves every unfinished item forward by
+whole weeks, so the earliest unfinished week becomes that week. Each item keeps
+its weekday and each week keeps its load: moving by a few days would leave
+every calendar week holding pieces of two planned ones, over capacity. It shows
+what moves before writing anything, and the plan it replaces is kept in
 `plan_versions`.
 
 ## Stack
@@ -173,7 +175,7 @@ included, and proves each rule fires by breaking a copy of the example seed.
 | PATCH | `/api/items/:id/state` | Set `pending`, `in_progress` or `done`, and recompute |
 | PATCH | `/api/items/:id/dates` | Move an item's planned dates, and recompute |
 | PATCH | `/api/items/:id/hours` | Declare the hours spent so far, without changing the state |
-| POST | `/api/reschedule` | Move every unfinished item so the plan restarts on a date, keeping the old plan |
+| POST | `/api/reschedule` | Move every unfinished item by whole weeks so the plan restarts in a date's week, keeping the old plan |
 | POST | `/api/reproject` | Recompute every projection |
 | GET | `/api/health` | Liveness |
 

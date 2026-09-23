@@ -5,12 +5,13 @@ import { missingRevision, only, refusal, revisionOf } from '../../src/server/htt
 import { mutate, savePlanVersion, scheduleOptions, type Env } from '../../src/server/repository'
 
 /**
- * Moves every unfinished item forward so the plan restarts on the given date,
- * keeping its shape. The plan it replaces is saved to plan_versions in the same
- * batch.
+ * Moves every unfinished item forward by whole weeks so the plan restarts in
+ * the given date's week, keeping its shape. The plan it replaces is saved to
+ * plan_versions in the same batch.
  *
- * The date may not be in the past — restarting yesterday leaves the plan late —
- * nor before the plan's own start. A date that moves nothing is refused rather
+ * The date may not be in the past — a week already over would leave the plan
+ * late — nor before the plan's own start. It names the week: the plan restarts
+ * on that week's Monday, which may be a day already gone this week. A date that moves nothing is refused rather
  * than answered with an unchanged world, so the client never shows "rescheduled"
  * for a no-op.
  */

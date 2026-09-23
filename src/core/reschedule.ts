@@ -1,4 +1,11 @@
-import { addDays, firstStudyDayFrom, shiftStudyDays, studyDaysBetween, toEpochDay } from './dates'
+import {
+  addDays,
+  firstStudyDayFrom,
+  shiftStudyDays,
+  startOfWeek,
+  studyDaysBetween,
+  toEpochDay,
+} from './dates'
 import { recomputeProjections } from './schedule'
 import type { CivilDate, Item, ScheduleOptions } from './types'
 
@@ -43,9 +50,15 @@ export function needsReschedule(items: readonly Item[], today: CivilDate): boole
 }
 
 export type Reschedule = {
-  /** The first study day on or after the chosen date: where the plan restarts. */
+  /**
+   * Where the plan restarts: the Monday of the chosen week, or the first study
+   * day after a pause that covers it.
+   */
   restart: CivilDate
-  /** Study days every unfinished item moves. Zero means there is nothing to do. */
+  /**
+   * Study days every unfinished item moves: whole weeks of them. Zero means
+   * there is nothing to do.
+   */
   shift: number
   /** The roadmap after the move, projections recomputed. */
   items: Item[]
@@ -54,8 +67,16 @@ export type Reschedule = {
 }
 
 /**
- * Moves every unfinished item forward so the earliest of them starts on the
- * restart date, keeping the plan's shape.
+ * Moves every unfinished item forward by whole weeks, so the plan's earliest
+ * unfinished week becomes the week of the restart date, keeping its shape.
+ *
+ * Whole weeks, not days: the plan is laid out in Monday-to-Sunday weeks, each
+ * sized to the week's capacity. Moving it by a few days would leave every
+ * calendar week holding pieces of two planned weeks — over capacity where there
+ * was none — and every item on a different weekday. Moved by whole weeks, each
+ * item keeps its weekday and each week keeps its load. The chosen date only
+ * names the week, so a restart this week puts the plan on this week's Monday,
+ * even when that day has already gone by.
  *
  * Every item that is not done moves by the same number of study days — linked
  * or not, late or not — so the order and the gaps between items stay as they
@@ -67,8 +88,8 @@ export type Reschedule = {
  * finished late therefore moves from where it really is, not from where it was
  * first planned.
  *
- * The plan is never pulled earlier. A restart on or before the earliest
- * unfinished start moves nothing, and `shift` is zero.
+ * The plan is never pulled earlier. A restart in or before the week of the
+ * earliest unfinished start moves nothing, and `shift` is zero.
  */
 export function reschedulePlan(
   items: readonly Item[],
@@ -77,7 +98,8 @@ export function reschedulePlan(
 ): Reschedule {
   const { blackouts } = options
   const current = recomputeProjections(items, options)
-  const restart = firstStudyDayFrom(restartOn, blackouts)
+  const restart = firstStudyDayFrom(startOfWeek(restartOn), blackouts)
+  const restartWeek = startOfWeek(restart)
 
   const unfinished = current.filter((item) => item.state !== 'done')
   const anchor = unfinished.reduce<CivilDate | null>(
@@ -86,10 +108,11 @@ export function reschedulePlan(
     null,
   )
 
+  const anchorWeek = anchor === null ? null : startOfWeek(anchor)
   const shift =
-    anchor === null || restart <= anchor
+    anchorWeek === null || restartWeek <= anchorWeek
       ? 0
-      : studyDaysBetween(anchor, addDays(restart, -1), blackouts)
+      : studyDaysBetween(anchorWeek, addDays(restartWeek, -1), blackouts)
 
   if (shift === 0) return { restart, shift, items: current, moved: [] }
 

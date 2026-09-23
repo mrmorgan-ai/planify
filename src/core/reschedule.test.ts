@@ -86,11 +86,30 @@ describe('lateness', () => {
 })
 
 describe('reschedulePlan', () => {
-  it('starts the earliest unfinished item on the restart date', () => {
+  it('moves the earliest unfinished week into the week of the restart date', () => {
+    // in-hand starts on Thursday 02-07; the restart falls on Thursday 02-14.
     const result = reschedulePlan(plan(), '2030-02-14', OPTIONS)
 
+    expect(result.restart).toBe('2030-02-11')
     expect(find(result.items, 'in-hand').projectedStartDate).toBe('2030-02-14')
     expect(result.shift).toBe(7)
+  })
+
+  it('moves by whole weeks whatever day is chosen, so every item keeps its weekday', () => {
+    // Monday, Wednesday or Sunday of the same week: the same move.
+    for (const day of ['2030-02-11', '2030-02-13', '2030-02-17']) {
+      const result = reschedulePlan(plan(), day, OPTIONS)
+      expect(result.shift).toBe(7)
+      expect(find(result.items, 'in-hand').projectedStartDate).toBe('2030-02-14')
+    }
+  })
+
+  it('counts a pause of whole weeks as no weeks at all', () => {
+    // Two weeks later on the calendar, one of them the break: two study weeks.
+    const result = reschedulePlan(plan(), '2030-02-25', OPTIONS)
+
+    expect(result.shift).toBe(14)
+    expect(find(result.items, 'loose').projectedStartDate).toBe('2030-03-01')
   })
 
   it('moves every unfinished item by the same study days, linked or not', () => {
@@ -132,11 +151,12 @@ describe('reschedulePlan', () => {
     expect([inHand.state, inHand.hoursDone]).toEqual(['in_progress', 3])
   })
 
-  it('restarts on the first study day when the date falls in a pause', () => {
+  it('restarts after a pause when the chosen week is inside it', () => {
     const result = reschedulePlan(plan(), '2030-02-20', OPTIONS)
 
     expect(result.restart).toBe('2030-02-25')
-    expect(find(result.items, 'in-hand').projectedStartDate).toBe('2030-02-25')
+    // Thursday of the first week after the break, as it was a Thursday before.
+    expect(find(result.items, 'in-hand').projectedStartDate).toBe('2030-02-28')
   })
 
   it('moves an item from where it really is when a late finish already pushed it', () => {
@@ -150,10 +170,14 @@ describe('reschedulePlan', () => {
 
     const result = reschedulePlan(pushed, '2030-02-14', OPTIONS)
 
-    // `loose` (02-08) is now the earliest unfinished start; in-hand keeps its
-    // two-day distance from it.
-    expect(find(result.items, 'loose').projectedStartDate).toBe('2030-02-14')
-    expect(find(result.items, 'in-hand').projectedStartDate).toBe('2030-02-16')
+    // `loose` (Friday 02-08) is now the earliest unfinished start. Both move a
+    // week, keeping their weekdays and their two-day distance.
+    expect(find(result.items, 'loose').projectedStartDate).toBe('2030-02-15')
+    expect(find(result.items, 'in-hand').projectedStartDate).toBe('2030-02-17')
+  })
+
+  it('moves nothing when the restart is in the week the plan is already in', () => {
+    expect(reschedulePlan(plan(), '2030-02-10', OPTIONS).shift).toBe(0)
   })
 
   it('never pulls the plan earlier', () => {
