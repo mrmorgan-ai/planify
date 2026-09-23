@@ -28,3 +28,20 @@ binding = "DB"
 database_name = "planify-preview"
 database_id = "0d0af9d3-1c93-454f-9957-80796774045f"
 migrations_dir = "migrations"
+
+# The Access application every API request must carry a token from. Not secret:
+# both values appear in the redirect Access sends to anyone not signed in. Pages
+# does not inherit `vars` into an environment that overrides another binding, so
+# each environment repeats them; without them the API refuses every request.
+
+[vars]
+ACCESS_TEAM_DOMAIN = "umbral-app.cloudflareaccess.com"
+ACCESS_AUD = "13812ba5f0ac70f3ff835eeff09cbb92d41ff525acd1c75e26107ddd8137df02"
+
+[env.production.vars]
+ACCESS_TEAM_DOMAIN = "umbral-app.cloudflareaccess.com"
+ACCESS_AUD = "13812ba5f0ac70f3ff835eeff09cbb92d41ff525acd1c75e26107ddd8137df02"
+
+[env.preview.vars]
+ACCESS_TEAM_DOMAIN = "umbral-app.cloudflareaccess.com"
+ACCESS_AUD = "13812ba5f0ac70f3ff835eeff09cbb92d41ff525acd1c75e26107ddd8137df02"
