@@ -6,6 +6,7 @@ import {
   fetchState,
   importRoadmap,
   reschedule,
+  restoreVersion,
   sendEdits,
   setItemDates,
   setItemHours,
@@ -33,6 +34,8 @@ export type Store = {
   edit: (edits: Edit[], id?: string) => Promise<boolean>
   /** Replaces the roadmap with a file's, from the revision its preview was made at. */
   importFile: (roadmap: unknown, revision: number) => Promise<boolean>
+  /** Brings a version of the plan back, from the revision its preview was made at. */
+  restore: (id: number, revision: number) => Promise<boolean>
 }
 
 /**
@@ -185,6 +188,17 @@ export function useAppState(): Store {
     }
   }, [fail])
 
+  const restore = useCallback(async (id: number, revision: number) => {
+    setError(null)
+    try {
+      setState(await restoreVersion(id, revision))
+      return true
+    } catch (cause: unknown) {
+      fail(cause)
+      return false
+    }
+  }, [fail])
+
   return {
     state,
     error,
@@ -196,6 +210,7 @@ export function useAppState(): Store {
     reschedulePlan,
     edit,
     importFile,
+    restore,
   }
 }
 

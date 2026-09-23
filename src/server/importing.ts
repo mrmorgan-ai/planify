@@ -1,7 +1,9 @@
+import { describeChanges } from '../core/history'
 import { importChanges, importedContent, type ImportPreview } from '../core/importing'
 import type { SeedFile } from '../core/seed'
 import type { AppState } from '../core/types'
 import { introducedErrors, validate } from '../core/validate'
+import { loadVersion } from './history'
 import { StaleRevisionError, loadAppState, mutateContent } from './repository'
 
 /**
@@ -36,17 +38,52 @@ export async function applyImport(
   seed: SeedFile,
 ): Promise<AppState> {
   const version = await fingerprint(seed)
-  const state = await mutateContent(
-    db,
-    revision,
-    (current) => importedContent(current, seed),
-    () => [
+  const state = await mutateContent(db, revision, (current) => importedContent(current, seed), {
+    alongside: () => [
       db
         .prepare("INSERT INTO meta (key, value) VALUES ('seed_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
         .bind(version),
     ],
-  )
+    reason: 'import',
+    summary: (before, after) => `Imported a file: ${describeChanges(before, after)}`,
+  })
   return { ...state, seedVersion: version }
+}
+
+/** A version the history does not have. */
+export class UnknownVersionError extends Error {
+  constructor(id: number) {
+    super(`There is no version ${id} in the history`)
+  }
+}
+
+/**
+ * Brings a version of the plan back, the way an import brings a file in: the
+ * plan becomes the version's, and progress on the items it keeps stays. The plan
+ * it replaces is kept in turn, so a restore can itself be undone.
+ */
+export async function applyRestore(
+  db: D1Database,
+  revision: number,
+  id: number,
+): Promise<AppState> {
+  const kept = await loadVersion(db, id)
+  if (!kept) throw new UnknownVersionError(id)
+  return mutateContent(db, revision, (current) => importedContent(current, kept.plan), {
+    reason: 'restore',
+    summary: (before, after) => `Went back to #${id}: ${describeChanges(before, after)}`,
+  })
+}
+
+/** `previewImport` for a version of the plan: what restoring it would change. */
+export async function previewRestore(
+  db: D1Database,
+  revision: number,
+  id: number,
+): Promise<ImportPreview> {
+  const kept = await loadVersion(db, id)
+  if (!kept) throw new UnknownVersionError(id)
+  return previewImport(db, revision, kept.plan)
 }
 
 /** The first 12 hex digits of the file's SHA-256, as the seed loader has always done. */

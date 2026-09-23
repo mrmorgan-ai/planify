@@ -48,6 +48,17 @@ export type ImportChanges = {
   settings: string[]
 }
 
+/** How a roadmap-wide section is named to a person: "the time zone, pauses". */
+export const SECTION_LABEL: Record<string, string> = {
+  timeZone: 'time zone',
+  startDate: 'start date',
+  weeklyHours: 'weekly capacity',
+  phases: 'phases',
+  blackouts: 'pauses',
+  dimensions: 'radar axes',
+  skills: 'skill map',
+}
+
 /** What an import would do, worked out without writing anything. */
 export type ImportPreview = {
   /** The revision the preview was made against; applying from it is safe. */

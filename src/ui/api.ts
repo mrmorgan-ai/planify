@@ -1,4 +1,5 @@
 import type { Edit } from '../core/edits'
+import type { PlanVersion } from '../core/history'
 import type { ImportPreview } from '../core/importing'
 import type { AppState, CivilDate, State } from '../core/types'
 
@@ -108,5 +109,33 @@ export function importRoadmap(roadmap: unknown, revision: number): Promise<AppSt
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ roadmap, revision }),
+  })
+}
+
+/** The versions of the plan the history keeps, newest first. */
+export function fetchVersions(): Promise<PlanVersion[]> {
+  return call<PlanVersion[]>('/api/versions')
+}
+
+/** One version's plan, as the roadmap file it downloads as. */
+export function fetchVersionPlan(id: number): Promise<unknown> {
+  return call<unknown>(`/api/versions/${id}`)
+}
+
+/** What bringing a version back would change, without changing it. */
+export function previewRestore(id: number, revision: number): Promise<ImportPreview> {
+  return call<ImportPreview>(`/api/versions/${id}/restore`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ revision, dryRun: true }),
+  })
+}
+
+/** Brings a version of the plan back. Progress on the items it keeps stays. */
+export function restoreVersion(id: number, revision: number): Promise<AppState> {
+  return call(`/api/versions/${id}/restore`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ revision }),
   })
 }

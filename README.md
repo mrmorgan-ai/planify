@@ -48,8 +48,8 @@ picks the week the plan restarts in and moves every unfinished item forward by
 whole weeks, so the earliest unfinished week becomes that week. Each item keeps
 its weekday and each week keeps its load: moving by a few days would leave
 every calendar week holding pieces of two planned ones, over capacity. It shows
-what moves before writing anything, and the plan it replaces is kept in
-`plan_versions`.
+what moves before writing anything, and the plan it replaces is kept in the
+history.
 
 ## Stack
 
@@ -164,6 +164,18 @@ by severity, set per rule in its `RULES` table.
 `npm run seed:validate` requires every seed file present to pass clean, warnings
 included, and proves each rule fires by breaking a copy of the example seed.
 
+## History
+
+Every change to the plan keeps the plan it replaced: an edit, an import, a date
+moved, a reschedule, a restore. **Settings → History** lists them newest first,
+each with a line saying what the change did. Any of them can be brought back —
+with the same preview an import shows — or downloaded as a roadmap file.
+
+Progress is not a change of plan. Ticking an item off or logging hours keeps
+nothing, and restoring a version keeps what has been done. Edits less than ten
+minutes after the one before count as one change, so a form saved section by
+section is one version, not five. The history keeps the last 50.
+
 ## API
 
 | Method | Path | Does |
@@ -175,8 +187,11 @@ included, and proves each rule fires by breaking a copy of the example seed.
 | PATCH | `/api/items/:id/state` | Set `pending`, `in_progress` or `done`, and recompute |
 | PATCH | `/api/items/:id/dates` | Move an item's planned dates, and recompute |
 | PATCH | `/api/items/:id/hours` | Declare the hours spent so far, without changing the state |
-| POST | `/api/reschedule` | Move every unfinished item by whole weeks so the plan restarts in a date's week, keeping the old plan |
+| POST | `/api/reschedule` | Move every unfinished item by whole weeks so the plan restarts in a date's week |
 | POST | `/api/reproject` | Recompute every projection |
+| GET | `/api/versions` | The history: what each change to the plan replaced, newest first |
+| GET | `/api/versions/:id` | One version as a seed file, naming the revision it was the plan at |
+| POST | `/api/versions/:id/restore` | Bring a version back, keeping progress; `dryRun` previews it |
 | GET | `/api/health` | Liveness |
 
 Every write returns the whole new state, and every write body carries the

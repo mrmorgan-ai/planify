@@ -1,8 +1,10 @@
 import { useRef, useState } from 'react'
 import type { Edit } from '../core/edits'
-import type { ImportChanges, ImportPreview } from '../core/importing'
+import type { ImportPreview } from '../core/importing'
 import type { AppState } from '../core/types'
 import { StaleStateError, previewImport } from './api'
+import { ChangeReview, type ReviewWords } from './ChangeReview'
+import { History } from './History'
 import {
   PausesSettings,
   PhasesSettings,
@@ -26,19 +28,17 @@ type Review =
   | { kind: 'ready'; file: ChosenFile; preview: ImportPreview }
   | { kind: 'imported' }
 
-const SECTION_LABEL: Record<string, string> = {
-  timeZone: 'time zone',
-  startDate: 'start date',
-  weeklyHours: 'weekly capacity',
-  phases: 'phases',
-  blackouts: 'pauses',
-  dimensions: 'radar axes',
-  skills: 'skill map',
+const IMPORT_WORDS: ReviewWords = {
+  subject: 'The file',
+  apply: 'Import',
+  applying: 'Importing…',
+  after: 'after the import',
+  fix: (count) => `Fix ${count === 1 ? 'it' : 'them'} in the file and choose it again:`,
 }
 
 /**
  * The roadmap's own settings — the plan, its phases, its pauses, its skills —
- * and the roadmap as a file.
+ * the roadmap as a file, and the versions of it the history keeps.
  *
  * Each section keeps its own draft and saves on its own. They are keyed by the
  * revision, so every draft starts again from what is stored once anything saves.
@@ -49,12 +49,14 @@ export function Settings({
   pendingId,
   edit,
   importFile,
+  restore,
 }: {
   state: AppState
   error: string | null
   pendingId: string | null
   edit: (edits: Edit[], id?: string) => Promise<boolean>
   importFile: (roadmap: unknown, revision: number) => Promise<boolean>
+  restore: (id: number, revision: number) => Promise<boolean>
 }) {
   /** The section whose last save was refused, so the error shows there. */
   const [refused, setRefused] = useState<string | null>(null)
@@ -88,6 +90,7 @@ export function Settings({
         saver={saver('settings:skills')}
       />
       <RoadmapFile state={state} importFile={importFile} />
+      <History state={state} restore={restore} />
     </section>
   )
 }
@@ -213,11 +216,21 @@ function RoadmapFile({
       )}
 
       {review?.kind === 'ready' && (
-        <ImportReview
+        <ChangeReview
           state={state}
-          file={review.file}
+          title={review.file.name}
+          source={review.file.roadmap}
+          note={
+            review.file.revision === null && (
+              <p className="muted">
+                This file does not say which revision it came from, so it is compared with the
+                roadmap as it is now.
+              </p>
+            )
+          }
           preview={review.preview}
           busy={busy}
+          words={IMPORT_WORDS}
           onCancel={() => setReview(null)}
           onApply={() => void apply(review.file, review.preview)}
         />
@@ -229,172 +242,6 @@ function RoadmapFile({
         </p>
       )}
     </section>
-  )
-}
-
-function ImportReview({
-  state,
-  file,
-  preview,
-  busy,
-  onCancel,
-  onApply,
-}: {
-  state: AppState
-  file: ChosenFile
-  preview: ImportPreview
-  busy: boolean
-  onCancel: () => void
-  onApply: () => void
-}) {
-  const { changes, introduced, issues } = preview
-  const warnings = issues.filter((issue) => issue.severity === 'warning')
-  const lost = changes.items.removed.filter(
-    (item) => item.state !== 'pending' || item.hoursDone > 0,
-  )
-  const nothing = isEmpty(changes)
-  const nameOf = namer(state, file)
-
-  return (
-    <div className="import-review">
-      <h3>{file.name}</h3>
-      {file.revision === null && (
-        <p className="muted">
-          This file does not say which revision it came from, so it is compared with the roadmap as
-          it is now.
-        </p>
-      )}
-
-      {nothing ? (
-        <p className="muted">The file matches the roadmap. There is nothing to import.</p>
-      ) : (
-        <ul className="import-summary">
-          <li>
-            Items: {changes.items.added.length} added · {changes.items.removed.length} removed ·{' '}
-            {changes.items.changed.length} edited
-          </li>
-          {(changes.workItems.added.length > 0 ||
-            changes.workItems.removed.length > 0 ||
-            changes.workItems.changed.length > 0) && (
-            <li>
-              Work items: {changes.workItems.added.length} added ·{' '}
-              {changes.workItems.removed.length} removed · {changes.workItems.changed.length} edited
-            </li>
-          )}
-          {changes.settings.length > 0 && (
-            <li>
-              Also changes the {changes.settings.map((key) => SECTION_LABEL[key] ?? key).join(', ')}
-            </li>
-          )}
-        </ul>
-      )}
-
-      {lost.length > 0 && (
-        <div className="notice bad-notice">
-          Progress on {lost.length === 1 ? 'this item' : `these ${lost.length} items`} is lost:
-          <ul>
-            {lost.map((item) => (
-              <li key={item.id}>
-                {item.name} — {item.state === 'done' ? 'done' : 'in progress'}
-                {item.hoursDone > 0 ? `, ${item.hoursDone}h logged` : ''}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {introduced.length > 0 && (
-        <div className="notice bad-notice" role="alert">
-          The file breaks {introduced.length === 1 ? 'a rule' : `${introduced.length} rules`} the
-          roadmap does not. Fix {introduced.length === 1 ? 'it' : 'them'} in the file and choose it
-          again:
-          <ul>
-            {introduced.map((issue, index) => (
-              <li key={index}>{issue.message}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {!nothing && (
-        <details className="import-details">
-          <summary>See every change</summary>
-          <ChangeList title="Added" lines={changes.items.added.map(nameOf)} />
-          <ChangeList title="Removed" lines={changes.items.removed.map((item) => item.name)} />
-          <ChangeList
-            title="Edited"
-            lines={changes.items.changed.map(
-              ({ id, fields }) => `${nameOf(id)}: ${fields.join(', ')}`,
-            )}
-          />
-          <ChangeList title="Work items added" lines={changes.workItems.added} />
-          <ChangeList title="Work items removed" lines={changes.workItems.removed} />
-          <ChangeList title="Work items edited" lines={changes.workItems.changed} />
-        </details>
-      )}
-
-      {warnings.length > 0 && (
-        <details className="import-details">
-          <summary>
-            {warnings.length} {warnings.length === 1 ? 'warning' : 'warnings'} after the import
-          </summary>
-          <ChangeList title="" lines={warnings.map((issue) => issue.message)} />
-        </details>
-      )}
-
-      <div className="import-actions">
-        <button type="button" className="button" disabled={busy} onClick={onCancel}>
-          {nothing ? 'Close' : 'Cancel'}
-        </button>
-        {!nothing && (
-          <button
-            type="button"
-            className="button primary"
-            disabled={busy || introduced.length > 0}
-            onClick={onApply}
-          >
-            {busy ? 'Importing…' : 'Import'}
-          </button>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function ChangeList({ title, lines }: { title: string; lines: string[] }) {
-  if (lines.length === 0) return null
-  return (
-    <>
-      {title && <h4>{title}</h4>}
-      <ul>
-        {lines.map((line, index) => (
-          <li key={index}>{line}</li>
-        ))}
-      </ul>
-    </>
-  )
-}
-
-/** An item's name from the roadmap, or from the file for one the file adds. */
-function namer(state: AppState, file: ChosenFile): (id: string) => string {
-  const names = new Map(state.items.map((item) => [item.id, item.name]))
-  const fileItems =
-    (file.roadmap as { items?: Array<{ id?: unknown; name?: unknown }> }).items ?? []
-  for (const item of fileItems) {
-    if (typeof item.id === 'string' && typeof item.name === 'string') names.set(item.id, item.name)
-  }
-  return (id) => names.get(id) ?? id
-}
-
-function isEmpty(changes: ImportChanges): boolean {
-  return (
-    changes.items.added.length === 0 &&
-    changes.items.removed.length === 0 &&
-    changes.items.changed.length === 0 &&
-    changes.workItems.added.length === 0 &&
-    changes.workItems.removed.length === 0 &&
-    changes.workItems.changed.length === 0 &&
-    changes.settings.length === 0
   )
 }
 

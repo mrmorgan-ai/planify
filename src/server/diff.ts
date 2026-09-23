@@ -73,12 +73,13 @@ export function contentWrites(before: RoadmapContent, after: RoadmapContent): St
 }
 
 /**
- * Whether anything but progress differs: the plan itself, which is what the
- * validator judges. State, hours and projections are left out, so ticking an
- * item off never pays for a full check.
+ * The plan alone, as the roadmap file has it: what the validator judges and the
+ * history keeps. State, hours and projections are left out, so two roadmaps
+ * with the same plan give the same text, and ticking an item off changes
+ * nothing here — it never pays for a full check or keeps a version.
  */
-export function plannedChanged(before: RoadmapContent, after: RoadmapContent): boolean {
-  return JSON.stringify(toSeedFile(before)) !== JSON.stringify(toSeedFile(after))
+export function planOf(content: RoadmapContent): string {
+  return JSON.stringify(toSeedFile(content))
 }
 
 type Row = Record<string, string | number | null>

@@ -1201,6 +1201,64 @@ a.button {
   cursor: pointer;
 }
 
+/* History: one change per entry, newest first. */
+
+.history-list {
+  margin: 0 0 0.8rem;
+  padding: 0;
+  list-style: none;
+}
+
+.history-entry {
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--line);
+}
+
+.history-entry:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.history-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.6rem;
+  font-size: 0.92rem;
+}
+
+.history-id {
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.history-when {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.history-reason {
+  padding: 0 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.history-what {
+  flex: 1 1 16rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.history-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.45rem;
+}
+
 .import-details h4 {
   margin: 0.6rem 0 0.2rem;
   color: var(--muted);

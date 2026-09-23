@@ -1,5 +1,6 @@
 import { isCivilDate } from '../../../../src/core/dates'
 import { applyBaselineDates } from '../../../../src/core/schedule'
+import type { Item } from '../../../../src/core/types'
 import { missingRevision, only, refusal, revisionOf } from '../../../../src/server/http'
 import { mutate, scheduleOptions, type Env } from '../../../../src/server/repository'
 
@@ -42,13 +43,18 @@ export const onRequest = only<Env>('PATCH', async ({ env, params, request }) => 
   if (revision === null) return missingRevision()
 
   try {
-    const state = await mutate(env.DB, revision, (current) => {
-      const floor = current.roadmap.startDate
-      if (floor !== '' && start < floor) {
-        throw new Error(`The plan starts on ${floor}; ${start} is before it`)
-      }
-      return applyBaselineDates(current.items, id, start, end, scheduleOptions(current.roadmap))
-    })
+    const state = await mutate(
+      env.DB,
+      revision,
+      (current) => {
+        const floor = current.roadmap.startDate
+        if (floor !== '' && start < floor) {
+          throw new Error(`The plan starts on ${floor}; ${start} is before it`)
+        }
+        return applyBaselineDates(current.items, id, start, end, scheduleOptions(current.roadmap))
+      },
+      { summary: (before, after) => movedSummary(before.items, after.items, id, start, end) },
+    )
     return Response.json(state)
   } catch (error) {
     const refused = refusal(error)
@@ -62,3 +68,25 @@ export const onRequest = only<Env>('PATCH', async ({ env, params, request }) => 
     return Response.json({ error: message }, { status })
   }
 })
+
+/** "Moved Build part 2 to 2030-02-04 – 2030-02-06, pushing 3 items after it". */
+function movedSummary(
+  before: readonly Item[],
+  after: readonly Item[],
+  id: string,
+  start: string,
+  end: string,
+): string {
+  const was = new Map(before.map((item) => [item.id, item]))
+  const pushed = after.filter((item) => {
+    const old = was.get(item.id)
+    return (
+      item.id !== id &&
+      old !== undefined &&
+      (old.baselineStartDate !== item.baselineStartDate ||
+        old.baselineEndDate !== item.baselineEndDate)
+    )
+  }).length
+  const name = was.get(id)?.name ?? id
+  return `Moved ${name} to ${start} – ${end}${pushed > 0 ? `, pushing ${pushed} items after it` : ''}`
+}
