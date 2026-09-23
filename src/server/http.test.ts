@@ -32,7 +32,12 @@ describe('refusal', () => {
   })
 
   it('answers a write that would break a rule with 422 and the errors it would bring in', async () => {
-    const issue = { severity: 'error', rule: 'blackout-edge', message: 'x starts inside a pause' } as const
+    const issue = {
+      severity: 'error',
+      rule: 'blackout-edge',
+      message: 'x starts inside a pause',
+      itemId: 'x',
+    } as const
     const response = refusal(new InvalidWriteError([issue]))
 
     expect(response?.status).toBe(422)

@@ -154,7 +154,9 @@ describe('introducedErrors', () => {
 
   it('reports an error the change brings in', () => {
     const intoPause = moved(example, 'build-part-2', '2030-02-03')
-    expect(introducedErrors(example, intoPause).map((issue) => issue.rule)).toEqual(['blackout-edge'])
+    const introduced = introducedErrors(example, intoPause)
+    expect(introduced.map((issue) => issue.rule)).toEqual(['blackout-edge'])
+    expect(introduced[0]?.itemId).toBe('build-part-2')
   })
 
   it('lets a change through when the roadmap already had the same error', () => {

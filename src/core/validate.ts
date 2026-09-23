@@ -49,9 +49,15 @@ export const RULES = {
 
 export type Rule = keyof typeof RULES
 
-export type Issue = { severity: Severity; rule: Rule; message: string }
+export type Issue = {
+  severity: Severity
+  rule: Rule
+  message: string
+  /** The item to open to fix it, when one item is the thing to change. */
+  itemId: string | null
+}
 
-type Report = (rule: Rule, message: string) => void
+type Report = (rule: Rule, message: string, itemId?: string) => void
 
 const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/
 /** Every item must be finishable inside one week, so a slip shows in days. */
@@ -62,8 +68,8 @@ const CAPACITY_TOLERANCE = 0.01
 /** Every rule the roadmap follows, checked against the whole roadmap at once. */
 export function validate(content: RoadmapContent): Issue[] {
   const issues: Issue[] = []
-  const report: Report = (rule, message) => {
-    issues.push({ severity: RULES[rule], rule, message })
+  const report: Report = (rule, message, itemId) => {
+    issues.push({ severity: RULES[rule], rule, message, itemId: itemId ?? null })
   }
 
   const idsUnique = checkIds(content, report)
@@ -101,9 +107,9 @@ function checkIds({ items, workItems }: RoadmapContent, report: Report): boolean
   const itemIds = new Set<string>()
   let unique = true
   for (const item of items) {
-    if (!KEBAB.test(item.id)) report('item-id', `${item.id} is not kebab-case`)
+    if (!KEBAB.test(item.id)) report('item-id', `${item.id} is not kebab-case`, item.id)
     if (itemIds.has(item.id)) {
-      report('duplicate-id', `${item.id} is used by more than one item`)
+      report('duplicate-id', `${item.id} is used by more than one item`, item.id)
       unique = false
     }
     itemIds.add(item.id)
@@ -135,7 +141,11 @@ function checkPhases({ roadmap, items }: RoadmapContent, report: Report): void {
   const defined = new Set<number>(numbers)
   for (const item of items) {
     if (!defined.has(item.phase)) {
-      report('unknown-phase', `${item.id} is in phase ${item.phase}, which is not defined`)
+      report(
+        'unknown-phase',
+        `${item.id} is in phase ${item.phase}, which is not defined`,
+        item.id,
+      )
     }
   }
 
@@ -153,6 +163,7 @@ function checkPhases({ roadmap, items }: RoadmapContent, report: Report): void {
       report(
         'closing-milestone',
         `Phase ${phase.number} closes on ${milestoneId}, which is in phase ${milestone.phase}`,
+        milestone.id,
       )
     }
   }
@@ -165,6 +176,7 @@ function checkPhases({ roadmap, items }: RoadmapContent, report: Report): void {
         report(
           'sort-order',
           `${other} and ${item.id} share position ${item.sortOrder} in phase ${phase.number}`,
+          item.id,
         )
       }
       seen.set(item.sortOrder, item.id)
@@ -195,9 +207,15 @@ function checkSettings({ roadmap, items, workItems }: RoadmapContent, report: Re
     report('time-zone', `${roadmap.timeZone} is not a timezone the runtime knows`)
   }
 
-  for (const entry of [...items, ...workItems]) {
-    if (entry.link !== null && !entry.link.startsWith('https://')) {
-      report('link', `${entry.id} links to ${entry.link}; links must be https or empty`)
+  const badLink = (link: string | null) => link !== null && !link.startsWith('https://')
+  for (const item of items) {
+    if (badLink(item.link)) {
+      report('link', `${item.id} links to ${item.link}; links must be https or empty`, item.id)
+    }
+  }
+  for (const workItem of workItems) {
+    if (badLink(workItem.link)) {
+      report('link', `${workItem.id} links to ${workItem.link}; links must be https or empty`)
     }
   }
 }
@@ -211,30 +229,35 @@ function checkDates({ roadmap, items }: RoadmapContent, report: Report): Item[] 
     const start = item.baselineStartDate
     const end = item.baselineEndDate
     if (!isCivilDate(start) || !isCivilDate(end)) {
-      report('dates', `${item.id} has planned dates not in YYYY-MM-DD: ${start}..${end}`)
+      report('dates', `${item.id} has planned dates not in YYYY-MM-DD: ${start}..${end}`, item.id)
       continue
     }
 
     const studyDays = end < start ? 0 : studyDaysBetween(start, end, blackouts)
     if (studyDays < 1) {
-      report('dates', `${item.id} has no study day between ${start} and ${end}`)
+      report('dates', `${item.id} has no study day between ${start} and ${end}`, item.id)
       continue
     }
     dated.push(item)
 
     if (isBlackoutDay(start, blackouts)) {
-      report('blackout-edge', `${item.id} starts inside a pause, on ${start}`)
+      report('blackout-edge', `${item.id} starts inside a pause, on ${start}`, item.id)
     }
     if (isBlackoutDay(end, blackouts)) {
-      report('blackout-edge', `${item.id} ends inside a pause, on ${end}`)
+      report('blackout-edge', `${item.id} ends inside a pause, on ${end}`, item.id)
     }
     if (startDate !== '' && start < startDate) {
-      report('before-start', `${item.id} starts on ${start}, before the plan does (${startDate})`)
+      report(
+        'before-start',
+        `${item.id} starts on ${start}, before the plan does (${startDate})`,
+        item.id,
+      )
     }
     if (studyDays > MAX_STUDY_DAYS) {
       report(
         'too-long',
         `${item.id} spans ${studyDays} study days; split it into parts of ${MAX_STUDY_DAYS} or fewer`,
+        item.id,
       )
     }
   }
@@ -251,11 +274,13 @@ function checkGraph(
   for (const item of items) {
     const seen = new Set<string>()
     for (const dependency of item.dependsOn) {
-      if (dependency === item.id) report('dependency', `${item.id} depends on itself`)
+      if (dependency === item.id) report('dependency', `${item.id} depends on itself`, item.id)
       else if (!byId.has(dependency)) {
-        report('dependency', `${item.id} depends on ${dependency}, which does not exist`)
+        report('dependency', `${item.id} depends on ${dependency}, which does not exist`, item.id)
       }
-      if (seen.has(dependency)) report('dependency', `${item.id} lists ${dependency} twice`)
+      if (seen.has(dependency)) {
+        report('dependency', `${item.id} lists ${dependency} twice`, item.id)
+      }
       seen.add(dependency)
     }
   }
@@ -285,6 +310,7 @@ function checkGraph(
           'late-dependency',
           `${item.id} is planned to start on ${item.baselineStartDate}, ` +
             `but ${dependencyId} ends on ${dependency.baselineEndDate}`,
+          item.id,
         )
       }
     }
@@ -308,6 +334,7 @@ function checkGraph(
         report(
           'phase-gate',
           `${item.id} does not wait on ${gate}, which closes phase ${previous.number}`,
+          item.id,
         )
       }
     }
@@ -319,7 +346,7 @@ function checkGraph(
     const reached = reachedFrom(milestoneId)
     for (const other of items.filter((candidate) => candidate.phase === phase.number)) {
       if (other.id !== milestoneId && !reached.has(other.id)) {
-        report('milestone-coverage', `${milestoneId} does not wait on ${other.id}`)
+        report('milestone-coverage', `${milestoneId} does not wait on ${other.id}`, milestoneId)
       }
     }
   }
@@ -329,7 +356,11 @@ function checkGraph(
     parts.forEach((part, index) => {
       const previous = parts[index - 1]
       if (previous && !part.dependsOn.includes(previous.id)) {
-        report('project-chain', `${part.id} does not depend on ${previous.id}, the task before it`)
+        report(
+          'project-chain',
+          `${part.id} does not depend on ${previous.id}, the task before it`,
+          part.id,
+        )
       }
     })
   }
@@ -362,6 +393,7 @@ function checkWorkItems({ items, workItems }: RoadmapContent, report: Report): v
       report(
         'unknown-work-item',
         `${item.id} is a part of ${item.workItemId}, which does not exist`,
+        item.id,
       )
     }
   }
@@ -381,6 +413,7 @@ function checkWorkItems({ items, workItems }: RoadmapContent, report: Report): v
           'overlapping-parts',
           `${part.id} starts on ${part.baselineStartDate}, ` +
             `before ${previous.id} ends on ${previous.baselineEndDate}`,
+          part.id,
         )
       }
     })
@@ -397,7 +430,7 @@ function checkHours(
   for (const item of items) {
     const needsOutcome = item.type === 'Practice' || item.type === 'Exam prep'
     if (needsOutcome && item.doneWhen.trim() === '') {
-      report('done-when', `${item.id} does not say what done means`)
+      report('done-when', `${item.id} does not say what done means`, item.id)
     }
   }
 
@@ -405,7 +438,11 @@ function checkHours(
   // a week gets planned past its capacity without anything showing it.
   for (const item of items) {
     if (estimatedHours(item) === null) {
-      report('no-estimate', `${item.id} has no hour estimate in its duration "${item.duration}"`)
+      report(
+        'no-estimate',
+        `${item.id} has no hour estimate in its duration "${item.duration}"`,
+        item.id,
+      )
     }
   }
 
@@ -447,7 +484,7 @@ function checkSkills({ roadmap, items }: RoadmapContent, report: Report): void {
   for (const item of items) {
     for (const skill of item.skills) {
       if (skillDimension[skill] === undefined) {
-        report('unmapped-skill', `${item.id} uses "${skill}", which is on no radar axis`)
+        report('unmapped-skill', `${item.id} uses "${skill}", which is on no radar axis`, item.id)
       }
     }
   }
