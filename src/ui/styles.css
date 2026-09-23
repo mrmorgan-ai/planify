@@ -953,6 +953,18 @@ tr.detail td {
   flex: 1 1 0;
 }
 
+.form-place {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.4rem;
+}
+
+@media (max-width: 640px) {
+  .form-place {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* Board */
 
 .board-title {
@@ -2546,6 +2558,19 @@ tr.part .name {
 
 .col-name a.unit-jump {
   border-bottom: 1px solid var(--line);
+}
+
+.partless li + li {
+  margin-top: 0.4rem;
+}
+
+.partless-line {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
 }
 
 .unit-notes {

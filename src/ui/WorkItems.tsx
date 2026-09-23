@@ -1,9 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
+import { newItemId } from '../core/edits'
 import { estimatedHours } from '../core/hours'
-import type { AppState, ItemType, State } from '../core/types'
+import type { AppState, ItemType, State, WorkItem } from '../core/types'
 import { unitHours, unitPhases, unitState, unitsOf, type Unit } from '../core/workItems'
+import type { Edit } from '../core/edits'
+import type { Store } from './useAppState'
 import { scrollToRow, useArrival } from './useArrival'
+import { DeleteWorkItem, WorkItemForm } from './WorkItemEditing'
 
 const STATE_LABEL: Record<State, string> = {
   pending: 'Pending',
@@ -34,14 +38,59 @@ const SECTIONS: ReadonlyArray<{ type: ItemType; label: string }> = [
  * No dates on purpose — the question here is "how far through this am I", and
  * the backlog and the Gantt already answer "when".
  *
- * Read-only. State is changed where it always is, on the backlog or the board,
- * and every part links back to its row there.
+ * State is changed where it always is, on the backlog or the board, and every
+ * part links back to its row there. What is edited here is the work item
+ * itself; which items are its parts is chosen in each item's own form.
  */
-export function WorkItems({ state }: { state: AppState }) {
+export function WorkItems({
+  state,
+  error,
+  pendingId,
+  edit,
+}: Pick<Store, 'error' | 'pendingId' | 'edit'> & { state: AppState }) {
   const [filter, setFilter] = useState<StateFilter>('all')
   const [open, setOpen] = useState<Set<string>>(new Set())
+  const [creating, setCreating] = useState(false)
+  const [editing, setEditing] = useState<string | null>(null)
+  /** The form whose last save was refused: a work item's id, or `new`. */
+  const [refused, setRefused] = useState<string | null>(null)
+
+  const save = async (key: string, edits: Edit[]) => {
+    const saved = await edit(edits, key)
+    setRefused(saved ? null : key)
+    return saved
+  }
+
+  /** The form for one work item, or null when it is not being edited. */
+  const editorFor = (workItem: WorkItem, parts: number): ReactNode =>
+    editing === workItem.id ? (
+      <WorkItemForm
+        key={workItem.id}
+        workItem={workItem}
+        busy={pendingId === workItem.id}
+        error={refused === workItem.id ? error : null}
+        onCancel={() => setEditing(null)}
+        onSubmit={async (fields) => {
+          const edits: Edit[] = [{ op: 'updateWorkItem', id: workItem.id, fields }]
+          if (await save(workItem.id, edits)) setEditing(null)
+        }}
+        danger={
+          <DeleteWorkItem
+            workItem={workItem}
+            parts={parts}
+            busy={pendingId === workItem.id}
+            onDelete={async (deletion) => {
+              if (await save(workItem.id, [deletion])) setEditing(null)
+            }}
+          />
+        }
+      />
+    ) : null
 
   const units = unitsOf(state.items, state.workItems)
+  const partless = state.workItems.filter(
+    (workItem) => !state.items.some((item) => item.workItemId === workItem.id),
+  )
   const visible = units.filter((unit) => filter === 'all' || unitState(unit.parts) === filter)
 
   /** `?unit=` is how a part hands its work item over: open it, bring it into view, highlight it. */
@@ -91,7 +140,68 @@ export function WorkItems({ state }: { state: AppState }) {
             </span>
           </button>
         ))}
+        <button
+          type="button"
+          className="button push-end"
+          disabled={creating}
+          onClick={() => {
+            setRefused(null)
+            setCreating(true)
+          }}
+        >
+          + New work item
+        </button>
       </div>
+
+      {creating && (
+        <div className="new-item">
+          <h3>New work item</h3>
+          <WorkItemForm
+            workItem={null}
+            busy={pendingId === 'new'}
+            error={refused === 'new' ? error : null}
+            onCancel={() => setCreating(false)}
+            onSubmit={async (fields) => {
+              const id = newItemId(fields.name, state)
+              const edits: Edit[] = [{ op: 'createWorkItem', workItem: { ...fields, id } }]
+              if (await save('new', edits)) setCreating(false)
+            }}
+          />
+        </div>
+      )}
+
+      {partless.length > 0 && (
+        <div className="unit-section">
+          <h3 className="unit-section-title">
+            No parts yet <span className="count">{partless.length}</span>
+          </h3>
+          <p className="settings-text">
+            An item joins a work item from its own form in the backlog, under “Part of”.
+          </p>
+          <ul className="settings-rows partless">
+            {partless.map((workItem) => (
+              <li key={workItem.id}>
+                {editorFor(workItem, 0) ?? (
+                  <div className="partless-line">
+                    <span className="name">{workItem.name}</span>
+                    <span className="type-tag">{workItem.type}</span>
+                    <button
+                      type="button"
+                      className="button push-end"
+                      onClick={() => {
+                        setRefused(null)
+                        setEditing(workItem.id)
+                      }}
+                    >
+                      Edit
+                    </button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {visible.length === 0 && <p className="empty">Nothing matches this filter.</p>}
 
@@ -120,6 +230,18 @@ export function WorkItems({ state }: { state: AppState }) {
                     unit={unit}
                     open={open.has(unit.id)}
                     arrived={arrived === unit.id}
+                    editor={
+                      unit.standalone
+                        ? null
+                        : editorFor(
+                            state.workItems.find((each) => each.id === unit.id)!,
+                            unit.parts.length,
+                          )
+                    }
+                    onEdit={() => {
+                      setRefused(null)
+                      setEditing(unit.id)
+                    }}
                     onToggle={() => toggle(unit.id)}
                   />
                 ))}
@@ -136,11 +258,16 @@ function UnitRows({
   unit,
   open,
   arrived,
+  editor,
+  onEdit,
   onToggle,
 }: {
   unit: Unit
   open: boolean
   arrived: boolean
+  /** The work item's form, while it is being edited. */
+  editor: ReactNode
+  onEdit: () => void
   onToggle: () => void
 }) {
   const row = useRef<HTMLTableRowElement>(null)
@@ -213,12 +340,17 @@ function UnitRows({
         </td>
       </tr>
 
-      {open && unit.notes && (
+      {open && !unit.standalone && (
         <tr className="detail">
           <td colSpan={5}>
-            <div className="detail-line unit-notes">
-              <span className="notes">{unit.notes}</span>
-            </div>
+            {editor ?? (
+              <div className="detail-line unit-notes">
+                {unit.notes && <span className="notes">{unit.notes}</span>}
+                <button type="button" className="button push-end" onClick={onEdit}>
+                  Edit work item
+                </button>
+              </div>
+            )}
           </td>
         </tr>
       )}
