@@ -164,3 +164,38 @@ describe('the skill map', () => {
     expect(() => parseEdits([{ op: 'setSkillMap', dimensions: ['A', 'A'], skills: {} }])).toThrow(/twice/)
   })
 })
+
+describe('moveItem', () => {
+  const order = (content: RoadmapContent, phase: number) =>
+    content.items
+      .filter((each) => each.phase === phase)
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((each) => `${each.sortOrder}:${each.id}`)
+
+  it('reorders within a phase, renumbering it 1..n', () => {
+    const after = apply([{ op: 'moveItem', id: 'build-part-1', phase: 1, before: 'course-part-1' }])
+    expect(order(after, 1).slice(0, 3)).toEqual(['1:build-part-1', '2:course-part-1', '3:read-the-thing'])
+    expect(after.items.filter((each) => each.phase === 1).map((each) => each.sortOrder).sort((a, b) => a - b)).toEqual(
+      Array.from({ length: 9 }, (_, index) => index + 1),
+    )
+  })
+
+  it('moves an item to the end of another phase and closes the gap it left', () => {
+    const after = apply([{ op: 'moveItem', id: 'practice-week-2', phase: 2 }])
+    expect(order(after, 2)).toEqual(['1:the-next-thing', '2:the-optional-thing', '3:practice-week-2'])
+    expect(order(after, 1)).toHaveLength(8)
+    expect(order(after, 1).at(-1)).toBe('8:phase-1-exam')
+  })
+
+  it('refuses a phase that does not exist, and a place in another phase', () => {
+    expect(() => apply([{ op: 'moveItem', id: 'read-the-thing', phase: 5 }])).toThrow(/No phase 5/)
+    expect(() => apply([{ op: 'moveItem', id: 'read-the-thing', phase: 2, before: 'course-part-1' }])).toThrow(
+      /not in phase 2/,
+    )
+  })
+
+  it('lets the validator refuse a closing milestone moved out of its phase', () => {
+    const after = apply([{ op: 'moveItem', id: 'phase-1-exam', phase: 2 }])
+    expect(errors(after).map((issue) => issue.rule)).toContain('closing-milestone')
+  })
+})

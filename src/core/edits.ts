@@ -48,6 +48,17 @@ export type ItemEdit =
   | { op: 'setDependencies'; id: string; dependsOn: string[] }
   | { op: 'createItem'; item: NewItem }
   | {
+      /**
+       * Puts an item in a phase, before another item of that phase or last.
+       * The same edit reorders within a phase. Both phases are renumbered, so
+       * the order stays 1..n.
+       */
+      op: 'moveItem'
+      id: string
+      phase: number
+      before?: string | null
+    }
+  | {
       op: 'deleteItem'
       id: string
       /** Connect whatever depended on it to what it depended on, instead of refusing. */
@@ -86,6 +97,17 @@ export function parseEdits(raw: unknown): Edit[] {
           throw new EditError(`${at}.item must be an object`)
         }
         return { op: 'createItem', item: item as NewItem }
+      }
+      case 'moveItem': {
+        const phase = edit.phase
+        if (typeof phase !== 'number' || !Number.isInteger(phase)) {
+          throw new EditError(`${at}.phase must be a phase number`)
+        }
+        const before = edit.before ?? null
+        if (before !== null && typeof before !== 'string') {
+          throw new EditError(`${at}.before must be an item id or null`)
+        }
+        return { op: 'moveItem', id: idOf(edit, at), phase, before }
       }
       case 'deleteItem':
         return {
@@ -133,6 +155,9 @@ export function applyEdits(content: RoadmapContent, edits: readonly Edit[]): Roa
       }
       case 'createItem':
         next = { ...next, items: [...items, created(next, edit.item, at)] }
+        break
+      case 'moveItem':
+        next = { ...next, items: moved(next, edit) }
         break
       case 'deleteItem':
         next = { ...next, items: deleted(next, edit) }
@@ -189,6 +214,34 @@ function created(content: RoadmapContent, item: NewItem, at: string): Item {
     completedAt: null,
     hoursDone: 0,
   }
+}
+
+function moved(content: RoadmapContent, edit: Extract<Edit, { op: 'moveItem' }>): Item[] {
+  const target = find(content.items, edit.id)
+  const phase = content.roadmap.phases.find((each) => each.number === edit.phase)
+  if (!phase) throw new EditError(`No phase ${edit.phase}`)
+  if (edit.before === target.id) return content.items
+
+  const inOrder = (number: number) =>
+    content.items
+      .filter((item) => item.phase === number && item.id !== target.id)
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+  const destination = inOrder(phase.number)
+  const at = edit.before == null ? destination.length : destination.findIndex((item) => item.id === edit.before)
+  if (at < 0) throw new EditError(`${edit.before} is not in phase ${phase.number}`)
+  destination.splice(at, 0, { ...target, phase: phase.number })
+
+  const order = new Map<string, { phase: Item['phase']; sortOrder: number }>()
+  destination.forEach((item, index) => order.set(item.id, { phase: phase.number, sortOrder: index + 1 }))
+  if (target.phase !== phase.number) {
+    inOrder(target.phase).forEach((item, index) =>
+      order.set(item.id, { phase: target.phase, sortOrder: index + 1 }),
+    )
+  }
+  return content.items.map((item) => {
+    const place = order.get(item.id)
+    return place ? { ...item, ...place } : item
+  })
 }
 
 function deleted(content: RoadmapContent, edit: Extract<Edit, { op: 'deleteItem' }>): Item[] {
