@@ -1,9 +1,11 @@
 import { DEFAULT_TIME_ZONE } from '../core/constants'
+import { describeChanges, type VersionReason } from '../core/history'
 import { recomputeProjections } from '../core/schedule'
 import { introducedErrors, type Issue } from '../core/validate'
 import type { AppState, Item, Roadmap, RoadmapContent, ScheduleOptions } from '../core/types'
-import { todayIn } from './clock'
-import { contentWrites, plannedChanged } from './diff'
+import { nowIso, todayIn } from './clock'
+import { contentWrites, planOf } from './diff'
+import { keepVersion } from './history'
 import {
   toBlackout,
   toItem,
@@ -95,6 +97,21 @@ export class StaleRevisionError extends Error {
   }
 }
 
+/** What a write adds beyond the change itself. */
+export type WriteOptions = {
+  /** More writes for the same batch, which lands whole or not at all. */
+  alongside?: (state: AppState) => D1PreparedStatement[]
+  /** What the history says replaced the plan, when the plan changes. An edit by default. */
+  reason?: VersionReason
+  /**
+   * The history's line for the change. Called after `transform`, so it can say
+   * what the transform worked out. By default, the changes counted and named.
+   */
+  summary?: (before: AppState, after: RoadmapContent) => string
+  /** When the change is made. The clock by default; a test sets it. */
+  now?: string
+}
+
 /**
  * Loads, transforms, writes back only what moved, and returns the new world
  * without reading the database again. D1 has no interactive transactions, so the
@@ -108,15 +125,15 @@ export class StaleRevisionError extends Error {
  *
  * A change to the plan itself — anything but progress — is checked against the
  * validator first, and refused if it would bring in an error the roadmap did not
- * already have.
+ * already have. The plan it replaces is kept in the history, in the same batch.
+ * An empty roadmap has no plan to keep.
  */
 export async function mutateContent(
   db: D1Database,
   /** The revision the client made this change from; null accepts any. */
   expectedRevision: number | null,
   transform: (state: AppState) => RoadmapContent,
-  /** More writes for the same batch, which lands whole or not at all. */
-  alongside: (state: AppState) => D1PreparedStatement[] = () => [],
+  options: WriteOptions = {},
 ): Promise<AppState> {
   const state = await loadAppState(db)
   if (expectedRevision !== null && expectedRevision !== state.revision) {
@@ -126,10 +143,22 @@ export async function mutateContent(
   const next = transform(state)
   const revision = state.revision + 1
 
-  if (plannedChanged(state, next)) {
+  const plan = planOf(state)
+  const planChanged = plan !== planOf(next)
+  if (planChanged) {
     const broken = introducedErrors(state, next)
     if (broken.length > 0) throw new InvalidWriteError(broken)
   }
+  const kept =
+    planChanged && state.items.length > 0
+      ? keepVersion(db, {
+          plan,
+          revision: state.revision,
+          reason: options.reason ?? 'edit',
+          summary: (options.summary ?? describeChanges)(state, next),
+          now: options.now ?? nowIso(),
+        })
+      : []
 
   const writes = [
     // The guard: when the stored revision is no longer the one read above, this
@@ -141,7 +170,8 @@ export async function mutateContent(
          SELECT 'revision', '' WHERE (SELECT value FROM meta WHERE key = 'revision') <> ?`,
       )
       .bind(String(state.revision)),
-    ...alongside(state),
+    ...(options.alongside?.(state) ?? []),
+    ...kept,
     ...contentWrites(state, next).map(({ sql, params }) => db.prepare(sql).bind(...params)),
     db.prepare("UPDATE meta SET value = ? WHERE key = 'revision'").bind(String(revision)),
   ]
@@ -163,43 +193,17 @@ export function mutate(
   db: D1Database,
   expectedRevision: number | null,
   transform: (state: AppState) => Item[],
-  alongside?: (state: AppState) => D1PreparedStatement[],
+  options?: WriteOptions,
 ): Promise<AppState> {
   return mutateContent(
     db,
     expectedRevision,
     (state) => ({ roadmap: state.roadmap, workItems: state.workItems, items: transform(state) }),
-    alongside,
+    options,
   )
 }
 
 /** Recomputes every projection from the current baselines and completions. */
 export function reproject(state: AppState): Item[] {
   return recomputeProjections(state.items, scheduleOptions(state.roadmap))
-}
-
-/**
- * Keeps the plan as it stood before a reschedule replaces it. Returned as a
- * statement for `mutate` to run in its own batch, so the new plan is never
- * written without the old one kept.
- */
-export function savePlanVersion(
-  db: D1Database,
-  state: AppState,
-  version: { createdAt: string; restartDate: string; shiftDays: number },
-): D1PreparedStatement {
-  const plan = state.items.map((item) => ({
-    id: item.id,
-    state: item.state,
-    baselineStart: item.baselineStartDate,
-    baselineEnd: item.baselineEndDate,
-    projectedStart: item.projectedStartDate,
-    projectedEnd: item.projectedEndDate,
-  }))
-  return db
-    .prepare(
-      `INSERT INTO plan_versions (created_at, reason, restart_date, shift_days, plan)
-       VALUES (?, 'reschedule', ?, ?, ?)`,
-    )
-    .bind(version.createdAt, version.restartDate, version.shiftDays, JSON.stringify(plan))
 }

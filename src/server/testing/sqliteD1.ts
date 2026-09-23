@@ -24,6 +24,7 @@ export function sqliteD1(): { db: D1Database; sqlite: DatabaseSync } {
     params,
     bind: (...values: SQLInputValue[]) => statement(sql, values),
     all: () => ({ results: sqlite.prepare(sql).all(...params) }),
+    first: async () => sqlite.prepare(sql).get(...params) ?? null,
   })
 
   const db = {

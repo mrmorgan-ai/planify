@@ -1,13 +1,12 @@
-import { isCivilDate } from '../../src/core/dates'
+import { isCivilDate, startOfWeek } from '../../src/core/dates'
 import { reschedulePlan } from '../../src/core/reschedule'
-import { nowIso } from '../../src/server/clock'
 import { missingRevision, only, refusal, revisionOf } from '../../src/server/http'
-import { mutate, savePlanVersion, scheduleOptions, type Env } from '../../src/server/repository'
+import { mutate, scheduleOptions, type Env } from '../../src/server/repository'
 
 /**
  * Moves every unfinished item forward by whole weeks so the plan restarts in
- * the given date's week, keeping its shape. The plan it replaces is saved to
- * plan_versions in the same batch.
+ * the given date's week, keeping its shape. The plan it replaces is kept in the
+ * history, in the same batch.
  *
  * The date may not be in the past — a week already over would leave the plan
  * late — nor before the plan's own start. It names the week: the plan restarts
@@ -30,7 +29,7 @@ export const onRequest = only<Env>('POST', async ({ env, request }) => {
   const revision = revisionOf(body)
   if (revision === null) return missingRevision()
 
-  let shift = 0
+  let moved = 0
   try {
     const state = await mutate(
       env.DB,
@@ -47,12 +46,14 @@ export const onRequest = only<Env>('POST', async ({ env, request }) => {
         if (result.shift === 0) {
           throw new RefusedError(`Nothing to move: the plan is not behind ${restartDate}`)
         }
-        shift = result.shift
+        moved = result.moved.length
         return result.items
       },
-      (current) => [
-        savePlanVersion(env.DB, current, { createdAt: nowIso(), restartDate, shiftDays: shift }),
-      ],
+      {
+        reason: 'reschedule',
+        summary: () =>
+          `Restarted the plan in the week of ${startOfWeek(restartDate)}, moving ${moved} items`,
+      },
     )
     return Response.json(state)
   } catch (error) {
