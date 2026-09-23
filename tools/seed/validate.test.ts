@@ -3,7 +3,8 @@ import { addDays, isBlackoutDay, startOfWeek, studyDaysBetween } from '../../src
 import { estimatedHours, hoursInWeek, weekOf } from '../../src/core/hours'
 import { recomputeProjections, topologicalOrder } from '../../src/core/schedule'
 import { partsOf } from '../../src/core/workItems'
-import { asItems, availableSeeds } from './load'
+import { asItems } from '../../src/core/seed'
+import { availableSeeds } from './load'
 
 // Runs against every seed file present: the tracked example always — which is
 // what lets CI check these rules without seeing the real roadmap — and the
