@@ -1,6 +1,10 @@
 import { projectWherePossible } from './schedule'
 import { parseSeedItem, type SeedItem } from './seed'
 import type { Item, RoadmapContent } from './types'
+import { EditError, newItemId, takenIds } from './editing'
+import { applyStructureEdit, isStructureOp, parseStructureEdit, type StructureEdit } from './structure'
+
+export { EditError, newItemId, slugOf } from './editing'
 
 /**
  * The fields of an item that can be edited in place. The id never changes —
@@ -34,9 +38,12 @@ export type NewItem = ItemFields &
 /**
  * One change to the roadmap's content. Edits travel as a list and land as one
  * batch, so a change that takes several steps — create an item, then make
- * another wait on it — is all or nothing.
+ * another wait on it — is all or nothing. Items are edited here; what they hang
+ * off — work items, phases, pauses, settings, skills — in structure.ts.
  */
-export type Edit =
+export type Edit = ItemEdit | StructureEdit
+
+export type ItemEdit =
   | { op: 'updateItem'; id: string; fields: ItemFields }
   | { op: 'setDependencies'; id: string; dependsOn: string[] }
   | { op: 'createItem'; item: NewItem }
@@ -48,9 +55,6 @@ export type Edit =
       /** Delete it even though it has progress, which goes with it. */
       discardProgress?: boolean
     }
-
-/** An edit that cannot be applied as asked. Nothing is written. */
-export class EditError extends Error {}
 
 /** Checks the shape of a list of edits. The fields themselves are checked when applied. */
 export function parseEdits(raw: unknown): Edit[] {
@@ -91,7 +95,8 @@ export function parseEdits(raw: unknown): Edit[] {
           discardProgress: edit.discardProgress === true,
         }
       default:
-        throw new EditError(`${at}.op must be updateItem, setDependencies, createItem or deleteItem`)
+        if (isStructureOp(edit.op)) return parseStructureEdit(edit, at)
+        throw new EditError(`${at}.op is not an edit this roadmap knows: ${String(edit.op)}`)
     }
   })
 }
@@ -104,37 +109,41 @@ export function parseEdits(raw: unknown): Edit[] {
  * answered by the write that stores it.
  */
 export function applyEdits(content: RoadmapContent, edits: readonly Edit[]): RoadmapContent {
-  let items = [...content.items]
+  let next = content
 
   edits.forEach((edit, index) => {
     const at = `edits[${index}]`
+    const items = next.items
     switch (edit.op) {
       case 'updateItem': {
         const target = find(items, edit.id)
         const parsed = parse({ ...seedItemOf(target), ...edit.fields }, at)
-        items = items.map((item) => (item.id === target.id ? { ...item, ...pick(parsed) } : item))
+        next = { ...next, items: items.map((item) => (item.id === target.id ? { ...item, ...pick(parsed) } : item)) }
         break
       }
       case 'setDependencies': {
         const target = find(items, edit.id)
-        items = items.map((item) =>
-          item.id === target.id ? { ...item, dependsOn: [...edit.dependsOn] } : item,
-        )
+        next = {
+          ...next,
+          items: items.map((item) =>
+            item.id === target.id ? { ...item, dependsOn: [...edit.dependsOn] } : item,
+          ),
+        }
         break
       }
-      case 'createItem': {
-        items = [...items, created(content, items, edit.item, at)]
+      case 'createItem':
+        next = { ...next, items: [...items, created(next, edit.item, at)] }
         break
-      }
-      case 'deleteItem': {
-        items = deleted(content, items, edit)
+      case 'deleteItem':
+        next = { ...next, items: deleted(next, edit) }
         break
-      }
+      default:
+        next = applyStructureEdit(next, edit, at)
     }
   })
 
-  const options = { blackouts: content.roadmap.blackouts, timeZone: content.roadmap.timeZone }
-  return { ...content, items: projectWherePossible(items, options) }
+  const options = { blackouts: next.roadmap.blackouts, timeZone: next.roadmap.timeZone }
+  return { ...next, items: projectWherePossible(next.items, options) }
 }
 
 /** Who waits on an item: what a delete has to deal with. */
@@ -147,12 +156,12 @@ export function hasProgress(item: Item): boolean {
   return item.state !== 'pending' || item.hoursDone > 0
 }
 
-function created(content: RoadmapContent, items: Item[], item: NewItem, at: string): Item {
-  if (item.id !== undefined && takenIds({ items, workItems: content.workItems }).has(item.id)) {
+function created(content: RoadmapContent, item: NewItem, at: string): Item {
+  if (item.id !== undefined && takenIds(content).has(item.id)) {
     throw new EditError(`${at}: the id ${item.id} is already taken`)
   }
-  const id = item.id ?? newItemId(String(item.name ?? ''), { items, workItems: content.workItems })
-  const last = items
+  const id = item.id ?? newItemId(String(item.name ?? ''), content)
+  const last = content.items
     .filter((each) => each.phase === item.phase)
     .reduce((max, each) => Math.max(max, each.sortOrder), 0)
 
@@ -182,11 +191,8 @@ function created(content: RoadmapContent, items: Item[], item: NewItem, at: stri
   }
 }
 
-function deleted(
-  content: RoadmapContent,
-  items: Item[],
-  edit: Extract<Edit, { op: 'deleteItem' }>,
-): Item[] {
+function deleted(content: RoadmapContent, edit: Extract<Edit, { op: 'deleteItem' }>): Item[] {
+  const { items } = content
   const target = find(items, edit.id)
 
   const closes = content.roadmap.phases.find((phase) => phase.closingMilestoneId === target.id)
@@ -263,36 +269,4 @@ function strings(value: unknown, at: string): string[] {
     throw new EditError(`${at} must be an array of strings`)
   }
   return value as string[]
-}
-
-function takenIds({ items, workItems }: Pick<RoadmapContent, 'items' | 'workItems'>): Set<string> {
-  return new Set([...items.map((item) => item.id), ...workItems.map((workItem) => workItem.id)])
-}
-
-/** A kebab-case id from a name: "Build part 2 — the API" → "build-part-2-the-api". */
-export function slugOf(name: string): string {
-  const slug = name
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60)
-    .replace(/-+$/, '')
-  return slug === '' ? 'item' : slug
-}
-
-/**
- * The id a new item with this name gets: its name in kebab-case, numbered when
- * an item or a work item already has it. The client asks for it explicitly, so
- * it knows which row to open once the item exists.
- */
-export function newItemId(name: string, content: Pick<RoadmapContent, 'items' | 'workItems'>): string {
-  const base = slugOf(name)
-  const taken = takenIds(content)
-  if (!taken.has(base)) return base
-  for (let n = 2; ; n++) {
-    const candidate = `${base}-${n}`
-    if (!taken.has(candidate)) return candidate
-  }
 }
