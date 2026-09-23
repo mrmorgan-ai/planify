@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.worker.json",
+  "compilerOptions": {
+    "types": ["@cloudflare/workers-types", "node"]
+  },
+  "include": ["src/server", "src/core", "tools/seed/load.ts"],
+  "exclude": []
+}

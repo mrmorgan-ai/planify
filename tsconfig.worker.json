@@ -15,5 +15,9 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["functions", "src/core", "src/server"]
+  "include": ["functions", "src/core", "src/server"],
+  // Tests run on Node against a real SQLite, so they are checked with Node's
+  // types by tsconfig.server-test.json. Kept out here, the code that ships stays
+  // checked against the Workers runtime alone.
+  "exclude": ["src/server/**/*.test.ts", "src/server/testing"]
 }

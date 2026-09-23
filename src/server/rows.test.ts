@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { Item } from '../core/types'
 import {
-  changedItems,
+  fromItem,
+  fromWorkItem,
   toItem,
   toMeta,
   toPhase,
@@ -117,28 +118,30 @@ describe('row collections', () => {
   })
 })
 
-describe('changedItems', () => {
-  const base: Item = toItem(row())
-
-  it('writes nothing back when nothing moved', () => {
-    expect(changedItems([base], [{ ...base }])).toEqual([])
+describe('fromItem and fromWorkItem', () => {
+  it('store an item as columns that read back as the same item', () => {
+    const item: Item = {
+      ...toItem(row()),
+      workItemId: 'the-course',
+      dependsOn: ['a', 'b'],
+      resources: [{ label: 'Code', url: 'https://example.com/repo' }],
+      state: 'done',
+      completedAt: '2030-01-05T12:00:00Z',
+      hoursDone: 2.5,
+    }
+    expect(toItem(fromItem(item))).toEqual(item)
   })
 
-  it('catches a state change, a completion and a moved projection', () => {
-    expect(changedItems([base], [{ ...base, state: 'in_progress' }])).toHaveLength(1)
-    expect(changedItems([base], [{ ...base, completedAt: '2030-01-05T12:00:00Z' }])).toHaveLength(1)
-    expect(changedItems([base], [{ ...base, projectedEndDate: '2030-01-09' }])).toHaveLength(1)
-    expect(changedItems([base], [{ ...base, hoursDone: 2 }])).toHaveLength(1)
-  })
-
-  it('ignores fields the engine never writes', () => {
-    // Baselines, names and notes come from the seed, not from a state change.
-    expect(changedItems([base], [{ ...base, name: 'Renamed', notes: 'edited' }])).toEqual([])
-  })
-
-  it('treats an item the previous state did not have as changed', () => {
-    const added: Item = { ...base, id: 'brand-new' }
-    expect(changedItems([base], [base, added]).map((item) => item.id)).toEqual(['brand-new'])
+  it('store a work item as columns that read back as the same work item', () => {
+    const workItem = toWorkItem({
+      id: 'the-course',
+      name: 'The course',
+      type: 'Course',
+      link: 'https://example.com/course',
+      resources: '[{"label":"Code","url":"https://example.com/code"}]',
+      notes: 'What it is.',
+    })
+    expect(toWorkItem(fromWorkItem(workItem))).toEqual(workItem)
   })
 })
 
