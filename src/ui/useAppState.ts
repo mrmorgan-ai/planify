@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { Edit } from '../core/edits'
 import type { AppState, State } from '../core/types'
 import {
   StaleStateError,
   fetchState,
   importRoadmap,
   reschedule,
+  sendEdits,
   setItemDates,
   setItemHours,
   setItemState,
@@ -24,6 +26,11 @@ export type Store = {
   rescheduling: boolean
   /** Restarts the plan on a date. Resolves true when the server accepted it. */
   reschedulePlan: (restartDate: string) => Promise<boolean>
+  /**
+   * Changes the roadmap's content. `id` names the item being changed, so its row
+   * can show it. Resolves true when the server accepted the whole list.
+   */
+  edit: (edits: Edit[], id?: string) => Promise<boolean>
   /** Replaces the roadmap with a file's, from the revision its preview was made at. */
   importFile: (roadmap: unknown, revision: number) => Promise<boolean>
 }
@@ -153,6 +160,20 @@ export function useAppState(): Store {
     }
   }, [fail])
 
+  const edit = useCallback(async (edits: Edit[], id?: string) => {
+    setPendingId(id ?? null)
+    setError(null)
+    try {
+      setState(await sendEdits(edits, revision.current))
+      return true
+    } catch (cause: unknown) {
+      fail(cause)
+      return false
+    } finally {
+      setPendingId(null)
+    }
+  }, [fail])
+
   const importFile = useCallback(async (roadmap: unknown, revision: number) => {
     setError(null)
     try {
@@ -173,6 +194,7 @@ export function useAppState(): Store {
     changeHours,
     rescheduling,
     reschedulePlan,
+    edit,
     importFile,
   }
 }

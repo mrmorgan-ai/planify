@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { STATES } from '../core/constants'
 import { shiftStudyDays, studyDaysBetween } from '../core/dates'
 import {
@@ -13,6 +13,7 @@ import type { AppState, Blackout, CivilDate, Item, Resource, State } from '../co
 import { linksOf, partLabel, type PartLabel } from '../core/workItems'
 import { DatePicker } from './DatePicker'
 import { hostOf, ItemDetail } from './ItemDetail'
+import { ItemForm, draftOf, editsFor } from './ItemForm'
 import { scrollToRow, useArrival } from './useArrival'
 import { PhaseSidebar, type PhaseSelection } from './PhaseSidebar'
 import type { Store } from './useAppState'
@@ -40,17 +41,24 @@ const FILTER_LABEL: Record<ItemFilter, string> = {
  * server recomputes every projection from it, so anything that depends on the
  * item you moved follows. Dependencies are shown as information, never as a
  * lock: nothing here stops you starting anything.
+ *
+ * The rest of an item is edited in its expanded row, and saved as one write.
  */
 export function Backlog({
   state,
+  error,
   pendingId,
   changeState,
   changeDates,
+  edit,
 }: Store & { state: AppState }) {
   const [filter, setFilter] = useState<ItemFilter>('all')
   const [phase, setPhase] = useState<PhaseSelection>(state.roadmap.phases[0]?.number ?? null)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
+  const [editingItem, setEditingItem] = useState<string | null>(null)
+  /** The last save of the open form was refused; the store holds why. */
+  const [refused, setRefused] = useState(false)
 
   /**
    * `?item=` is how the Gantt and the work items hand a row over. Opening it
@@ -139,7 +147,34 @@ export function Backlog({
                   part={partLabel(item, state.workItems, state.items)}
                   links={linksOf(item, state.workItems)}
                   showPhase={phase === null}
-                  onToggle={() => setExpanded(expanded === item.id ? null : item.id)}
+                  form={
+                    editingItem === item.id ? (
+                      <ItemForm
+                        key={item.id}
+                        state={state}
+                        self={item.id}
+                        initial={draftOf(item)}
+                        busy={pendingId === item.id}
+                        error={refused ? error : null}
+                        submitLabel="Save"
+                        onCancel={() => setEditingItem(null)}
+                        onSubmit={async (draft) => {
+                          const edits = editsFor(item, draft)
+                          const saved = edits.length === 0 || (await edit(edits, item.id))
+                          setRefused(!saved)
+                          if (saved) setEditingItem(null)
+                        }}
+                      />
+                    ) : null
+                  }
+                  onEditItem={() => {
+                    setRefused(false)
+                    setEditingItem(item.id)
+                  }}
+                  onToggle={() => {
+                    if (expanded === item.id && editingItem === item.id) setEditingItem(null)
+                    setExpanded(expanded === item.id ? null : item.id)
+                  }}
                   onEdit={() => setEditing(editing === item.id ? null : item.id)}
                   onChange={(next) => void changeState(item.id, next)}
                   onSaveDates={async (start, end) => {
@@ -168,6 +203,8 @@ function Row({
   part,
   links,
   showPhase,
+  form,
+  onEditItem,
   onToggle,
   onEdit,
   onChange,
@@ -188,6 +225,9 @@ function Row({
   /** Its own links, or its work item's when it carries none. */
   links: { link: string | null; resources: Resource[] }
   showPhase: boolean
+  /** The item's edit form, while it is open in place of the detail. */
+  form: ReactNode
+  onEditItem: () => void
   onToggle: () => void
   onEdit: () => void
   onChange: (next: State) => void
@@ -314,7 +354,16 @@ function Row({
         <tr className={arrived ? 'detail arrived' : 'detail'}>
           <td colSpan={2} />
           <td colSpan={5}>
-            <ItemDetail item={item} part={part} links={links} names={names} />
+            {form ?? (
+              <>
+                <ItemDetail item={item} part={part} links={links} names={names} />
+                <div className="detail-actions">
+                  <button type="button" className="button" disabled={busy} onClick={onEditItem}>
+                    Edit item
+                  </button>
+                </div>
+              </>
+            )}
           </td>
         </tr>
       )}
