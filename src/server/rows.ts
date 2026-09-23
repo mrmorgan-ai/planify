@@ -130,26 +130,43 @@ export function toMeta(rows: readonly MetaRow[]): Record<string, string> {
   return map
 }
 
-/**
- * The items whose stored columns actually moved. Only these are written back:
- * a state change usually touches a handful of projections, not the whole
- * roadmap.
- */
-export function changedItems(before: readonly Item[], after: readonly Item[]): Item[] {
-  const previous = new Map(before.map((item) => [item.id, item]))
-  return after.filter((item) => {
-    const old = previous.get(item.id)
-    if (!old) return true
-    return (
-      old.state !== item.state ||
-      old.completedAt !== item.completedAt ||
-      old.hoursDone !== item.hoursDone ||
-      old.baselineStartDate !== item.baselineStartDate ||
-      old.baselineEndDate !== item.baselineEndDate ||
-      old.projectedStartDate !== item.projectedStartDate ||
-      old.projectedEndDate !== item.projectedEndDate
-    )
-  })
+/** The inverse of `toItem`: an item as the columns it is stored in. */
+export function fromItem(item: Item): ItemRow {
+  return {
+    id: item.id,
+    name: item.name,
+    type: item.type,
+    phase: item.phase,
+    work_item_id: item.workItemId,
+    skills: JSON.stringify(item.skills),
+    depends_on: JSON.stringify(item.dependsOn),
+    baseline_start: item.baselineStartDate,
+    baseline_end: item.baselineEndDate,
+    projected_start: item.projectedStartDate,
+    projected_end: item.projectedEndDate,
+    price: item.price,
+    link: item.link,
+    resources: JSON.stringify(item.resources),
+    duration: item.duration,
+    notes: item.notes,
+    done_when: item.doneWhen,
+    state: item.state,
+    completed_at: item.completedAt,
+    hours_done: item.hoursDone,
+    sort_order: item.sortOrder,
+  }
+}
+
+/** The inverse of `toWorkItem`. */
+export function fromWorkItem(workItem: WorkItem): WorkItemRow {
+  return {
+    id: workItem.id,
+    name: workItem.name,
+    type: workItem.type,
+    link: workItem.link,
+    resources: JSON.stringify(workItem.resources),
+    notes: workItem.notes,
+  }
 }
 
 function parseResources(raw: string, at: string): Resource[] {
