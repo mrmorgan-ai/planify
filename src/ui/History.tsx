@@ -11,6 +11,7 @@ const REASON: Record<VersionReason, string> = {
   reschedule: 'Reschedule',
   restore: 'Restore',
   generate: 'Generate',
+  publish: 'Publish',
 }
 
 /** The newest ones cover most of what anyone goes back for. */

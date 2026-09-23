@@ -4,7 +4,7 @@ import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 const MIGRATIONS = new URL('../../../migrations/', import.meta.url)
 
 /**
- * The part of D1 the repository uses — prepare, bind, batch — over an
+ * The part of D1 the repository uses — prepare, bind, run, first, batch — over an
  * in-memory SQLite with every migration applied. Same engine, same foreign keys
  * and constraint messages, so the order of a write batch is tested against the
  * schema it runs on in production.
@@ -25,6 +25,7 @@ export function sqliteD1(): { db: D1Database; sqlite: DatabaseSync } {
     bind: (...values: SQLInputValue[]) => statement(sql, values),
     all: () => ({ results: sqlite.prepare(sql).all(...params) }),
     first: async () => sqlite.prepare(sql).get(...params) ?? null,
+    run: async () => ({ meta: { changes: Number(sqlite.prepare(sql).run(...params).changes) } }),
   })
 
   const db = {

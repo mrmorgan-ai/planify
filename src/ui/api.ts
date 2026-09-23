@@ -17,9 +17,19 @@ async function call<T = AppState>(url: string, init?: RequestInit): Promise<T> {
     const { error: reported, state } = (body ?? {}) as { error?: string; state?: AppState }
     const message = reported ?? `HTTP ${response.status}`
     if (response.status === 409 && state) throw new StaleStateError(message, state)
-    throw new Error(message)
+    throw new RequestError(message, response.status)
   }
   return body as T
+}
+
+/** A refused request, with its status: 404 is how a draft that has ended is told apart. */
+export class RequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message)
+  }
 }
 
 /** A write refused for being made from an old copy. Carries the current one. */
@@ -47,17 +57,18 @@ export function setItemState(id: string, state: State, revision: number): Promis
   })
 }
 
-/** Moves an item's plan. The server recomputes every projection and returns it. */
+/** Moves an item's plan, live or in the draft. The server recomputes every projection. */
 export function setItemDates(
   id: string,
   baselineStartDate: CivilDate,
   baselineEndDate: CivilDate,
   revision: number,
+  draft = false,
 ): Promise<AppState> {
   return call(`/api/items/${encodeURIComponent(id)}/dates`, {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ baselineStartDate, baselineEndDate, revision }),
+    body: JSON.stringify({ baselineStartDate, baselineEndDate, revision, draft }),
   })
 }
 
@@ -82,12 +93,12 @@ export function reschedule(restartDate: CivilDate, revision: number): Promise<Ap
   })
 }
 
-/** Changes the roadmap's content. The list lands as one write or not at all. */
-export function sendEdits(edits: Edit[], revision: number): Promise<AppState> {
+/** Changes the roadmap's content, or the draft's. The list lands as one write or not at all. */
+export function sendEdits(edits: Edit[], revision: number, draft = false): Promise<AppState> {
   return call('/api/edits', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ edits, revision }),
+    body: JSON.stringify({ edits, revision, draft }),
   })
 }
 
@@ -148,19 +159,67 @@ export type GeneratePreview = ImportPreview & { placed: Placed[] }
 export function previewGenerate(
   generator: GenerateRequest,
   revision: number,
+  draft = false,
 ): Promise<GeneratePreview> {
   return call<GeneratePreview>('/api/generate', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ generator, revision, dryRun: true }),
+    body: JSON.stringify({ generator, revision, draft, dryRun: true }),
   })
 }
 
 /** Adds what a generator makes, placed where its preview said. */
-export function generateItems(generator: GenerateRequest, revision: number): Promise<AppState> {
+export function generateItems(
+  generator: GenerateRequest,
+  revision: number,
+  draft = false,
+): Promise<AppState> {
   return call('/api/generate', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ generator, revision }),
+    body: JSON.stringify({ generator, revision, draft }),
+  })
+}
+
+// The draft: one at a time, shared by every device. Its world carries the
+// draft's plan with the live roadmap's progress, and its own revision.
+
+/** The draft's world, or null when there is none. */
+export async function fetchDraft(): Promise<AppState | null> {
+  try {
+    return await call('/api/draft')
+  } catch (cause: unknown) {
+    if (cause instanceof RequestError && cause.status === 404) return null
+    throw cause
+  }
+}
+
+/** Starts a draft from the live plan, or opens the one in progress. */
+export function startDraft(): Promise<AppState> {
+  return call('/api/draft', { method: 'POST' })
+}
+
+/** Drops the draft. Answers with the live world. */
+export function discardDraft(): Promise<AppState> {
+  return call('/api/draft', { method: 'DELETE' })
+}
+
+/** What publishing the draft would change on the live roadmap. */
+export type PublishPreview = ImportPreview & { liveChanged: boolean }
+
+export function previewPublish(draftRevision: number): Promise<PublishPreview> {
+  return call<PublishPreview>('/api/draft/publish', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ draftRevision, dryRun: true }),
+  })
+}
+
+/** Makes the draft the plan, from the revisions its preview was made at. Answers with the live world. */
+export function publishDraft(revision: number, draftRevision: number): Promise<AppState> {
+  return call('/api/draft/publish', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ revision, draftRevision }),
   })
 }

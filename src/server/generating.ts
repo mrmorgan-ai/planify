@@ -3,7 +3,8 @@ import { generate, type GenerateRequest, type Placed } from '../core/generate'
 import { importChanges, type ImportPreview } from '../core/importing'
 import type { AppState } from '../core/types'
 import { introducedErrors, validate } from '../core/validate'
-import { StaleRevisionError, loadAppState, mutateContent } from './repository'
+import { StaleRevisionError } from './repository'
+import { loadTarget, mutateTarget, type Target } from './target'
 
 /** What a generator would add, placed, and what that does to the roadmap. */
 export type GeneratePreview = ImportPreview & { placed: Placed[] }
@@ -18,8 +19,9 @@ export async function previewGenerate(
   db: D1Database,
   revision: number,
   request: GenerateRequest,
+  target: Target = 'live',
 ): Promise<GeneratePreview> {
-  const state = await loadAppState(db)
+  const state = await loadTarget(db, target)
   if (revision !== state.revision) throw new StaleRevisionError(state)
   const { edits, placed } = generate(state, state.today, request)
   const after = applyEdits(state, edits)
@@ -48,10 +50,12 @@ export async function applyGenerate(
   db: D1Database,
   revision: number,
   request: GenerateRequest,
+  target: Target = 'live',
 ): Promise<AppState> {
   let summary = ''
-  return mutateContent(
+  return mutateTarget(
     db,
+    target,
     revision,
     (state) => {
       const generated = generate(state, state.today, request)

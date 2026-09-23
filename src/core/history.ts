@@ -2,7 +2,7 @@ import { SECTION_LABEL, importChanges } from './importing'
 import type { IsoDateTime, RoadmapContent } from './types'
 
 /** What replaced a version of the plan. */
-export type VersionReason = 'edit' | 'import' | 'reschedule' | 'restore' | 'generate'
+export type VersionReason = 'edit' | 'import' | 'reschedule' | 'restore' | 'generate' | 'publish'
 
 /** A version of the plan as the history lists it: everything but the plan itself. */
 export type PlanVersion = {

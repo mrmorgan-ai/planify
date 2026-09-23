@@ -4,6 +4,7 @@ import { planProgress } from '../core/hours'
 import type { AppState } from '../core/types'
 import { Backlog } from './Backlog'
 import { Dashboard } from './Dashboard'
+import { DraftBar, DraftButton } from './Draft'
 import { Gantt } from './Gantt'
 import { shortDate } from './format'
 import { Kanban } from './Kanban'
@@ -79,11 +80,13 @@ function round(hours: number): string {
 
 export function App() {
   const store = useAppState()
-  const { state, error } = store
-  const alert = useLateAlert(state)
+  const { state, error, mode } = store
+  const drafting = mode === 'draft'
+  // Rescheduling moves the live plan: a draft is replanned by editing it.
+  const alert = useLateAlert(drafting ? null : state)
 
   return (
-    <div className="app">
+    <div className={drafting ? 'app drafting' : 'app'}>
       <header>
         <Link className="brand" to="/dashboard">
           Planify
@@ -96,12 +99,15 @@ export function App() {
           ))}
         </nav>
         {state && <PlanIssues state={state} />}
+        {state && <DraftButton {...store} state={state} />}
         <Session />
       </header>
 
+      {state && <DraftBar {...store} state={state} />}
       <LateBanner alert={alert} />
 
-      <main>
+      {/* Keyed by the world on screen, so no form carries a draft's values into the live roadmap. */}
+      <main key={mode}>
         {!state && !error && <p className="empty">Loading the roadmap…</p>}
         {state && (
           <Routes>
@@ -109,7 +115,9 @@ export function App() {
             <Route path="/dashboard" element={<Dashboard state={state} />} />
             <Route
               path="/gantt"
-              element={<Gantt state={state} onReschedule={alert.openDialog} />}
+              element={
+                <Gantt state={state} onReschedule={drafting ? undefined : alert.openDialog} />
+              }
             />
             <Route path="/backlog" element={<Backlog {...store} state={state} />} />
             <Route path="/kanban" element={<Kanban {...store} state={state} />} />
@@ -120,7 +128,7 @@ export function App() {
         )}
       </main>
 
-      {state && (
+      {state && !drafting && (
         <RescheduleDialog
           state={state}
           alert={alert}
