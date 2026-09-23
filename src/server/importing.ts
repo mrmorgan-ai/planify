@@ -17,11 +17,12 @@ export async function previewImport(
   const state = await loadAppState(db)
   if (revision !== state.revision) throw new StaleRevisionError(state)
   const after = importedContent(state, seed)
+  const issues = validate(after)
   return {
     revision: state.revision,
     changes: importChanges(state, after),
-    introduced: introducedErrors(state, after),
-    issues: validate(after),
+    introduced: introducedErrors(state, after, issues),
+    issues,
   }
 }
 

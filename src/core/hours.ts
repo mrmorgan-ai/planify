@@ -92,18 +92,58 @@ export function hoursInWeek(
   blackouts: readonly Blackout[],
 ): number {
   return items.reduce((total, item) => {
-    const hours = estimatedHours(item)
-    if (hours === null) return total
-
-    const span = studyDaysBetween(item.projectedStartDate, item.projectedEndDate, blackouts)
-    if (span === 0) return total
+    const share = shareOf(item, blackouts)
+    if (share === null) return total
 
     const from = maxDate(item.projectedStartDate, week.from)
     const to = minDate(item.projectedEndDate, week.to)
     if (to < from) return total
 
-    return total + (hours * studyDaysBetween(from, to, blackouts)) / span
+    return total + share(from, to)
   }, 0)
+}
+
+/**
+ * `hoursInWeek` for every week the items touch, keyed by Monday.
+ *
+ * Each item is read once and visits only its own weeks. Asking `hoursInWeek`
+ * week by week reads every item for every week of the plan, which made the
+ * capacity check most of what validating a roadmap costs.
+ */
+export function hoursByWeek(
+  items: readonly Item[],
+  blackouts: readonly Blackout[],
+): Map<CivilDate, number> {
+  const weeks = new Map<CivilDate, number>()
+  for (const item of items) {
+    const share = shareOf(item, blackouts)
+    if (share === null) continue
+
+    const start = item.projectedStartDate
+    const end = item.projectedEndDate
+    for (let monday = startOfWeek(start); monday <= end; monday = addDays(monday, 7)) {
+      const hours = share(maxDate(start, monday), minDate(end, addDays(monday, 6)))
+      weeks.set(monday, (weeks.get(monday) ?? 0) + hours)
+    }
+  }
+  return weeks
+}
+
+/**
+ * The hours of an item that fall in `[from, to]`, spread evenly over its study
+ * days. Null for an item that has no hours to spread.
+ */
+function shareOf(
+  item: Item,
+  blackouts: readonly Blackout[],
+): ((from: CivilDate, to: CivilDate) => number) | null {
+  const hours = estimatedHours(item)
+  if (hours === null) return null
+
+  const span = studyDaysBetween(item.projectedStartDate, item.projectedEndDate, blackouts)
+  if (span === 0) return null
+
+  return (from, to) => (hours * studyDaysBetween(from, to, blackouts)) / span
 }
 
 /** Days of a week that are already behind, so "hours left" can mean something. */

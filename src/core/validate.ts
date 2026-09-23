@@ -1,5 +1,5 @@
 import { addDays, isBlackoutDay, isCivilDate, startOfWeek, studyDaysBetween } from './dates'
-import { estimatedHours, hoursInWeek, weekOf } from './hours'
+import { estimatedHours, hoursByWeek, weekOf } from './hours'
 import type { CivilDate, Item, PhaseNumber, RoadmapContent } from './types'
 import { partsOf } from './workItems'
 
@@ -88,10 +88,14 @@ export function validate(content: RoadmapContent): Issue[] {
  * roadmap already carrying an error must stay editable — refusing every write
  * until someone fixes it would lock the app — so only a new error refuses one.
  * `before` is only checked when `after` has errors, which a sound change never
- * does.
+ * does. A caller that has already validated `after` passes its issues along.
  */
-export function introducedErrors(before: RoadmapContent, after: RoadmapContent): Issue[] {
-  const errors = validate(after).filter((issue) => issue.severity === 'error')
+export function introducedErrors(
+  before: RoadmapContent,
+  after: RoadmapContent,
+  issues: readonly Issue[] = validate(after),
+): Issue[] {
+  const errors = issues.filter((issue) => issue.severity === 'error')
   if (errors.length === 0) return []
   const key = (issue: Issue) => `${issue.rule}\n${issue.message}`
   const existing = new Set(
@@ -478,7 +482,7 @@ function checkHours(
     }
   }
 
-  // Capacity is a property of the plan. `hoursInWeek` spreads hours over the
+  // Capacity is a property of the plan. `hoursByWeek` spreads hours over the
   // projection, which moves with progress — finish something two days late and
   // the weeks after it fill up — so it is handed the planned dates instead.
   const planned = dated.map((item) => ({
@@ -489,9 +493,10 @@ function checkHours(
   const capacity = roadmap.weeklyHours
   const plan = span(planned)
   if (capacity.normal <= 0 || plan === null) return
+  const byWeek = hoursByWeek(planned, roadmap.blackouts)
   for (let monday = startOfWeek(plan.start); monday <= plan.end; monday = addDays(monday, 7)) {
     const week = weekOf(monday, capacity)
-    const hours = hoursInWeek(planned, week, roadmap.blackouts)
+    const hours = byWeek.get(monday) ?? 0
     if (hours > week.hours + CAPACITY_TOLERANCE) {
       report(
         'over-capacity',
