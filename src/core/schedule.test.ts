@@ -489,3 +489,59 @@ describe('applyStateChange and hours', () => {
     expect(find(result, 'exam').hoursDone).toBe(0)
   })
 })
+
+describe('applyBaselineDates keeps the parts of a work item apart', () => {
+  // A book read chapter by chapter, and a note that depends on chapter 2. The
+  // chapters are not chained: parts rarely are, which is why this exists.
+  const book = (overrides: Record<string, Partial<Item>> = {}) =>
+    [
+      item('ch1', { workItemId: 'book', baselineStartDate: '2030-01-07', baselineEndDate: '2030-01-08', sortOrder: 1 }),
+      item('ch2', { workItemId: 'book', baselineStartDate: '2030-01-09', baselineEndDate: '2030-01-10', sortOrder: 2 }),
+      item('ch3', { workItemId: 'book', baselineStartDate: '2030-01-29', baselineEndDate: '2030-01-30', sortOrder: 3 }),
+      item('notes', { baselineStartDate: '2030-01-11', baselineEndDate: '2030-01-12', dependsOn: ['ch2'], sortOrder: 4 }),
+    ].map((entry) => ({ ...entry, ...overrides[entry.id] }))
+  const dates = (items: Item[], id: string) => {
+    const found = items.find((entry) => entry.id === id)!
+    return [found.baselineStartDate, found.baselineEndDate]
+  }
+
+  it('moves the next part to the study day after a moved part now ends, with what depends on it', () => {
+    const after = applyBaselineDates(book(), 'ch1', '2030-01-07', '2030-01-09', OPTIONS)
+
+    expect(dates(after, 'ch2')).toEqual(['2030-01-10', '2030-01-11'])
+    expect(dates(after, 'notes')).toEqual(['2030-01-12', '2030-01-13'])
+    // Planned weeks later, with room: untouched.
+    expect(dates(after, 'ch3')).toEqual(['2030-01-29', '2030-01-30'])
+  })
+
+  it('leaves a next part that still has room where it is', () => {
+    const roomy = book({ ch2: { baselineStartDate: '2030-01-12', baselineEndDate: '2030-01-13' } })
+    const after = applyBaselineDates(roomy, 'ch1', '2030-01-07', '2030-01-10', OPTIONS)
+
+    expect(dates(after, 'ch2')).toEqual(['2030-01-12', '2030-01-13'])
+  })
+
+  it('carries on down the work item when setting one part apart overlaps the next', () => {
+    // Chapter 1 now runs to the break, so chapter 2 lands across it and into chapter 3.
+    const after = applyBaselineDates(book(), 'ch1', '2030-01-07', '2030-01-13', OPTIONS)
+
+    expect(dates(after, 'ch2')).toEqual(['2030-01-14', '2030-01-29'])
+    expect(dates(after, 'ch3')).toEqual(['2030-01-30', '2030-01-31'])
+    // Each part ends before the next begins.
+    expect(dates(after, 'ch1')[1]! < dates(after, 'ch2')[0]!).toBe(true)
+  })
+
+  it('never moves a finished part', () => {
+    const finished = book({ ch2: { state: 'done', completedAt: '2030-01-10T18:00:00-05:00' } })
+    const after = applyBaselineDates(finished, 'ch1', '2030-01-07', '2030-01-09', OPTIONS)
+
+    expect(dates(after, 'ch2')).toEqual(['2030-01-09', '2030-01-10'])
+  })
+
+  it('leaves an overlap the plan already had to the validator', () => {
+    const overlapping = book({ ch2: { baselineStartDate: '2030-01-08', baselineEndDate: '2030-01-10' } })
+    const after = applyBaselineDates(overlapping, 'ch3', '2030-01-29', '2030-01-31', OPTIONS)
+
+    expect(dates(after, 'ch2')).toEqual(['2030-01-08', '2030-01-10'])
+  })
+})
