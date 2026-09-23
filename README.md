@@ -191,11 +191,12 @@ item starting inside a pause, say — is refused with `422` and the errors it
 would have introduced. Warnings never refuse a write.
 
 Edits send `{ revision, edits }` and land together or not at all. An item's id
-never changes, and its dates, phase and order are not edited this way. A new item
-gets an id from its name and goes last in its phase. Deleting an item others
-depend on is refused unless the edit sets `rewire`, which connects them to what
-it depended on; a closing milestone cannot be deleted; and an item with progress
-is only deleted with `discardProgress`. An edit that cannot be applied as asked
+never changes, and its dates have their own endpoint. `moveItem` puts an item in
+a phase, before another item or last, and renumbers the order of both phases. A
+new item gets an id from its name and goes last in its phase. Deleting an item
+others depend on is refused unless the edit sets `rewire`, which connects them
+to what it depended on; a closing milestone cannot be deleted; and an item with
+progress is only deleted with `discardProgress`. An edit that cannot be applied as asked
 answers `400` saying why.
 
 The same list takes the roadmap's structure. A work item can be created, edited
