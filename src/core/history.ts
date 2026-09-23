@@ -19,41 +19,6 @@ export type PlanVersion = {
 }
 
 /**
- * The name a version downloads as: `roadmap-2026-09-23-1332-v5.json`. When the
- * change was made, in the roadmap's timezone like every date in the app, then
- * its number in the history — so a folder of them sorts by date, and each one
- * matches its `#5` in the list.
- */
-export function versionFileName(
-  version: Pick<PlanVersion, 'id' | 'createdAt'>,
-  timeZone: string,
-): string {
-  const part = partsIn(new Date(version.createdAt), timeZone)
-  const stamp = `${part('year')}-${part('month')}-${part('day')}-${part('hour')}${part('minute')}`
-  return `roadmap-${stamp}-v${version.id}.json`
-}
-
-/** The calendar and clock fields of an instant in a timezone, UTC for one the runtime lacks. */
-function partsIn(instant: Date, timeZone: string): (type: Intl.DateTimeFormatPartTypes) => string {
-  const options: Intl.DateTimeFormatOptions = {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }
-  let format: Intl.DateTimeFormat
-  try {
-    format = new Intl.DateTimeFormat('en-CA', { ...options, timeZone })
-  } catch {
-    format = new Intl.DateTimeFormat('en-CA', { ...options, timeZone: 'UTC' })
-  }
-  const parts = format.formatToParts(instant)
-  return (type) => parts.find((part) => part.type === type)?.value ?? ''
-}
-
-/**
  * What a change did to the plan, in a line a person can scan: "Added Read the
  * thing; Edited Build part 2 (baselineStartDate, baselineEndDate)". One thing is
  * named, several are counted. The names are the ones the change saw, so the

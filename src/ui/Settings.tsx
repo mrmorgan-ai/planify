@@ -160,7 +160,8 @@ function RoadmapFile({
       </p>
 
       <div className="settings-actions">
-        <a className="button" href="/api/export" download="roadmap.json">
+        {/* No name here: the server stamps it with the time the file is taken. */}
+        <a className="button" href="/api/export" download>
           Download roadmap.json
         </a>
         <button

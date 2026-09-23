@@ -1,4 +1,5 @@
-import { toSeedFile } from '../../src/core/seed'
+import { roadmapFileName, toSeedFile } from '../../src/core/seed'
+import { nowIso } from '../../src/server/clock'
 import { only } from '../../src/server/http'
 import { loadAppState, type Env } from '../../src/server/repository'
 
@@ -6,7 +7,7 @@ import { loadAppState, type Env } from '../../src/server/repository'
  * The roadmap as a seed file, for editing elsewhere and importing back. Content
  * only: progress stays in the database. The file names the revision it was
  * taken from, so an import made from it later is refused if the roadmap changed
- * in between instead of undoing that change.
+ * in between instead of undoing that change. It is named for when it was taken.
  */
 export const onRequest = only<Env>('GET', async ({ env }) => {
   const state = await loadAppState(env.DB)
@@ -14,7 +15,7 @@ export const onRequest = only<Env>('GET', async ({ env }) => {
   return new Response(`${JSON.stringify(file, null, 2)}\n`, {
     headers: {
       'content-type': 'application/json; charset=utf-8',
-      'content-disposition': 'attachment; filename="roadmap.json"',
+      'content-disposition': `attachment; filename="${roadmapFileName(nowIso(), state.roadmap.timeZone)}"`,
     },
   })
 })

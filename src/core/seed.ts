@@ -4,6 +4,7 @@ import type {
   Blackout,
   CivilDate,
   Dimension,
+  IsoDateTime,
   Item,
   ItemType,
   Phase,
@@ -162,6 +163,38 @@ export function toSeedFile(content: RoadmapContent): SeedFile {
       sortOrder: item.sortOrder,
     })),
   }
+}
+
+/**
+ * The name a roadmap file downloads as: `roadmap-2026-09-23-1332.json`, stamped
+ * with when it was taken in the roadmap's timezone, like every date in the app,
+ * so a folder of them sorts by date. A version of the plan adds its number in
+ * the history: `roadmap-2026-09-23-1332-v5.json`.
+ */
+export function roadmapFileName(at: IsoDateTime, timeZone: string, version?: number): string {
+  const part = partsIn(new Date(at), timeZone)
+  const stamp = `${part('year')}-${part('month')}-${part('day')}-${part('hour')}${part('minute')}`
+  return `roadmap-${stamp}${version === undefined ? '' : `-v${version}`}.json`
+}
+
+/** The calendar and clock fields of an instant in a timezone, UTC for one the runtime lacks. */
+function partsIn(instant: Date, timeZone: string): (type: Intl.DateTimeFormatPartTypes) => string {
+  const options: Intl.DateTimeFormatOptions = {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }
+  let format: Intl.DateTimeFormat
+  try {
+    format = new Intl.DateTimeFormat('en-CA', { ...options, timeZone })
+  } catch {
+    format = new Intl.DateTimeFormat('en-CA', { ...options, timeZone: 'UTC' })
+  }
+  const parts = format.formatToParts(instant)
+  return (type) => parts.find((part) => part.type === type)?.value ?? ''
 }
 
 function parsePhase(entry: unknown, index: number): Phase {

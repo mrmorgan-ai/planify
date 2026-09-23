@@ -117,7 +117,7 @@ export function fetchVersions(): Promise<PlanVersion[]> {
   return call<PlanVersion[]>('/api/versions')
 }
 
-/** One version's plan, as the roadmap file it downloads as. */
+/** One version's plan, as a roadmap file. */
 export function fetchVersionPlan(id: number): Promise<unknown> {
   return call<unknown>(`/api/versions/${id}`)
 }
