@@ -1,4 +1,4 @@
-import { StaleRevisionError } from './repository'
+import { InvalidWriteError, StaleRevisionError } from './repository'
 
 /** The revision a write says it was made from, or null when it names none. */
 export function revisionOf(body: unknown): number | null {
@@ -18,11 +18,15 @@ export function missingRevision(): Response {
 /**
  * The response for a write the roadmap refused on its own terms, or null when
  * the error is something else. A stale write answers 409 with the current
- * world, so the client replaces its copy instead of fetching it again.
+ * world, so the client replaces its copy instead of fetching it again; a write
+ * that would break a rule answers 422 with the errors it would have introduced.
  */
 export function refusal(error: unknown): Response | null {
   if (error instanceof StaleRevisionError) {
     return Response.json({ error: error.message, state: error.state }, { status: 409 })
+  }
+  if (error instanceof InvalidWriteError) {
+    return Response.json({ error: error.message, issues: error.issues }, { status: 422 })
   }
   return null
 }

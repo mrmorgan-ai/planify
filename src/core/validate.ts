@@ -78,6 +78,25 @@ export function validate(content: RoadmapContent): Issue[] {
   return issues
 }
 
+/**
+ * The errors a change brings in: those `after` has and `before` did not. A
+ * roadmap already carrying an error must stay editable — refusing every write
+ * until someone fixes it would lock the app — so only a new error refuses one.
+ * `before` is only checked when `after` has errors, which a sound change never
+ * does.
+ */
+export function introducedErrors(before: RoadmapContent, after: RoadmapContent): Issue[] {
+  const errors = validate(after).filter((issue) => issue.severity === 'error')
+  if (errors.length === 0) return []
+  const key = (issue: Issue) => `${issue.rule}\n${issue.message}`
+  const existing = new Set(
+    validate(before)
+      .filter((issue) => issue.severity === 'error')
+      .map(key),
+  )
+  return errors.filter((issue) => !existing.has(key(issue)))
+}
+
 function checkIds({ items, workItems }: RoadmapContent, report: Report): boolean {
   const itemIds = new Set<string>()
   let unique = true
