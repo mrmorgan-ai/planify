@@ -777,6 +777,8 @@ tr.detail td {
 
 .form-control {
   flex: 1 1 auto;
+  /* Full width when the line stacks on a phone, as the label's column does. */
+  align-self: stretch;
   min-width: 0;
   max-width: 40rem;
 }
@@ -890,6 +892,65 @@ tr.detail td {
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: 0.8rem;
+}
+
+/* Pushed to the far end of a row of buttons or chips. */
+.push-end {
+  margin-left: auto;
+}
+
+.button.danger {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+.button.danger:hover:not(:disabled) {
+  border-color: var(--bad);
+  background: rgb(248 113 113 / 0.12);
+}
+
+.delete-confirm {
+  flex: 1 0 100%;
+  margin-top: 0.4rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--bad);
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.delete-confirm p {
+  margin: 0 0 0.3rem;
+}
+
+.delete-confirm ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.new-item {
+  margin-bottom: 1rem;
+  padding: 0.8rem 1rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.new-item h3 {
+  margin: 0 0 0.3rem;
+  font-size: 1rem;
+}
+
+.form-dates {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 22rem;
+}
+
+.form-dates > :not(span) {
+  flex: 1 1 0;
 }
 
 /* Board */
