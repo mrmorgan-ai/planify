@@ -16,7 +16,7 @@ export type Saver = {
  * One block of settings with its own draft and its own Save. Nothing is written
  * until Save, and Reset puts the draft back to what is stored.
  */
-function Section({
+export function Section({
   title,
   intro,
   saver,
@@ -40,31 +40,39 @@ function Section({
       <h2>{title}</h2>
       {intro && <p className="settings-text">{intro}</p>}
       {children}
-      {dirty && problems.length > 0 && (
-        <ul className="form-problems">
-          {problems.map((problem) => (
-            <li key={problem}>{problem}</li>
-          ))}
-        </ul>
-      )}
-      {saver.error && (
-        <p className="form-error" role="alert">
-          {saver.error}
-        </p>
-      )}
-      {dirty && (
-        <div className="form-actions">
-          <button type="button" className="button" disabled={saver.busy} onClick={onReset}>
-            Reset
-          </button>
-          <button
-            type="button"
-            className="button primary"
-            disabled={saver.busy || problems.length > 0}
-            onClick={onSave}
-          >
-            {saver.busy ? 'Saving…' : 'Save'}
-          </button>
+      {/* Stuck to the bottom of the screen while there is something to save: in a
+          long section, Save would otherwise appear far below the change that
+          called for it. */}
+      {(dirty || saver.error) && (
+        <div className={dirty ? 'settings-save' : undefined}>
+          {dirty && problems.length > 0 && (
+            <ul className="form-problems">
+              {problems.map((problem) => (
+                <li key={problem}>{problem}</li>
+              ))}
+            </ul>
+          )}
+          {saver.error && (
+            <p className="form-error" role="alert">
+              {saver.error}
+            </p>
+          )}
+          {dirty && (
+            <div className="form-actions">
+              <span className="muted settings-unsaved">Unsaved changes</span>
+              <button type="button" className="button" disabled={saver.busy} onClick={onReset}>
+                Reset
+              </button>
+              <button
+                type="button"
+                className="button primary"
+                disabled={saver.busy || problems.length > 0}
+                onClick={onSave}
+              >
+                {saver.busy ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </section>
@@ -206,7 +214,10 @@ export function PhasesSettings({ state, saver }: { state: AppState; saver: Saver
                 setDraft(
                   draft.map((each, at) =>
                     at === index
-                      ? { ...each, closingMilestoneId: event.target.value || null }
+                      ? {
+                          ...each,
+                          closingMilestoneId: event.target.value || null,
+                        }
                       : each,
                   ),
                 )
@@ -309,7 +320,10 @@ export function PausesSettings({ state, saver }: { state: AppState; saver: Saver
         void saver.save([
           {
             op: 'setBlackouts',
-            blackouts: sorted.map((blackout) => ({ ...blackout, reason: blackout.reason.trim() })),
+            blackouts: sorted.map((blackout) => ({
+              ...blackout,
+              reason: blackout.reason.trim(),
+            })),
             keepStudyDays: keep,
           },
         ])
@@ -324,7 +338,10 @@ export function PausesSettings({ state, saver }: { state: AppState; saver: Saver
                 disabled={saver.busy}
                 label={`First day of pause ${index + 1}`}
                 onChange={(from) =>
-                  update(index, { from, to: blackout.to < from ? from : blackout.to })
+                  update(index, {
+                    from,
+                    to: blackout.to < from ? from : blackout.to,
+                  })
                 }
               />
               <span className="faint">to</span>
@@ -386,236 +403,6 @@ export function PausesSettings({ state, saver }: { state: AppState; saver: Saver
           </span>
         </label>
       )}
-    </Section>
-  )
-}
-
-type AxisDraft = { key: string; name: string }
-type SkillDraft = { key: string; original: string | null; name: string; axis: string }
-
-/**
- * The radar's axes and the skills on each. A skill's new name follows it into
- * every item that uses it; a skill still in use cannot be removed, and neither
- * can an axis that still holds skills.
- */
-export function SkillsSettings({ state, saver }: { state: AppState; saver: Saver }) {
-  const { roadmap } = state
-  const initial = useMemo(() => {
-    const axes = roadmap.dimensions.map((name) => ({ key: name, name }))
-    const skills = Object.entries(roadmap.skillDimension)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([name, axis]) => ({ key: name, original: name, name, axis }))
-    return { axes, skills }
-  }, [roadmap.dimensions, roadmap.skillDimension])
-  const [axes, setAxes] = useState<AxisDraft[]>(initial.axes)
-  const [skills, setSkills] = useState<SkillDraft[]>(initial.skills)
-  const [adding, setAdding] = useState<Record<string, string>>({})
-  const [newAxis, setNewAxis] = useState('')
-
-  const uses = useMemo(() => {
-    const count = new Map<string, number>()
-    for (const item of state.items)
-      for (const skill of item.skills) count.set(skill, (count.get(skill) ?? 0) + 1)
-    return count
-  }, [state.items])
-
-  const axisName = new Map(axes.map((axis) => [axis.key, axis.name.trim()]))
-  const dimensions = axes.map((axis) => axis.name.trim())
-  const map = Object.fromEntries(
-    skills.map((skill) => [skill.name.trim(), axisName.get(skill.axis) ?? '']),
-  )
-  const renamed = Object.fromEntries(
-    skills
-      .filter((skill) => skill.original !== null && skill.original !== skill.name.trim())
-      .map((skill) => [skill.original!, skill.name.trim()]),
-  )
-  const dirty =
-    JSON.stringify(dimensions) !== JSON.stringify(roadmap.dimensions) ||
-    JSON.stringify(Object.entries(map).sort()) !==
-      JSON.stringify(Object.entries(roadmap.skillDimension).sort())
-  const problems = [
-    ...(dimensions.some((name) => name === '') || skills.some((skill) => skill.name.trim() === '')
-      ? ['Every axis and skill needs a name.']
-      : []),
-    ...(new Set(dimensions).size !== dimensions.length ? ['Two axes have the same name.'] : []),
-    ...(new Set(skills.map((skill) => skill.name.trim())).size !== skills.length
-      ? ['Two skills have the same name.']
-      : []),
-  ]
-
-  const move = (index: number, by: number) => {
-    const next = [...axes]
-    const [axis] = next.splice(index, 1)
-    next.splice(index + by, 0, axis!)
-    setAxes(next)
-  }
-
-  return (
-    <Section
-      title="Skills"
-      intro="The radar's axes, and the skills each item feeds. Renaming a skill renames it in every item."
-      saver={saver}
-      dirty={dirty}
-      problems={problems}
-      onReset={() => {
-        setAxes(initial.axes)
-        setSkills(initial.skills)
-      }}
-      onSave={() => void saver.save([{ op: 'setSkillMap', dimensions, skills: map, renamed }])}
-    >
-      {axes.map((axis, index) => {
-        const onAxis = skills.filter((skill) => skill.axis === axis.key)
-        return (
-          <div key={axis.key} className="axis">
-            <div className="settings-row settings-axis-line">
-              <input
-                aria-label={`Name of axis ${index + 1}`}
-                className="axis-name"
-                value={axis.name}
-                disabled={saver.busy}
-                onChange={(event) =>
-                  setAxes(
-                    axes.map((each) =>
-                      each.key === axis.key ? { ...each, name: event.target.value } : each,
-                    ),
-                  )
-                }
-              />
-              <button
-                type="button"
-                className="icon-button"
-                aria-label={`Move ${axis.name} up`}
-                disabled={saver.busy || index === 0}
-                onClick={() => move(index, -1)}
-              >
-                ↑
-              </button>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label={`Move ${axis.name} down`}
-                disabled={saver.busy || index === axes.length - 1}
-                onClick={() => move(index, 1)}
-              >
-                ↓
-              </button>
-              <button
-                type="button"
-                className="chip-remove"
-                aria-label={`Remove axis ${axis.name}`}
-                title={onAxis.length > 0 ? 'Move or remove its skills first' : 'Remove this axis'}
-                disabled={saver.busy || onAxis.length > 0 || axes.length === 1}
-                onClick={() => setAxes(axes.filter((each) => each.key !== axis.key))}
-              >
-                ×
-              </button>
-            </div>
-            <ul className="settings-rows skills-list">
-              {onAxis.map((skill) => {
-                const used = skill.original === null ? 0 : (uses.get(skill.original) ?? 0)
-                return (
-                  <li key={skill.key} className="settings-row settings-skill">
-                    <input
-                      aria-label={`Skill ${skill.name}`}
-                      value={skill.name}
-                      disabled={saver.busy}
-                      onChange={(event) =>
-                        setSkills(
-                          skills.map((each) =>
-                            each.key === skill.key ? { ...each, name: event.target.value } : each,
-                          ),
-                        )
-                      }
-                    />
-                    <select
-                      aria-label={`Axis of ${skill.name}`}
-                      value={skill.axis}
-                      disabled={saver.busy}
-                      onChange={(event) =>
-                        setSkills(
-                          skills.map((each) =>
-                            each.key === skill.key ? { ...each, axis: event.target.value } : each,
-                          ),
-                        )
-                      }
-                    >
-                      {axes.map((each) => (
-                        <option key={each.key} value={each.key}>
-                          {each.name}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="faint skill-uses">
-                      {used === 0 ? 'unused' : `${used} ${used === 1 ? 'item' : 'items'}`}
-                    </span>
-                    <button
-                      type="button"
-                      className="chip-remove"
-                      aria-label={`Remove skill ${skill.name}`}
-                      title={
-                        used > 0
-                          ? `Used by ${used} ${used === 1 ? 'item' : 'items'}`
-                          : 'Remove this skill'
-                      }
-                      disabled={saver.busy || used > 0}
-                      onClick={() => setSkills(skills.filter((each) => each.key !== skill.key))}
-                    >
-                      ×
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-            <div className="settings-add">
-              <input
-                aria-label={`New skill on ${axis.name}`}
-                value={adding[axis.key] ?? ''}
-                placeholder="A new skill"
-                disabled={saver.busy}
-                onChange={(event) => setAdding({ ...adding, [axis.key]: event.target.value })}
-              />
-              <button
-                type="button"
-                className="button"
-                disabled={saver.busy || (adding[axis.key] ?? '').trim() === ''}
-                onClick={() => {
-                  const name = (adding[axis.key] ?? '').trim()
-                  setSkills([
-                    ...skills,
-                    { key: `new:${name}:${skills.length}`, original: null, name, axis: axis.key },
-                  ])
-                  setAdding({ ...adding, [axis.key]: '' })
-                }}
-              >
-                Add skill
-              </button>
-            </div>
-          </div>
-        )
-      })}
-      <div className="settings-add">
-        <input
-          aria-label="Name of a new axis"
-          value={newAxis}
-          placeholder="A new axis"
-          disabled={saver.busy}
-          onChange={(event) => setNewAxis(event.target.value)}
-        />
-        <button
-          type="button"
-          className="button"
-          disabled={saver.busy || newAxis.trim() === ''}
-          onClick={() => {
-            setAxes([
-              ...axes,
-              { key: `new:${newAxis.trim()}:${axes.length}`, name: newAxis.trim() },
-            ])
-            setNewAxis('')
-          }}
-        >
-          Add axis
-        </button>
-      </div>
     </Section>
   )
 }

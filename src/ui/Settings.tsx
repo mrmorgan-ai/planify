@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import type { Edit } from '../core/edits'
 import type { ImportPreview } from '../core/importing'
 import type { AppState } from '../core/types'
@@ -6,13 +7,8 @@ import { StaleStateError, previewImport } from './api'
 import { ChangeReview, type ReviewWords } from './ChangeReview'
 import { History } from './History'
 import type { Mode } from './useAppState'
-import {
-  PausesSettings,
-  PhasesSettings,
-  PlanSettings,
-  SkillsSettings,
-  type Saver,
-} from './RoadmapSettings'
+import { PausesSettings, PhasesSettings, PlanSettings, type Saver } from './RoadmapSettings'
+import { SkillsSettings } from './SkillsSettings'
 
 /** A roadmap file as read from disk, split from the revision it names. */
 type ChosenFile = {
@@ -37,9 +33,21 @@ const IMPORT_WORDS: ReviewWords = {
   fix: (count) => `Fix ${count === 1 ? 'it' : 'them'} in the file and choose it again:`,
 }
 
+const PAGES = [
+  { path: 'plan', label: 'Plan', hint: 'Start, phases, pauses' },
+  { path: 'skills', label: 'Skills', hint: "The radar's axes" },
+  { path: 'data', label: 'Data', hint: 'The file, the history' },
+] as const
+
+// Absolute on purpose: under a splat route a relative link resolves against the
+// page that is open, so "plan" from /settings/skills would be /settings/skills/plan.
+const FIRST = '/settings/plan'
+
 /**
- * The roadmap's own settings — the plan, its phases, its pauses, its skills —
- * the roadmap as a file, and the versions of it the history keeps.
+ * The roadmap's own settings, split by what they are for: the plan's shape
+ * (start, phases, pauses), the skills the radar reads, and the roadmap as data
+ * (the file and the versions the history keeps). Each has its own address, so
+ * the skills — the longest by far — never bury the rest.
  *
  * Each section keeps its own draft and saves on its own. They are keyed by the
  * revision, so every draft starts again from what is stored once anything saves.
@@ -74,36 +82,74 @@ export function Settings({
   })
 
   return (
-    <section className="settings">
-      <h2 className="board-title">Settings</h2>
-      <PlanSettings key={`plan-${state.revision}`} state={state} saver={saver('settings:plan')} />
-      <PhasesSettings
-        key={`phases-${state.revision}`}
-        state={state}
-        saver={saver('settings:phases')}
-      />
-      <PausesSettings
-        key={`pauses-${state.revision}`}
-        state={state}
-        saver={saver('settings:pauses')}
-      />
-      <SkillsSettings
-        key={`skills-${state.revision}`}
-        state={state}
-        saver={saver('settings:skills')}
-      />
-      {mode === 'draft' ? (
-        <p className="muted settings-text">
-          The roadmap file and the history act on the live roadmap. Publish the draft, or go back to
-          live, to use them.
-        </p>
-      ) : (
-        <>
-          <RoadmapFile state={state} importFile={importFile} />
-          <History state={state} restore={restore} />
-        </>
-      )}
-    </section>
+    <div className="settings-page">
+      <nav className="settings-nav" aria-label="Settings">
+        <h2 className="board-title">Settings</h2>
+        {PAGES.map((page) => (
+          <NavLink key={page.path} to={`/settings/${page.path}`} className="settings-nav-link">
+            <span>{page.label}</span>
+            <span className="settings-nav-hint">{page.hint}</span>
+          </NavLink>
+        ))}
+      </nav>
+
+      <Routes>
+        <Route index element={<Navigate to={FIRST} replace />} />
+        <Route
+          path="plan"
+          element={
+            <section className="settings">
+              <PlanSettings
+                key={`plan-${state.revision}`}
+                state={state}
+                saver={saver('settings:plan')}
+              />
+              <PhasesSettings
+                key={`phases-${state.revision}`}
+                state={state}
+                saver={saver('settings:phases')}
+              />
+              <PausesSettings
+                key={`pauses-${state.revision}`}
+                state={state}
+                saver={saver('settings:pauses')}
+              />
+            </section>
+          }
+        />
+        <Route
+          path="skills"
+          element={
+            <section className="settings settings-wide">
+              <SkillsSettings
+                key={`skills-${state.revision}`}
+                state={state}
+                saver={saver('settings:skills')}
+              />
+            </section>
+          }
+        />
+        <Route
+          path="data"
+          element={
+            <section className="settings">
+              {mode === 'draft' ? (
+                <p className="muted settings-text">
+                  The roadmap file and the history act on the live roadmap. Publish the draft, or go
+                  back to live, to use them.
+                </p>
+              ) : (
+                <>
+                  <RoadmapFile state={state} importFile={importFile} />
+                  <History state={state} restore={restore} />
+                </>
+              )}
+            </section>
+          }
+        />
+        <Route path="*" element={<Navigate to={FIRST} replace />} />
+      </Routes>
+    </div>
   )
 }
 
@@ -126,7 +172,11 @@ function RoadmapFile({
   async function compare(file: ChosenFile, revision: number) {
     setReview({ kind: 'checking', file })
     try {
-      setReview({ kind: 'ready', file, preview: await previewImport(file.roadmap, revision) })
+      setReview({
+        kind: 'ready',
+        file,
+        preview: await previewImport(file.roadmap, revision),
+      })
     } catch (cause: unknown) {
       if (cause instanceof StaleStateError) {
         setReview({ kind: 'stale', file, current: cause.state.revision })
