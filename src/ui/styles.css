@@ -109,10 +109,12 @@ main {
   padding: 1.25rem;
 }
 
+/* Three columns, the outer two equal and allowed to shrink, so the credit sits
+   in the true middle whatever the gear and the status each hold. */
 footer {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 1rem;
   padding: 0.6rem 1.25rem;
   border-top: 1px solid var(--line);
@@ -125,11 +127,26 @@ footer {
   color: var(--bad);
 }
 
+.credit {
+  white-space: nowrap;
+}
+
 .footer-status {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
   gap: 0.5rem;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* When the status runs out of room, the phase gives way before the day and
+   the plan figure do. */
+span.footer-where:not(.footer-sep) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .footer-sep {
@@ -1111,15 +1128,16 @@ tr.detail td {
   max-width: none;
 }
 
-/* The gear, in the header's right-hand group. It takes the group's push when
-   nothing before it has, and the session follows it without a gap. */
+/* The gear, at the footer's left end. The negative margins let it be a full
+   button without making the footer taller than its line of text. */
 .settings-link {
   display: flex;
   align-items: center;
   justify-content: center;
+  justify-self: start;
   width: 2rem;
   height: 2rem;
-  margin-left: auto;
+  margin: -0.35rem 0 -0.35rem -0.5rem;
   border: 1px solid transparent;
   border-radius: 6px;
   color: var(--muted);
@@ -1133,13 +1151,6 @@ tr.detail td {
 .settings-link.active {
   background: var(--bg);
   color: var(--text);
-}
-
-.plan-issues + .settings-link,
-.draft-toggle + .settings-link,
-.draft-badge + .settings-link,
-.settings-link + .session {
-  margin-left: 0;
 }
 
 /* Save and Reset stay on screen while a section has something to save. Sticky
@@ -3032,6 +3043,13 @@ tr.part .name {
 }
 
 @media (pointer: coarse) {
+  /* A finger needs 44px. The footer grows by what the margins cannot absorb. */
+  .settings-link {
+    width: 2.75rem;
+    height: 2.75rem;
+    margin: -0.5rem 0 -0.5rem -0.75rem;
+  }
+
   .card-state {
     display: block;
     margin-top: 0.5rem;
@@ -3141,10 +3159,17 @@ tr.part .name {
     display: none;
   }
 
+  /* No room for three across: the gear and the status share the first row and
+     the credit takes the second, still centred. */
   footer {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.2rem;
+    grid-template-columns: auto 1fr;
+    gap: 0.2rem 0.6rem;
+  }
+
+  footer .credit {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: center;
   }
 
   .today-date {
