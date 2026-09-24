@@ -18,8 +18,7 @@
     "seed:export": "node tools/seed/from-d1.mjs --remote",
     "seed:export:local": "node tools/seed/from-d1.mjs --local",
     "db:migrate:local": "wrangler d1 migrations apply planify --local",
-    "db:migrate": "wrangler d1 migrations apply planify --remote",
-    "deploy": "npm run build && wrangler pages deploy dist --project-name planify"
+    "db:migrate": "wrangler d1 migrations apply planify --remote"
   },
   "dependencies": {
     "jose": "^6.2.12",
