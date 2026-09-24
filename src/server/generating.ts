@@ -1,8 +1,7 @@
 import { applyEdits } from '../core/edits'
 import { generate, type GenerateRequest, type Placed } from '../core/generate'
-import { importChanges, type ImportPreview } from '../core/importing'
+import { previewOf, type ImportPreview } from '../core/importing'
 import type { AppState } from '../core/types'
-import { introducedErrors, validate } from '../core/validate'
 import { StaleRevisionError } from './repository'
 import { loadTarget, mutateTarget, type Target } from './target'
 
@@ -24,11 +23,10 @@ export async function previewGenerate(
   const state = await loadTarget(db, target)
   if (revision !== state.revision) throw new StaleRevisionError(state)
   const { edits, placed } = generate(state, state.today, request)
-  const after = applyEdits(state, edits)
-  const issues = validate(after)
-  const changes = importChanges(state, after)
+  const preview = previewOf(state, applyEdits(state, edits))
+  const { changes } = preview
   return {
-    revision: state.revision,
+    ...preview,
     changes: {
       ...changes,
       items: {
@@ -39,8 +37,6 @@ export async function previewGenerate(
         }),
       },
     },
-    introduced: introducedErrors(state, after, issues),
-    issues,
     placed,
   }
 }

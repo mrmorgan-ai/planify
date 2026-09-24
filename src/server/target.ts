@@ -1,6 +1,7 @@
+import { previewOf, type ImportPreview } from '../core/importing'
 import type { AppState, Item, RoadmapContent } from '../core/types'
 import { loadDraftState, mutateDraft } from './drafts'
-import { loadAppState, mutateContent, type WriteOptions } from './repository'
+import { StaleRevisionError, loadAppState, mutateContent, type WriteOptions } from './repository'
 
 /**
  * Where a change to the plan lands: the live roadmap, or the draft. The writes
@@ -46,4 +47,19 @@ export function mutateItemsIn(
     (state) => ({ roadmap: state.roadmap, workItems: state.workItems, items: transform(state) }),
     options,
   )
+}
+
+/**
+ * What a write would do to the target, without writing it: the dry run of an
+ * edit or a move. Refused from an old revision, as the write itself would be.
+ */
+export async function previewIn(
+  db: D1Database,
+  target: Target,
+  expectedRevision: number,
+  transform: (state: AppState) => RoadmapContent,
+): Promise<ImportPreview> {
+  const state = await loadTarget(db, target)
+  if (expectedRevision !== state.revision) throw new StaleRevisionError(state)
+  return previewOf(state, transform(state))
 }

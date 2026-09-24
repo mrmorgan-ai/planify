@@ -221,16 +221,26 @@ Nothing is written until the preview — the items with their dates, and the
 warnings the result has — is confirmed. It lands as one change, with its own
 version in the history, so going back to before it undoes it and nothing else.
 
+## Agents
+
+Claude Code, Codex or any MCP client can plan through
+[planify-mcp](https://github.com/mrmorgan-ai/planify-mcp), a separate Worker that
+calls this API with a Cloudflare Access service token. Everything it needs is
+here: every write that shapes the plan takes `dryRun` to preview it, and
+`draft` to stage it; `/api/issues` lists what the plan breaks. A service token
+signs in like a person: add a **Service Auth** policy for it to the planify
+Access application.
+
 ## API
 
 | Method | Path | Does |
 |---|---|---|
 | GET | `/api/state` | The whole roadmap with today's date |
 | GET | `/api/export` | The roadmap as a seed file, content only, naming the revision it was taken from |
-| POST | `/api/edits` | Apply a list of edits to items, work items, phases, pauses, settings or skills as one write; `draft` sends them to the draft |
+| POST | `/api/edits` | Apply a list of edits to items, work items, phases, pauses, settings or skills as one write; `draft` sends them to the draft, `dryRun` previews them |
 | POST | `/api/import` | Replace the roadmap's content with a seed file's, keeping progress; `dryRun` previews it |
 | PATCH | `/api/items/:id/state` | Set `pending`, `in_progress` or `done`, and recompute |
-| PATCH | `/api/items/:id/dates` | Move an item's planned dates, and recompute; `draft` moves them in the draft |
+| PATCH | `/api/items/:id/dates` | Move an item's planned dates, and recompute; `draft` moves them in the draft, `dryRun` previews the move |
 | PATCH | `/api/items/:id/hours` | Declare the hours spent so far, without changing the state |
 | POST | `/api/generate` | Add a course, certification, project or practice blocks, placed in the free hours; `dryRun` previews it, `draft` adds to the draft |
 | GET | `/api/draft` | The draft's world: its plan with the live roadmap's progress |
@@ -242,6 +252,7 @@ version in the history, so going back to before it undoes it and nothing else.
 | GET | `/api/versions` | The history: what each change to the plan replaced, newest first |
 | GET | `/api/versions/:id` | One version as a seed file, naming the revision it was the plan at, for scripts |
 | POST | `/api/versions/:id/restore` | Bring a version back, keeping progress; `dryRun` previews it |
+| GET | `/api/issues` | Every rule the plan breaks; `?draft=1` for the draft's |
 | GET | `/api/health` | Liveness |
 
 Every write returns the whole new state, and every write body carries the
