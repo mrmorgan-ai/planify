@@ -23,7 +23,7 @@ const withDates = args.includes('--with-dates')
 const roadmapAt = args.indexOf('--roadmap')
 const roadmapId = roadmapAt === -1 ? 1 : Number(args[roadmapAt + 1])
 const input =
-  args.find((arg, index) => !arg.startsWith('--') && index !== roadmapAt + 1) ?? 'seed/roadmap.json'
+  args.find((arg, index) => !arg.startsWith('--') && (roadmapAt === -1 || index !== roadmapAt + 1)) ?? 'seed/roadmap.json'
 const seedPath = new URL(input, root)
 
 if (!Number.isInteger(roadmapId) || roadmapId < 1) {
