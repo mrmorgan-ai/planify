@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import type { AppState } from '../core/types'
 import { StaleStateError, previewPublish, type PublishPreview } from './api'
 import { ChangeReview, type ReviewWords } from './ChangeReview'
@@ -105,7 +106,13 @@ export function DraftBar({
     if (published) {
       return (
         <div className="draft-bar" role="status">
-          <span>Published. The plan it replaced is in Settings → History.</span>
+          <span>
+            Published. The plan it replaced is in{' '}
+            <Link to="/settings/data" onClick={() => setPublished(false)}>
+              Settings → History
+            </Link>
+            .
+          </span>
           <button type="button" className="draft-bar-action" onClick={() => setPublished(false)}>
             OK
           </button>

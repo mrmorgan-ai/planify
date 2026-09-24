@@ -21,8 +21,28 @@ const VIEWS = [
   { path: '/work-items', label: 'Work items' },
   { path: '/kanban', label: 'Kanban' },
   { path: '/gantt', label: 'Gantt' },
-  { path: '/settings', label: 'Settings' },
 ] as const
+
+/**
+ * Settings is not a view of the plan but the plan's setup, so it leaves the tabs
+ * for the header's right-hand group, as the gear people look for there.
+ */
+function SettingsLink() {
+  return (
+    <NavLink className="settings-link" to="/settings" aria-label="Settings" title="Settings">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+        <path
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"
+        />
+      </svg>
+    </NavLink>
+  )
+}
 
 function Placeholder({ view }: { view: string }) {
   return (
@@ -56,9 +76,7 @@ function Status({ state }: { state: AppState }) {
       <span className="footer-sep footer-where">·</span>
       <span>{shortDate(today)}</span>
       <span className="footer-sep">·</span>
-      <span title={`${round(done)} of ${round(total)} planned hours done`}>
-        Plan {percent}%
-      </span>
+      <span title={`${round(done)} of ${round(total)} planned hours done`}>Plan {percent}%</span>
     </>
   )
 }
@@ -100,6 +118,7 @@ export function App() {
         </nav>
         {state && <PlanIssues state={state} />}
         {state && <DraftButton {...store} state={state} />}
+        <SettingsLink />
         <Session />
       </header>
 
@@ -122,7 +141,7 @@ export function App() {
             <Route path="/backlog" element={<Backlog {...store} state={state} />} />
             <Route path="/kanban" element={<Kanban {...store} state={state} />} />
             <Route path="/work-items" element={<WorkItems {...store} state={state} />} />
-            <Route path="/settings" element={<Settings {...store} state={state} />} />
+            <Route path="/settings/*" element={<Settings {...store} state={state} />} />
             <Route path="*" element={<Placeholder view="Not found" />} />
           </Routes>
         )}
@@ -139,7 +158,11 @@ export function App() {
 
       <footer>
         <span className="credit">
-          Made with <span className="heart" aria-label="love">❤</span> by AI PlayGrounds
+          Made with{' '}
+          <span className="heart" aria-label="love">
+            ❤
+          </span>{' '}
+          by AI PlayGrounds
         </span>
         <span className="footer-status">
           {error && <span className="bad">{error}</span>}
