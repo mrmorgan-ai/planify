@@ -2,6 +2,7 @@ import { isCivilDate, startOfWeek } from '../../src/core/dates'
 import { reschedulePlan } from '../../src/core/reschedule'
 import { missingRevision, only, refusal, revisionOf } from '../../src/server/http'
 import { mutate, scheduleOptions, type Env } from '../../src/server/repository'
+import { spaceOf } from '../../src/server/space'
 
 /**
  * Moves every unfinished item forward by whole weeks so the plan restarts in
@@ -14,7 +15,8 @@ import { mutate, scheduleOptions, type Env } from '../../src/server/repository'
  * than answered with an unchanged world, so the client never shows "rescheduled"
  * for a no-op.
  */
-export const onRequest = only<Env>('POST', async ({ env, request }) => {
+export const onRequest = only<Env>('POST', async ({ env, data, request }) => {
+  const space = spaceOf(env, data)
   let body: unknown
   try {
     body = await request.json()
@@ -32,7 +34,7 @@ export const onRequest = only<Env>('POST', async ({ env, request }) => {
   let moved = 0
   try {
     const state = await mutate(
-      env.DB,
+      space,
       revision,
       (current) => {
         if (restartDate < current.today) {

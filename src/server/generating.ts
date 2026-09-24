@@ -3,6 +3,7 @@ import { generate, type GenerateRequest, type Placed } from '../core/generate'
 import { previewOf, type ImportPreview } from '../core/importing'
 import type { AppState } from '../core/types'
 import { StaleRevisionError } from './repository'
+import type { Space } from './space'
 import { loadTarget, mutateTarget, type Target } from './target'
 
 /** What a generator would add, placed, and what that does to the roadmap. */
@@ -15,12 +16,12 @@ export type GeneratePreview = ImportPreview & { placed: Placed[] }
  * listing each would bury what the generator actually adds.
  */
 export async function previewGenerate(
-  db: D1Database,
+  space: Space,
   revision: number,
   request: GenerateRequest,
   target: Target = 'live',
 ): Promise<GeneratePreview> {
-  const state = await loadTarget(db, target)
+  const state = await loadTarget(space, target)
   if (revision !== state.revision) throw new StaleRevisionError(state)
   const { edits, placed } = generate(state, state.today, request)
   const preview = previewOf(state, applyEdits(state, edits))
@@ -43,14 +44,14 @@ export async function previewGenerate(
 
 /** Adds what the generator makes in one write, kept in the history as its own change. */
 export async function applyGenerate(
-  db: D1Database,
+  space: Space,
   revision: number,
   request: GenerateRequest,
   target: Target = 'live',
 ): Promise<AppState> {
   let summary = ''
   return mutateTarget(
-    db,
+    space,
     target,
     revision,
     (state) => {

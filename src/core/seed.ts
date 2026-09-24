@@ -61,7 +61,9 @@ export function parseSeed(raw: unknown): SeedFile {
     }
   }
 
-  const items = requireArray(file.items, 'items').map((entry, index) =>
+  // A roadmap may hold no items and no pauses yet: a new one starts that way, and
+  // its drafts and its history go through this same parser.
+  const items = requireArray(file.items, 'items', true).map((entry, index) =>
     parseSeedItem(entry, `items[${index}]`),
   )
 
@@ -71,12 +73,12 @@ export function parseSeed(raw: unknown): SeedFile {
       file.startDate === undefined ? undefined : requireCivilDate(file.startDate, 'startDate'),
     weeklyHours: parseWeeklyHours(file.weeklyHours),
     phases: requireArray(file.phases, 'phases').map((entry, index) => parsePhase(entry, index)),
-    blackouts: requireArray(file.blackouts, 'blackouts').map((entry, index) =>
+    blackouts: requireArray(file.blackouts, 'blackouts', true).map((entry, index) =>
       parseBlackout(entry, `blackouts[${index}]`),
     ),
     dimensions,
     skills,
-    workItems: (file.workItems === undefined ? [] : requireArray(file.workItems, 'workItems')).map(
+    workItems: (file.workItems === undefined ? [] : requireArray(file.workItems, 'workItems', true)).map(
       (entry, index) => parseWorkItem(entry, `workItems[${index}]`),
     ),
     items,
@@ -339,9 +341,9 @@ function requireObject(value: unknown, at: string): Record<string, unknown> {
   return value as Record<string, unknown>
 }
 
-function requireArray(value: unknown, at: string): unknown[] {
+function requireArray(value: unknown, at: string, allowEmpty = false): unknown[] {
   if (!Array.isArray(value)) throw new Error(`${at} must be an array`)
-  if (value.length === 0) throw new Error(`${at} must not be empty`)
+  if (!allowEmpty && value.length === 0) throw new Error(`${at} must not be empty`)
   return value
 }
 

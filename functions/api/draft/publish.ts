@@ -1,6 +1,7 @@
 import { previewPublish, publishDraft } from '../../../src/server/drafts'
 import { missingRevision, only, refusal, revisionOf } from '../../../src/server/http'
 import type { Env } from '../../../src/server/repository'
+import { spaceOf } from '../../../src/server/space'
 
 /**
  * Makes the draft the plan: `{ draftRevision, revision }`, the draft's revision
@@ -13,7 +14,8 @@ import type { Env } from '../../../src/server/repository'
  * live revision to publish from. A stale revision answers 409 with the draft's
  * world; a draft that would bring in an error, 422; no draft, 404.
  */
-export const onRequest = only<Env>('POST', async ({ env, request }) => {
+export const onRequest = only<Env>('POST', async ({ env, data, request }) => {
+  const space = spaceOf(env, data)
   let body: unknown
   try {
     body = await request.json()
@@ -37,8 +39,8 @@ export const onRequest = only<Env>('POST', async ({ env, request }) => {
   try {
     return Response.json(
       dryRun
-        ? await previewPublish(env.DB, draftRevision)
-        : await publishDraft(env.DB, revision!, draftRevision),
+        ? await previewPublish(space, draftRevision)
+        : await publishDraft(space, revision!, draftRevision),
     )
   } catch (error) {
     const refused = refusal(error)

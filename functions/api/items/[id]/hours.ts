@@ -1,13 +1,15 @@
 import { applyHoursDone } from '../../../../src/core/schedule'
 import { missingRevision, only, refusal, revisionOf } from '../../../../src/server/http'
 import { mutate, scheduleOptions, type Env } from '../../../../src/server/repository'
+import { spaceOf } from '../../../../src/server/space'
 
 /**
  * Declares the hours already spent on one item. Progress only: the item's state
  * is left exactly where it was, and the whole recalculated world comes back, as
  * with every other write.
  */
-export const onRequest = only<Env>('PATCH', async ({ env, params, request }) => {
+export const onRequest = only<Env>('PATCH', async ({ env, data, params, request }) => {
+  const space = spaceOf(env, data)
   const id = Array.isArray(params.id) ? params.id[0] : params.id
   if (!id) return Response.json({ error: 'Missing item id' }, { status: 400 })
 
@@ -26,7 +28,7 @@ export const onRequest = only<Env>('PATCH', async ({ env, params, request }) => 
   if (revision === null) return missingRevision()
 
   try {
-    const state = await mutate(env.DB, revision, (current) =>
+    const state = await mutate(space, revision, (current) =>
       applyHoursDone(current.items, id, hours, scheduleOptions(current.roadmap)),
     )
     return Response.json(state)

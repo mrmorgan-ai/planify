@@ -2,6 +2,7 @@ import { versionId } from '../../../../src/server/history'
 import { missingRevision, only, refusal, revisionOf } from '../../../../src/server/http'
 import { UnknownVersionError, applyRestore, previewRestore } from '../../../../src/server/importing'
 import type { Env } from '../../../../src/server/repository'
+import { spaceOf } from '../../../../src/server/space'
 
 /**
  * Brings a version of the plan back: `{ revision }`. Progress on the items it
@@ -13,7 +14,8 @@ import type { Env } from '../../../../src/server/repository'
  * have answers 404; a write from an older revision, 409; one that would bring
  * in an error, 422.
  */
-export const onRequest = only<Env>('POST', async ({ env, params, request }) => {
+export const onRequest = only<Env>('POST', async ({ env, data, params, request }) => {
+  const space = spaceOf(env, data)
   const id = versionId(params.id)
   if (id === null) return Response.json({ error: 'No such version' }, { status: 404 })
 
@@ -30,8 +32,8 @@ export const onRequest = only<Env>('POST', async ({ env, params, request }) => {
   try {
     return Response.json(
       dryRun === true
-        ? await previewRestore(env.DB, revision, id)
-        : await applyRestore(env.DB, revision, id),
+        ? await previewRestore(space, revision, id)
+        : await applyRestore(space, revision, id),
     )
   } catch (error) {
     if (error instanceof UnknownVersionError) {

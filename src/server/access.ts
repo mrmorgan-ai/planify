@@ -1,4 +1,5 @@
 import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from 'jose'
+import type { Caller } from './space'
 
 /**
  * Cloudflare Access signs in at the edge, but only on the hostnames its
@@ -28,15 +29,17 @@ function accessKeys(teamDomain: string): JWTVerifyGetKey {
   return keys
 }
 
-/** Null when the request may go on; otherwise the response that refuses it. */
-export async function authorize(
+/** Who the request comes from, or the response that refuses it. */
+export async function authenticate(
   request: Request,
   env: AccessEnv,
   keys?: JWTVerifyGetKey,
-): Promise<Response | null> {
+): Promise<Caller | Response> {
   // Honoured only on a loopback host, so the variable leaking into a deployed
   // environment still opens nothing.
-  if (env.DEV_IDENTITY && LOCAL_HOSTS.has(new URL(request.url).hostname)) return null
+  if (env.DEV_IDENTITY && LOCAL_HOSTS.has(new URL(request.url).hostname)) {
+    return { principal: env.DEV_IDENTITY, local: true }
+  }
 
   const teamDomain = env.ACCESS_TEAM_DOMAIN
   const audience = env.ACCESS_AUD
@@ -55,7 +58,7 @@ export async function authorize(
     })
     // A person carries an email; a service token carries its client id instead.
     const who = payload.email ?? payload.common_name
-    return typeof who === 'string' && who !== '' ? null : unauthorized()
+    return typeof who === 'string' && who !== '' ? { principal: who, local: false } : unauthorized()
   } catch {
     return unauthorized()
   }

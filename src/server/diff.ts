@@ -12,17 +12,24 @@ export type Statement = { sql: string; params: Array<string | number | null> }
  *
  * Each table gets at most one statement to write and one to delete, whatever
  * the number of rows: the rows travel as one JSON parameter and `json_each`
- * unpacks them. D1 counts every statement of a batch against the per-request
- * query limit — 50 on the free plan — so a statement per row would cap an
- * import, or a reschedule, at a few dozen items.
+ * unpacks them. D1 counts every statement of a batch against its per-request
+ * query limit, so a statement per row would cap the size of an import or a
+ * reschedule.
  *
  * The order follows the foreign keys: a part needs its work item, a phase's
  * closing milestone needs its item, a skill needs its axis. What is written comes
  * first, parents before children, and what is removed goes last, children
  * before parents — so a milestone moved to a new item already points at it by
  * the time the old one is deleted.
+ *
+ * Every statement is bound to `roadmapId`: it writes that roadmap's rows and
+ * deletes only among them, whatever the others hold.
  */
-export function contentWrites(before: RoadmapContent, after: RoadmapContent): Statement[] {
+export function contentWrites(
+  before: RoadmapContent,
+  after: RoadmapContent,
+  roadmapId: number,
+): Statement[] {
   const writes: Statement[] = []
   const removals: Statement[] = []
 
@@ -42,6 +49,7 @@ export function contentWrites(before: RoadmapContent, after: RoadmapContent): St
   const skills = diff(skillRows(before), skillRows(after), (row) => String(row.name))
   const meta = diff(metaRows(before), metaRows(after), (row) => String(row.key))
 
+  const upsert = (table: string, key: string, rows: Row[]) => upsertIn(roadmapId, table, key, rows)
   if (workItems.written.length > 0) writes.push(upsert('work_items', 'id', workItems.written))
   if (items.written.length > 0) writes.push(upsert('items', 'id', items.written))
   if (dimensions.written.length > 0) {
@@ -49,7 +57,10 @@ export function contentWrites(before: RoadmapContent, after: RoadmapContent): St
     // axes in place would collide halfway. Parking every existing axis on a
     // negative order first leaves the new orders nothing to collide with, and
     // every axis is then written back, moved or not.
-    writes.push({ sql: 'UPDATE dimensions SET sort_order = -sort_order', params: [] })
+    writes.push({
+      sql: 'UPDATE dimensions SET sort_order = -sort_order WHERE roadmap_id = ?',
+      params: [roadmapId],
+    })
     writes.push(upsert('dimensions', 'name', dimensionRows(after)))
   }
   if (skills.written.length > 0) writes.push(upsert('skills', 'name', skills.written))
@@ -66,7 +77,7 @@ export function contentWrites(before: RoadmapContent, after: RoadmapContent): St
     ['items', 'id', items.removed],
     ['work_items', 'id', workItems.removed],
   ] as const) {
-    if (removed.length > 0) removals.push(remove(table, key, removed))
+    if (removed.length > 0) removals.push(remove(roadmapId, table, key, removed))
   }
 
   return [...writes, ...removals]
@@ -93,7 +104,7 @@ function diff<T extends Row>(before: T[], after: T[], key: (row: T) => string) {
   }
 }
 
-function upsert(table: string, key: string, rows: Row[]): Statement {
+function upsertIn(roadmapId: number, table: string, key: string, rows: Row[]): Statement {
   const columns = Object.keys(rows[0]!)
   const values = columns.map((column) => `json_extract(value, '$.${column}')`)
   const updates = columns
@@ -103,19 +114,19 @@ function upsert(table: string, key: string, rows: Row[]): Statement {
   // SELECT cannot tell its ON CONFLICT from a join's ON.
   return {
     sql:
-      `INSERT INTO ${table} (${columns.join(', ')}) ` +
-      `SELECT ${values.join(', ')} FROM json_each(?) WHERE true ` +
-      `ON CONFLICT(${key}) DO UPDATE SET ${updates.join(', ')}`,
-    params: [JSON.stringify(rows)],
+      `INSERT INTO ${table} (roadmap_id, ${columns.join(', ')}) ` +
+      `SELECT ?, ${values.join(', ')} FROM json_each(?) WHERE true ` +
+      `ON CONFLICT(roadmap_id, ${key}) DO UPDATE SET ${updates.join(', ')}`,
+    params: [roadmapId, JSON.stringify(rows)],
   }
 }
 
-function remove(table: string, key: string, ids: string[]): Statement {
+function remove(roadmapId: number, table: string, key: string, ids: string[]): Statement {
   // Phase numbers go in as numbers, so they compare equal to the stored ones.
   const values = table === 'phases' ? ids.map(Number) : ids
   return {
-    sql: `DELETE FROM ${table} WHERE ${key} IN (SELECT value FROM json_each(?))`,
-    params: [JSON.stringify(values)],
+    sql: `DELETE FROM ${table} WHERE roadmap_id = ? AND ${key} IN (SELECT value FROM json_each(?))`,
+    params: [roadmapId, JSON.stringify(values)],
   }
 }
 

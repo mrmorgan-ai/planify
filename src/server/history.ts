@@ -1,6 +1,7 @@
 import type { PlanVersion, VersionReason } from '../core/history'
 import { parseSeed, type SeedFile } from '../core/seed'
 import type { IsoDateTime } from '../core/types'
+import type { Space } from './space'
 
 /** How many versions the history keeps. Older ones go as new ones arrive. */
 export const HISTORY_LIMIT = 50
@@ -30,24 +31,41 @@ export type Replaced = {
  * only counted. Both statements test the same condition, and the update does
  * not change what it tests, so exactly one of them acts.
  */
-export function keepVersion(db: D1Database, replaced: Replaced): D1PreparedStatement[] {
-  const insert = `INSERT INTO plan_versions (created_at, reason, summary, revision, plan)
-    SELECT ?, ?, ?, ?, ?`
-  const values = [replaced.now, replaced.reason, replaced.summary, replaced.revision, replaced.plan]
-  const prune = db.prepare(
-    `DELETE FROM plan_versions
-     WHERE id NOT IN (SELECT id FROM plan_versions ORDER BY id DESC LIMIT ${HISTORY_LIMIT})`,
-  )
+export function keepVersion(
+  { db, roadmapId }: Space,
+  replaced: Replaced,
+): D1PreparedStatement[] {
+  const insert = `INSERT INTO plan_versions (roadmap_id, created_at, reason, summary, revision, plan)
+    SELECT ?, ?, ?, ?, ?, ?`
+  const values = [
+    roadmapId,
+    replaced.now,
+    replaced.reason,
+    replaced.summary,
+    replaced.revision,
+    replaced.plan,
+  ]
+  // Each roadmap keeps its own newest versions.
+  const prune = db
+    .prepare(
+      `DELETE FROM plan_versions WHERE roadmap_id = ? AND id NOT IN (
+         SELECT id FROM plan_versions WHERE roadmap_id = ? ORDER BY id DESC LIMIT ${HISTORY_LIMIT}
+       )`,
+    )
+    .bind(roadmapId, roadmapId)
   if (replaced.reason !== 'edit') return [db.prepare(insert).bind(...values), prune]
 
   const burstStart = new Date(Date.parse(replaced.now) - BURST_MINUTES * 60_000).toISOString()
   const recentEdit = `SELECT id FROM plan_versions
-    WHERE id = (SELECT max(id) FROM plan_versions) AND reason = 'edit' AND created_at > ?`
+    WHERE id = (SELECT max(id) FROM plan_versions WHERE roadmap_id = ?)
+      AND reason = 'edit' AND created_at > ?`
   return [
     db
       .prepare(`UPDATE plan_versions SET later_changes = later_changes + 1 WHERE id IN (${recentEdit})`)
-      .bind(burstStart),
-    db.prepare(`${insert} WHERE NOT EXISTS (${recentEdit})`).bind(...values, burstStart),
+      .bind(roadmapId, burstStart),
+    db
+      .prepare(`${insert} WHERE NOT EXISTS (${recentEdit})`)
+      .bind(...values, roadmapId, burstStart),
     prune,
   ]
 }
@@ -69,12 +87,13 @@ type VersionRow = {
 }
 
 /** The history, newest first, without the plans themselves. */
-export async function listVersions(db: D1Database): Promise<PlanVersion[]> {
+export async function listVersions({ db, roadmapId }: Space): Promise<PlanVersion[]> {
   const { results } = await db
     .prepare(
       `SELECT id, created_at, reason, summary, later_changes, revision
-       FROM plan_versions ORDER BY id DESC`,
+       FROM plan_versions WHERE roadmap_id = ? ORDER BY id DESC`,
     )
+    .bind(roadmapId)
     .all<VersionRow>()
   return results.map((row) => ({
     id: row.id,
@@ -86,17 +105,20 @@ export async function listVersions(db: D1Database): Promise<PlanVersion[]> {
   }))
 }
 
-/** One version with its plan, or null when there is no such version. */
+/**
+ * One version with its plan, or null when this roadmap has no such version.
+ * Version ids count across every roadmap, so another roadmap's id finds nothing.
+ */
 export async function loadVersion(
-  db: D1Database,
+  { db, roadmapId }: Space,
   id: number,
 ): Promise<{ version: PlanVersion; plan: SeedFile } | null> {
   const row = await db
     .prepare(
       `SELECT id, created_at, reason, summary, later_changes, revision, plan
-       FROM plan_versions WHERE id = ?`,
+       FROM plan_versions WHERE id = ? AND roadmap_id = ?`,
     )
-    .bind(id)
+    .bind(id, roadmapId)
     .first<VersionRow & { plan: string }>()
   if (!row) return null
   return {

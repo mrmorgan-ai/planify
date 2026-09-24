@@ -5,9 +5,10 @@ import type { AppState, RoadmapContent } from '../core/types'
 import { nowIso } from './clock'
 import { planOf } from './diff'
 import { StaleRevisionError, loadAppState, mutateContent, type WriteOptions } from './repository'
+import type { Space } from './space'
 
 // A draft is the plan as the roadmap file has it, kept in one row beside the
-// live roadmap. Its world is the live one with the draft's plan brought in the
+// live roadmap, one per roadmap. Its world is the live one with the draft's plan brought in the
 // way an import brings a file in: progress comes from the live roadmap, and the
 // projections are computed from both. So a draft always shows today's progress,
 // and a tick made while it is open is never lost by publishing it.
@@ -33,11 +34,14 @@ type DraftRow = {
 
 type Loaded = { live: AppState; row: DraftRow; plan: SeedFile; state: AppState }
 
-async function loadDraft(db: D1Database): Promise<Loaded | null> {
+async function loadDraft(space: Space): Promise<Loaded | null> {
   const [live, row] = await Promise.all([
-    loadAppState(db),
-    db
-      .prepare('SELECT revision, started_at, updated_at, base_hash, plan FROM draft WHERE id = 1')
+    loadAppState(space),
+    space.db
+      .prepare(
+        'SELECT revision, started_at, updated_at, base_hash, plan FROM draft WHERE roadmap_id = ?',
+      )
+      .bind(space.roadmapId)
       .first<DraftRow>(),
   ])
   if (!row) return null
@@ -55,27 +59,27 @@ function draftWorld(live: AppState, row: DraftRow, content: RoadmapContent): App
 }
 
 /** The draft's world: its plan with the live roadmap's progress. */
-export async function loadDraftState(db: D1Database): Promise<AppState> {
-  const draft = await loadDraft(db)
+export async function loadDraftState(space: Space): Promise<AppState> {
+  const draft = await loadDraft(space)
   if (!draft) throw new NoDraftError()
   return draft.state
 }
 
 /** Starts a draft from the live plan, or opens the one already in progress. */
-export async function startDraft(db: D1Database, now: string = nowIso()): Promise<AppState> {
-  const existing = await loadDraft(db)
+export async function startDraft(space: Space, now: string = nowIso()): Promise<AppState> {
+  const existing = await loadDraft(space)
   if (existing) return existing.state
 
-  const plan = planOf(await loadAppState(db))
+  const plan = planOf(await loadAppState(space))
   // Two devices starting at once: the second finds the first's and opens it.
-  await db
+  await space.db
     .prepare(
-      `INSERT INTO draft (id, revision, started_at, updated_at, base_hash, plan)
-       VALUES (1, 1, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`,
+      `INSERT INTO draft (roadmap_id, revision, started_at, updated_at, base_hash, plan)
+       VALUES (?, 1, ?, ?, ?, ?) ON CONFLICT(roadmap_id) DO NOTHING`,
     )
-    .bind(now, now, await fingerprint(plan), plan)
+    .bind(space.roadmapId, now, now, await fingerprint(plan), plan)
     .run()
-  return loadDraftState(db)
+  return loadDraftState(space)
 }
 
 /**
@@ -84,12 +88,12 @@ export async function startDraft(db: D1Database, now: string = nowIso()): Promis
  * draft is not the plan yet — and a rule it breaks is shown, not refused.
  */
 export async function mutateDraft(
-  db: D1Database,
+  space: Space,
   expectedRevision: number | null,
   transform: (state: AppState) => RoadmapContent,
   options: Pick<WriteOptions, 'now'> = {},
 ): Promise<AppState> {
-  const draft = await loadDraft(db)
+  const draft = await loadDraft(space)
   if (!draft) throw new NoDraftError()
   if (expectedRevision !== null && expectedRevision !== draft.row.revision) {
     throw new StaleRevisionError(draft.state)
@@ -97,16 +101,16 @@ export async function mutateDraft(
 
   const next = transform(draft.state)
   const now = options.now ?? nowIso()
-  const written = await db
+  const written = await space.db
     .prepare(
       `UPDATE draft SET plan = ?, revision = revision + 1, updated_at = ?
-       WHERE id = 1 AND revision = ? RETURNING revision`,
+       WHERE roadmap_id = ? AND revision = ? RETURNING revision`,
     )
-    .bind(planOf(next), now, draft.row.revision)
+    .bind(planOf(next), now, space.roadmapId, draft.row.revision)
     .first<{ revision: number }>()
   if (!written) {
     // Another device changed or ended the draft between the read and the write.
-    const current = await loadDraft(db)
+    const current = await loadDraft(space)
     if (!current) throw new NoDraftError()
     throw new StaleRevisionError(current.state)
   }
@@ -114,9 +118,9 @@ export async function mutateDraft(
 }
 
 /** Drops the draft, and answers with the live world. */
-export async function discardDraft(db: D1Database): Promise<AppState> {
-  await db.prepare('DELETE FROM draft WHERE id = 1').run()
-  return loadAppState(db)
+export async function discardDraft(space: Space): Promise<AppState> {
+  await space.db.prepare('DELETE FROM draft WHERE roadmap_id = ?').bind(space.roadmapId).run()
+  return loadAppState(space)
 }
 
 /** What publishing would change on the live roadmap. */
@@ -133,10 +137,10 @@ export type PublishPreview = ImportPreview & {
  * previewed. `revision` in the answer is the live one, to publish from.
  */
 export async function previewPublish(
-  db: D1Database,
+  space: Space,
   draftRevision: number,
 ): Promise<PublishPreview> {
-  const draft = await loadDraft(db)
+  const draft = await loadDraft(space)
   if (!draft) throw new NoDraftError()
   if (draftRevision !== draft.row.revision) throw new StaleRevisionError(draft.state)
 
@@ -157,12 +161,12 @@ export async function previewPublish(
  * unseen. Either being stale answers with the draft, to review again.
  */
 export async function publishDraft(
-  db: D1Database,
+  space: Space,
   revision: number,
   draftRevision: number,
   options: Pick<WriteOptions, 'now'> = {},
 ): Promise<AppState> {
-  const draft = await loadDraft(db)
+  const draft = await loadDraft(space)
   if (!draft) throw new NoDraftError()
   if (draftRevision !== draft.row.revision) throw new StaleRevisionError(draft.state)
   const reviewAgain = (state: AppState) =>
@@ -174,14 +178,16 @@ export async function publishDraft(
 
   try {
     const published = await mutateContent(
-      db,
+      space,
       revision,
       (current) => importedContent(current, draft.plan),
       {
         reason: 'publish',
         summary: (before, after) => `Published a draft: ${describeChanges(before, after)}`,
         alongside: () => [
-          db.prepare('DELETE FROM draft WHERE id = 1 AND revision = ?').bind(draftRevision),
+          space.db
+            .prepare('DELETE FROM draft WHERE roadmap_id = ? AND revision = ?')
+            .bind(space.roadmapId, draftRevision),
         ],
         now: options.now,
       },

@@ -12,9 +12,9 @@ const example = seedContent(readSeedFile(EXAMPLE_SEED))
 
 /** A database holding the example: revision 1. */
 async function loaded() {
-  const { db } = sqliteD1()
-  await mutateContent(db, 0, () => example)
-  return db
+  const { space } = sqliteD1()
+  await mutateContent(space, 0, () => example)
+  return space
 }
 
 const project: GenerateRequest = {
@@ -34,8 +34,8 @@ const project: GenerateRequest = {
 
 describe('generating', () => {
   it('previews the items it would add, and writes nothing', async () => {
-    const db = await loaded()
-    const preview = await previewGenerate(db, 1, project)
+    const space = await loaded()
+    const preview = await previewGenerate(space, 1, project)
 
     expect(preview.placed.map((piece) => piece.id)).toEqual([
       'a-project-set-it-up',
@@ -46,18 +46,18 @@ describe('generating', () => {
     // The milestone now waits on the last task; the items moved down to make room are not listed.
     expect(preview.changes.items.changed).toEqual([{ id: 'phase-1-exam', fields: ['dependsOn'] }])
     expect(preview.introduced).toEqual([])
-    expect((await loadAppState(db)).revision).toBe(1)
+    expect((await loadAppState(space)).revision).toBe(1)
   })
 
   it('adds what it previewed, kept in the history as its own change', async () => {
-    const db = await loaded()
+    const space = await loaded()
     // An edit a moment before: a generation is never folded into it.
-    const state = await loadAppState(db)
-    await mutateContent(db, 1, () =>
+    const state = await loadAppState(space)
+    await mutateContent(space, 1, () =>
       applyEdits(state, [{ op: 'updateItem', id: 'read-the-thing', fields: { notes: 'Read' } }]),
     )
-    const preview = await previewGenerate(db, 2, project)
-    const written = await applyGenerate(db, 2, project)
+    const preview = await previewGenerate(space, 2, project)
+    const written = await applyGenerate(space, 2, project)
 
     for (const piece of preview.placed) {
       expect(written.items.find((item) => item.id === piece.id)).toMatchObject({
@@ -65,7 +65,7 @@ describe('generating', () => {
         baselineEndDate: piece.end,
       })
     }
-    const versions = await listVersions(db)
+    const versions = await listVersions(space)
     expect(versions.map((version) => version.reason)).toEqual(['generate', 'edit'])
     expect(versions[0]).toMatchObject({
       summary: 'Generated A project: 2 items, 2030-01-11 to 2030-01-15',
@@ -75,8 +75,8 @@ describe('generating', () => {
   })
 
   it('refuses to preview or add from an old copy of the roadmap', async () => {
-    const db = await loaded()
-    await expect(previewGenerate(db, 0, project)).rejects.toBeInstanceOf(StaleRevisionError)
-    await expect(applyGenerate(db, 0, project)).rejects.toBeInstanceOf(StaleRevisionError)
+    const space = await loaded()
+    await expect(previewGenerate(space, 0, project)).rejects.toBeInstanceOf(StaleRevisionError)
+    await expect(applyGenerate(space, 0, project)).rejects.toBeInstanceOf(StaleRevisionError)
   })
 })

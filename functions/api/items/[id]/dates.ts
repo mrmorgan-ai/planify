@@ -3,6 +3,7 @@ import { DatesError, datesMoved, moveDates } from '../../../../src/server/dates'
 import { missingRevision, only, refusal, revisionOf } from '../../../../src/server/http'
 import type { Env } from '../../../../src/server/repository'
 import { previewIn, targetOf } from '../../../../src/server/target'
+import { spaceOf } from '../../../../src/server/space'
 
 /**
  * Moves one item's baseline dates, pushing what depends on it forward by the
@@ -10,7 +11,8 @@ import { previewIn, targetOf } from '../../../../src/server/target'
  * draft; with `dryRun: true` nothing is written, and the answer says what it
  * would change.
  */
-export const onRequest = only<Env>('PATCH', async ({ env, params, request }) => {
+export const onRequest = only<Env>('PATCH', async ({ env, data, params, request }) => {
+  const space = spaceOf(env, data)
   const id = Array.isArray(params.id) ? params.id[0] : params.id
   if (!id) return Response.json({ error: 'Missing item id' }, { status: 400 })
 
@@ -39,13 +41,13 @@ export const onRequest = only<Env>('PATCH', async ({ env, params, request }) => 
     if ((body as { dryRun?: unknown }).dryRun === true) {
       const moved = datesMoved(id, start, end)
       return Response.json(
-        await previewIn(env.DB, targetOf(body), revision, (state) => ({
+        await previewIn(space, targetOf(body), revision, (state) => ({
           ...state,
           items: moved(state),
         })),
       )
     }
-    return Response.json(await moveDates(env.DB, targetOf(body), revision, id, start, end))
+    return Response.json(await moveDates(space, targetOf(body), revision, id, start, end))
   } catch (error) {
     const refused = refusal(error)
     if (refused) return refused

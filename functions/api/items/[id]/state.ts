@@ -4,6 +4,7 @@ import type { State } from '../../../../src/core/types'
 import { nowIso } from '../../../../src/server/clock'
 import { missingRevision, only, refusal, revisionOf } from '../../../../src/server/http'
 import { mutate, scheduleOptions, type Env } from '../../../../src/server/repository'
+import { spaceOf } from '../../../../src/server/space'
 
 /**
  * Moves one item to a new state. Nothing here blocks anything: dependencies feed
@@ -13,7 +14,8 @@ import { mutate, scheduleOptions, type Env } from '../../../../src/server/reposi
  * state wholesale, which removes a class of consistency bugs between the
  * backlog, the board and the Gantt.
  */
-export const onRequest = only<Env>('PATCH', async ({ env, params, request }) => {
+export const onRequest = only<Env>('PATCH', async ({ env, data, params, request }) => {
+  const space = spaceOf(env, data)
   const id = Array.isArray(params.id) ? params.id[0] : params.id
   if (!id) return Response.json({ error: 'Missing item id' }, { status: 400 })
 
@@ -34,7 +36,7 @@ export const onRequest = only<Env>('PATCH', async ({ env, params, request }) => 
   const completedAt = nowIso()
 
   try {
-    const state = await mutate(env.DB, revision, (current) =>
+    const state = await mutate(space, revision, (current) =>
       applyStateChange(
         current.items,
         id,
