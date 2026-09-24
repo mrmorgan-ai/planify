@@ -1,7 +1,7 @@
 import { projectWherePossible } from './schedule'
 import { seedContent, toSeedFile, type SeedFile } from './seed'
-import type { Item, RoadmapContent, State } from './types'
-import type { Issue } from './validate'
+import type { AppState, Item, RoadmapContent, State } from './types'
+import { introducedErrors, validate, type Issue } from './validate'
 
 /**
  * The roadmap a seed file turns the current one into. The file defines the
@@ -68,6 +68,21 @@ export type ImportPreview = {
   introduced: Issue[]
   /** Everything the imported roadmap breaks, warnings included. */
   issues: Issue[]
+}
+
+/**
+ * What turning `before` into `after` would do, worked out without writing it:
+ * the preview an import, a restore, a generator, a draft being published and an
+ * agent's dry run all show before anything is applied.
+ */
+export function previewOf(before: AppState, after: RoadmapContent): ImportPreview {
+  const issues = validate(after)
+  return {
+    revision: before.revision,
+    changes: importChanges(before, after),
+    introduced: introducedErrors(before, after, issues),
+    issues,
+  }
 }
 
 /**

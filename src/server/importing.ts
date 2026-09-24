@@ -1,8 +1,7 @@
 import { describeChanges } from '../core/history'
-import { importChanges, importedContent, type ImportPreview } from '../core/importing'
+import { importedContent, previewOf, type ImportPreview } from '../core/importing'
 import type { SeedFile } from '../core/seed'
 import type { AppState } from '../core/types'
-import { introducedErrors, validate } from '../core/validate'
 import { loadVersion } from './history'
 import { StaleRevisionError, loadAppState, mutateContent } from './repository'
 
@@ -18,14 +17,7 @@ export async function previewImport(
 ): Promise<ImportPreview> {
   const state = await loadAppState(db)
   if (revision !== state.revision) throw new StaleRevisionError(state)
-  const after = importedContent(state, seed)
-  const issues = validate(after)
-  return {
-    revision: state.revision,
-    changes: importChanges(state, after),
-    introduced: introducedErrors(state, after, issues),
-    issues,
-  }
+  return previewOf(state, importedContent(state, seed))
 }
 
 /**

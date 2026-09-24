@@ -1,8 +1,7 @@
 import { describeChanges } from '../core/history'
-import { importChanges, importedContent, type ImportPreview } from '../core/importing'
+import { importedContent, previewOf, type ImportPreview } from '../core/importing'
 import { parseSeed, type SeedFile } from '../core/seed'
 import type { AppState, RoadmapContent } from '../core/types'
-import { introducedErrors, validate } from '../core/validate'
 import { nowIso } from './clock'
 import { planOf } from './diff'
 import { StaleRevisionError, loadAppState, mutateContent, type WriteOptions } from './repository'
@@ -142,12 +141,8 @@ export async function previewPublish(
   if (draftRevision !== draft.row.revision) throw new StaleRevisionError(draft.state)
 
   const { live, state } = draft
-  const issues = validate(state)
   return {
-    revision: live.revision,
-    changes: importChanges(live, state),
-    introduced: introducedErrors(live, state, issues),
-    issues,
+    ...previewOf(live, state),
     liveChanged: (await fingerprint(planOf(live))) !== draft.row.base_hash,
   }
 }
