@@ -45,4 +45,4 @@ ACCESS_AUD = "13812ba5f0ac70f3ff835eeff09cbb92d41ff525acd1c75e26107ddd8137df02"
 
 [env.preview.vars]
 ACCESS_TEAM_DOMAIN = "umbral-app.cloudflareaccess.com"
-ACCESS_AUD = "13812ba5f0ac70f3ff835eeff09cbb92d41ff525acd1c75e26107ddd8137df02"
+ACCESS_AUD = "a136bc894364ba4599a57ccfc5b4af6da0d4e47119e7e59ab81f59480a4fd3e2"
