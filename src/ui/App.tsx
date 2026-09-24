@@ -24,8 +24,8 @@ const VIEWS = [
 ] as const
 
 /**
- * Settings is not a view of the plan but the plan's setup, so it leaves the tabs
- * for the header's right-hand group, as the gear people look for there.
+ * Settings is the plan's setup, not a view of it and not part of the account, so
+ * the gear leaves the header for the footer's left end, away from the session.
  */
 function SettingsLink() {
   return (
@@ -118,7 +118,6 @@ export function App() {
         </nav>
         {state && <PlanIssues state={state} />}
         {state && <DraftButton {...store} state={state} />}
-        <SettingsLink />
         <Session />
       </header>
 
@@ -157,6 +156,7 @@ export function App() {
       )}
 
       <footer>
+        <SettingsLink />
         <span className="credit">
           Made with{' '}
           <span className="heart" aria-label="love">
