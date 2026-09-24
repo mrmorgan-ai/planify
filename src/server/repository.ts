@@ -21,6 +21,7 @@ import {
   type SkillRow,
   type WorkItemRow,
 } from './rows'
+import type { Space } from './space'
 
 export type Env = {
   DB: D1Database
@@ -32,20 +33,21 @@ const ITEM_COLUMNS = `id, name, type, phase, work_item_id, skills, depends_on,
   hours_done, sort_order`
 
 /**
- * Reads the whole world in one batch. The roadmap is small enough that paging or
- * caching would cost more complexity than it saves, and the engine needs the
- * full dependency graph on every call anyway.
+ * Reads the whole world of one roadmap in one batch. The roadmap is small enough
+ * that paging or caching would cost more complexity than it saves, and the
+ * engine needs the full dependency graph on every call anyway.
  */
-export async function loadAppState(db: D1Database): Promise<AppState> {
+export async function loadAppState({ db, roadmapId }: Space): Promise<AppState> {
+  const scoped = (sql: string) => db.prepare(sql).bind(roadmapId)
   const [items, workItems, phases, blackouts, dimensions, skills, meta, draft] = await db.batch([
-    db.prepare(`SELECT ${ITEM_COLUMNS} FROM items ORDER BY phase, sort_order`),
-    db.prepare('SELECT id, name, type, link, resources, notes FROM work_items ORDER BY id'),
-    db.prepare('SELECT number, name, closing_milestone_id FROM phases ORDER BY number'),
-    db.prepare('SELECT from_date, to_date, reason FROM blackouts ORDER BY from_date'),
-    db.prepare('SELECT name FROM dimensions ORDER BY sort_order'),
-    db.prepare('SELECT name, dimension FROM skills ORDER BY name'),
-    db.prepare('SELECT key, value FROM meta'),
-    db.prepare('SELECT started_at, updated_at FROM draft WHERE id = 1'),
+    scoped(`SELECT ${ITEM_COLUMNS} FROM items WHERE roadmap_id = ? ORDER BY phase, sort_order`),
+    scoped('SELECT id, name, type, link, resources, notes FROM work_items WHERE roadmap_id = ? ORDER BY id'),
+    scoped('SELECT number, name, closing_milestone_id FROM phases WHERE roadmap_id = ? ORDER BY number'),
+    scoped('SELECT from_date, to_date, reason FROM blackouts WHERE roadmap_id = ? ORDER BY from_date'),
+    scoped('SELECT name FROM dimensions WHERE roadmap_id = ? ORDER BY sort_order'),
+    scoped('SELECT name, dimension FROM skills WHERE roadmap_id = ? ORDER BY name'),
+    scoped('SELECT key, value FROM meta WHERE roadmap_id = ?'),
+    scoped('SELECT started_at, updated_at FROM draft WHERE roadmap_id = ?'),
   ])
 
   const settings = toMeta((meta?.results ?? []) as MetaRow[])
@@ -136,13 +138,14 @@ export type WriteOptions = {
  * An empty roadmap has no plan to keep.
  */
 export async function mutateContent(
-  db: D1Database,
+  space: Space,
   /** The revision the client made this change from; null accepts any. */
   expectedRevision: number | null,
   transform: (state: AppState) => RoadmapContent,
   options: WriteOptions = {},
 ): Promise<AppState> {
-  const state = await loadAppState(db)
+  const { db, roadmapId } = space
+  const state = await loadAppState(space)
   if (expectedRevision !== null && expectedRevision !== state.revision) {
     throw new StaleRevisionError(state)
   }
@@ -158,7 +161,7 @@ export async function mutateContent(
   }
   const kept =
     planChanged && state.items.length > 0
-      ? keepVersion(db, {
+      ? keepVersion(space, {
           plan,
           revision: state.revision,
           reason: options.reason ?? 'edit',
@@ -173,21 +176,30 @@ export async function mutateContent(
     // the whole batch rolls back before any of it lands.
     db
       .prepare(
-        `INSERT INTO meta (key, value)
-         SELECT 'revision', '' WHERE (SELECT value FROM meta WHERE key = 'revision') <> ?`,
+        `INSERT INTO meta (roadmap_id, key, value)
+         SELECT ?, 'revision', ''
+         WHERE (SELECT value FROM meta WHERE roadmap_id = ? AND key = 'revision') <> ?`,
       )
-      .bind(String(state.revision)),
+      .bind(roadmapId, roadmapId, String(state.revision)),
     ...(options.alongside?.(state) ?? []),
     ...kept,
-    ...contentWrites(state, next).map(({ sql, params }) => db.prepare(sql).bind(...params)),
-    db.prepare("UPDATE meta SET value = ? WHERE key = 'revision'").bind(String(revision)),
+    ...contentWrites(state, next, roadmapId).map(({ sql, params }) =>
+      db.prepare(sql).bind(...params),
+    ),
+    // An upsert, so a roadmap created without a revision row starts counting.
+    db
+      .prepare(
+        `INSERT INTO meta (roadmap_id, key, value) VALUES (?, 'revision', ?)
+         ON CONFLICT(roadmap_id, key) DO UPDATE SET value = excluded.value`,
+      )
+      .bind(roadmapId, String(revision)),
   ]
 
   try {
     await db.batch(writes)
   } catch (error) {
-    if (error instanceof Error && error.message.includes('UNIQUE constraint failed: meta.key')) {
-      throw new StaleRevisionError(await loadAppState(db))
+    if (error instanceof Error && error.message.includes('UNIQUE constraint failed: meta.')) {
+      throw new StaleRevisionError(await loadAppState(space))
     }
     throw error
   }
@@ -197,13 +209,13 @@ export async function mutateContent(
 
 /** `mutateContent` for the writes that only move items: progress, dates, projections. */
 export function mutate(
-  db: D1Database,
+  space: Space,
   expectedRevision: number | null,
   transform: (state: AppState) => Item[],
   options?: WriteOptions,
 ): Promise<AppState> {
   return mutateContent(
-    db,
+    space,
     expectedRevision,
     (state) => ({ roadmap: state.roadmap, workItems: state.workItems, items: transform(state) }),
     options,

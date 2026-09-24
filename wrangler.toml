@@ -6,10 +6,11 @@ pages_build_output_dir = "dist"
 # development works with the placeholders: `--local` keys its SQLite file off the
 # binding name, not the id.
 #
-# The two environments are separate databases on purpose. Preview deployment URLs
-# are public unless an access policy is switched on for them, so a pull request
-# must not be able to read or write the real roadmap. `planify-preview` holds the
-# example seed and nothing personal.
+# The two environments are separate databases on purpose. Production is the
+# `main` branch of the Pages project; every other branch gets [env.preview],
+# including `test`, where test-deploy.yml publishes each push to main before
+# prod-deploy.yml takes it to production. So nothing under test can read or write
+# the real roadmap. `planify-preview` holds example data and nothing personal.
 
 [[d1_databases]]
 binding = "DB"

@@ -1,6 +1,7 @@
 import { discardDraft, loadDraftState, startDraft } from '../../../src/server/drafts'
 import { refusal } from '../../../src/server/http'
 import type { Env } from '../../../src/server/repository'
+import { spaceOf } from '../../../src/server/space'
 
 const METHODS = ['GET', 'POST', 'DELETE']
 
@@ -10,15 +11,16 @@ const METHODS = ['GET', 'POST', 'DELETE']
  * plan, or opens the one already in progress, and answers with its world.
  * DELETE drops it and answers with the live world.
  */
-export const onRequest: PagesFunction<Env> = async ({ env, request }) => {
+export const onRequest: PagesFunction<Env> = async ({ env, data, request }) => {
+  const space = spaceOf(env, data)
   try {
     switch (request.method) {
       case 'GET':
-        return Response.json(await loadDraftState(env.DB))
+        return Response.json(await loadDraftState(space))
       case 'POST':
-        return Response.json(await startDraft(env.DB))
+        return Response.json(await startDraft(space))
       case 'DELETE':
-        return Response.json(await discardDraft(env.DB))
+        return Response.json(await discardDraft(space))
       default:
         return Response.json(
           { error: `Only ${METHODS.join(', ')} are allowed on this route` },

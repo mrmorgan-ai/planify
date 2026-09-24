@@ -2,6 +2,7 @@ import { parseSeed, type SeedFile } from '../../src/core/seed'
 import { missingRevision, only, refusal, revisionOf } from '../../src/server/http'
 import { applyImport, previewImport } from '../../src/server/importing'
 import type { Env } from '../../src/server/repository'
+import { spaceOf } from '../../src/server/space'
 
 /**
  * Replaces the roadmap's content with a seed file's: `{ revision, roadmap }`,
@@ -14,7 +15,8 @@ import type { Env } from '../../src/server/repository'
  * other write. A file that is not a roadmap answers 400; one from an older
  * revision, 409; one that would bring in an error, 422.
  */
-export const onRequest = only<Env>('POST', async ({ env, request }) => {
+export const onRequest = only<Env>('POST', async ({ env, data, request }) => {
+  const space = spaceOf(env, data)
   let body: unknown
   try {
     body = await request.json()
@@ -37,8 +39,8 @@ export const onRequest = only<Env>('POST', async ({ env, request }) => {
   try {
     return Response.json(
       dryRun === true
-        ? await previewImport(env.DB, revision, seed)
-        : await applyImport(env.DB, revision, seed),
+        ? await previewImport(space, revision, seed)
+        : await applyImport(space, revision, seed),
     )
   } catch (error) {
     const refused = refusal(error)

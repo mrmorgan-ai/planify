@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
+import { FIRST_ROADMAP, type Space } from '../space'
 
 const MIGRATIONS = new URL('../../../migrations/', import.meta.url)
 
@@ -10,9 +11,15 @@ const MIGRATIONS = new URL('../../../migrations/', import.meta.url)
  * schema it runs on in production.
  *
  * A batch is one transaction, as in D1. `sqlite` is exposed so a test can act
- * as another device writing in the middle of a request.
+ * as another device writing in the middle of a request. `space` is the first
+ * roadmap, the one every migration leaves in place; `roadmap` adds another.
  */
-export function sqliteD1(): { db: D1Database; sqlite: DatabaseSync } {
+export function sqliteD1(): {
+  db: D1Database
+  sqlite: DatabaseSync
+  space: Space
+  roadmap: (id: number) => Space
+} {
   const sqlite = new DatabaseSync(':memory:')
   sqlite.exec('PRAGMA foreign_keys = ON')
   for (const file of readdirSync(MIGRATIONS).filter((name) => name.endsWith('.sql')).sort()) {
@@ -42,5 +49,12 @@ export function sqliteD1(): { db: D1Database; sqlite: DatabaseSync } {
       }
     },
   }
-  return { db: db as unknown as D1Database, sqlite }
+  const d1 = db as unknown as D1Database
+  const roadmap = (id: number): Space => {
+    sqlite
+      .prepare("INSERT INTO roadmaps (id, name, created_at) VALUES (?, ?, '2030-01-01T00:00:00Z')")
+      .run(id, `Roadmap ${id}`)
+    return { db: d1, roadmapId: id }
+  }
+  return { db: d1, sqlite, space: { db: d1, roadmapId: FIRST_ROADMAP }, roadmap }
 }

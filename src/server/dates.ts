@@ -1,6 +1,7 @@
 import { applyBaselineDates } from '../core/schedule'
 import type { AppState, CivilDate, Item } from '../core/types'
 import { scheduleOptions } from './repository'
+import type { Space } from './space'
 import { mutateItemsIn, type Target } from './target'
 
 /** A move the plan refuses as asked, before anything runs. */
@@ -17,14 +18,14 @@ export class DatesError extends Error {}
  * — depends on the engine not adjusting what it is given.
  */
 export function moveDates(
-  db: D1Database,
+  space: Space,
   target: Target,
   revision: number,
   id: string,
   start: CivilDate,
   end: CivilDate,
 ): Promise<AppState> {
-  return mutateItemsIn(db, target, revision, datesMoved(id, start, end), {
+  return mutateItemsIn(space, target, revision, datesMoved(id, start, end), {
     summary: (before, after) => movedSummary(before.items, after.items, id, start, end),
   })
 }

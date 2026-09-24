@@ -2,6 +2,7 @@ import { previewOf, type ImportPreview } from '../core/importing'
 import type { AppState, Item, RoadmapContent } from '../core/types'
 import { loadDraftState, mutateDraft } from './drafts'
 import { StaleRevisionError, loadAppState, mutateContent, type WriteOptions } from './repository'
+import type { Space } from './space'
 
 /**
  * Where a change to the plan lands: the live roadmap, or the draft. The writes
@@ -15,33 +16,33 @@ export function targetOf(body: unknown): Target {
   return (body as { draft?: unknown } | null)?.draft === true ? 'draft' : 'live'
 }
 
-export function loadTarget(db: D1Database, target: Target): Promise<AppState> {
-  return target === 'draft' ? loadDraftState(db) : loadAppState(db)
+export function loadTarget(space: Space, target: Target): Promise<AppState> {
+  return target === 'draft' ? loadDraftState(space) : loadAppState(space)
 }
 
 /** `mutateContent` on the target. The draft keeps no version, so reason and summary go unused there. */
 export function mutateTarget(
-  db: D1Database,
+  space: Space,
   target: Target,
   expectedRevision: number | null,
   transform: (state: AppState) => RoadmapContent,
   options: WriteOptions = {},
 ): Promise<AppState> {
   return target === 'draft'
-    ? mutateDraft(db, expectedRevision, transform, options)
-    : mutateContent(db, expectedRevision, transform, options)
+    ? mutateDraft(space, expectedRevision, transform, options)
+    : mutateContent(space, expectedRevision, transform, options)
 }
 
 /** `mutate` on the target: a write that only moves items. */
 export function mutateItemsIn(
-  db: D1Database,
+  space: Space,
   target: Target,
   expectedRevision: number | null,
   transform: (state: AppState) => Item[],
   options: WriteOptions = {},
 ): Promise<AppState> {
   return mutateTarget(
-    db,
+    space,
     target,
     expectedRevision,
     (state) => ({ roadmap: state.roadmap, workItems: state.workItems, items: transform(state) }),
@@ -54,12 +55,12 @@ export function mutateItemsIn(
  * edit or a move. Refused from an old revision, as the write itself would be.
  */
 export async function previewIn(
-  db: D1Database,
+  space: Space,
   target: Target,
   expectedRevision: number,
   transform: (state: AppState) => RoadmapContent,
 ): Promise<ImportPreview> {
-  const state = await loadTarget(db, target)
+  const state = await loadTarget(space, target)
   if (expectedRevision !== state.revision) throw new StaleRevisionError(state)
   return previewOf(state, transform(state))
 }

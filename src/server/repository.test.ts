@@ -29,7 +29,7 @@ function content({ roadmap, workItems, items }: RoadmapContent): RoadmapContent 
 
 async function loaded(roadmap: RoadmapContent = example) {
   const database = sqliteD1()
-  const state = await mutateContent(database.db, 0, () => roadmap)
+  const state = await mutateContent(database.space, 0, () => roadmap)
   return { ...database, state }
 }
 
@@ -59,20 +59,20 @@ function edited(): RoadmapContent {
 
 describe('mutateContent', () => {
   it('writes a whole roadmap into an empty database, and it reads back the same', async () => {
-    const { db, state } = await loaded()
+    const { space, state } = await loaded()
     expect(state.revision).toBe(1)
-    expect(content(await loadAppState(db))).toEqual(content(example))
+    expect(content(await loadAppState(space))).toEqual(content(example))
   })
 
   it('turns one roadmap into another in one batch, foreign keys and all', async () => {
-    const { db } = await loaded()
+    const { space } = await loaded()
     const next = edited()
-    await mutateContent(db, 1, () => next)
-    expect(content(await loadAppState(db))).toEqual(content(next))
+    await mutateContent(space, 1, () => next)
+    expect(content(await loadAppState(space))).toEqual(content(next))
   })
 
   it('writes nothing when nothing differs', () => {
-    expect(contentWrites(example, structuredClone(example))).toEqual([])
+    expect(contentWrites(example, structuredClone(example), 1)).toEqual([])
   })
 
   it('sends the same number of statements for ten items or a thousand', () => {
@@ -84,18 +84,18 @@ describe('mutateContent', () => {
         example.items.map((item) => ({ ...item, id: `${item.id}-${copy}` })),
       ).flat(),
     }
-    const few = contentWrites(empty, example).length
-    expect(contentWrites(empty, many)).toHaveLength(few)
+    const few = contentWrites(empty, example, 1).length
+    expect(contentWrites(empty, many, 1)).toHaveLength(few)
     expect(few).toBeLessThan(10)
   })
 
   it('refuses a change that would break a rule, and writes nothing', async () => {
-    const { db } = await loaded()
+    const { space } = await loaded()
     const intoPause = structuredClone(example)
     intoPause.items.find((item) => item.id === 'build-part-2')!.baselineStartDate = '2030-02-03'
 
-    await expect(mutateContent(db, 1, () => intoPause)).rejects.toBeInstanceOf(InvalidWriteError)
-    const after = await loadAppState(db)
+    await expect(mutateContent(space, 1, () => intoPause)).rejects.toBeInstanceOf(InvalidWriteError)
+    const after = await loadAppState(space)
     expect(after.revision).toBe(1)
     expect(content(after)).toEqual(content(example))
   })
@@ -110,25 +110,25 @@ describe('the revision check', () => {
     )
 
   it('refuses a write made from a revision another write already moved past', async () => {
-    const { db } = await loaded()
-    await mutate(db, 1, finish)
+    const { space } = await loaded()
+    await mutate(space, 1, finish)
 
-    const refused = mutate(db, 1, finish)
+    const refused = mutate(space, 1, finish)
     await expect(refused).rejects.toBeInstanceOf(StaleRevisionError)
     await expect(refused).rejects.toHaveProperty('state.revision', 2)
   })
 
   it('catches a write that lands between the read and the batch, and rolls back', async () => {
-    const { db, sqlite } = await loaded()
+    const { space, sqlite } = await loaded()
 
-    const racing = mutate(db, 1, (state) => {
+    const racing = mutate(space, 1, (state) => {
       // Another device saves while this request is still working.
       sqlite.exec("UPDATE meta SET value = '2' WHERE key = 'revision'")
       return finish(state)
     })
 
     await expect(racing).rejects.toBeInstanceOf(StaleRevisionError)
-    const after = await loadAppState(db)
+    const after = await loadAppState(space)
     expect(after.revision).toBe(2)
     expect(after.items.find((item) => item.id === 'read-the-thing')?.state).toBe('pending')
   })

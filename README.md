@@ -64,12 +64,14 @@ TypeScript with no platform dependencies, tested with fixtures.
 
 ```
 src/core/        types, civil dates, the recalculation engine, hours, work items, dashboard metrics
-src/server/      database rows ↔ domain, and the read/write cycle
+src/server/      database rows ↔ domain, the read/write cycle, and who reaches which roadmap
 src/ui/          the React app
 functions/api/   API routes, one file per endpoint
 migrations/      database schema
 tools/seed/      seed validator, seed → SQL, and database → seed
+tools/roadmaps/  roadmaps and their members
 seed/            roadmap.example.json, the reference shape of a roadmap
+templates/       starter.json, what a new person's roadmap begins as
 ```
 
 `src/core/` is compiled both for the browser and for the Workers runtime, which
@@ -221,6 +223,45 @@ Nothing is written until the preview — the items with their dates, and the
 warnings the result has — is confirmed. It lands as one change, with its own
 version in the history, so going back to before it undoes it and nothing else.
 
+## People and roadmaps
+
+One Planify serves several people, each with a roadmap of their own. Every row
+in the database belongs to a roadmap, and every query names it. Which roadmap a
+request acts on is decided once, in the API's middleware, from who Cloudflare
+Access signed in. Nothing in a request's body or path picks it.
+
+A **member** is a principal with a roadmap: a person's email, or a service
+token's client id. Each principal has one roadmap, and a roadmap can have
+several members. Someone Access lets in who is not a member gets `403`, naming
+who they signed in as.
+
+Until the first member is added, whoever Access lets in reaches roadmap 1. That
+is how the app worked before it had members, so deploying this locks no one
+out. The first member closes that for good: from then on only members reach
+anything, even if every member is later removed. So **add yourself first**, and
+before letting anyone new past Access.
+
+`tools/roadmaps/roadmaps.mjs` manages them, on the local database or the
+remote one:
+
+```bash
+npm run roadmaps -- --remote list
+npm run roadmaps -- --remote add-member 1 you@example.com
+npm run roadmaps -- --remote create "Their roadmap" --member them@example.com
+npm run roadmaps -- --remote add-member 2 <their service token's client id>
+npm run roadmaps -- --remote remove-member them@example.com
+```
+
+`create` fills the new roadmap from `templates/starter.json`: one phase, no
+items, and a small generic skill map, so the first item can be added at once.
+`--template <file>` uses another roadmap file, and `--empty` uses none. The
+person also needs to get past Access: add their email to the Access
+application's policy.
+
+To load a seed file into a roadmap other than the first, `to-sql.mjs` and
+`from-d1.mjs` take `--roadmap N`. `roadmaps.mjs` and `from-d1.mjs` also take
+`--env preview`, to work on the test database instead of the real one.
+
 ## Agents
 
 Claude Code, Codex or any MCP client can plan through
@@ -230,6 +271,15 @@ here: every write that shapes the plan takes `dryRun` to preview it, and
 `draft` to stage it; `/api/issues` lists what the plan breaks. A service token
 signs in like a person: add a **Service Auth** policy for it to the planify
 Access application.
+
+The MCP server acts for whoever called it. It names that person in the
+`X-Planify-On-Behalf-Of` header, and the API answers with their roadmap. Only a
+**delegate** may send that header; from anyone else it is refused. Make the MCP
+server's own service token a delegate:
+
+```bash
+npm run roadmaps -- --remote add-delegate <the MCP server's client id>
+```
 
 ## API
 
@@ -253,7 +303,11 @@ Access application.
 | GET | `/api/versions/:id` | One version as a seed file, naming the revision it was the plan at, for scripts |
 | POST | `/api/versions/:id/restore` | Bring a version back, keeping progress; `dryRun` previews it |
 | GET | `/api/issues` | Every rule the plan breaks; `?draft=1` for the draft's |
-| GET | `/api/health` | Liveness |
+| GET | `/api/health` | Liveness, with the caller's roadmap's item and phase counts |
+
+Every route acts on the caller's roadmap, as the middleware resolved it: see
+**People and roadmaps**. The revision, the history and the draft are each
+roadmap's own.
 
 Every write returns the whole new state, and every write body carries the
 `revision` of the state it was made from. A write made from an older revision is

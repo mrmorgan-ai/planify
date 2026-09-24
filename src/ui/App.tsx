@@ -127,6 +127,9 @@ export function App() {
       {/* Keyed by the world on screen, so no form carries a draft's values into the live roadmap. */}
       <main key={mode}>
         {!state && !error && <p className="empty">Loading the roadmap…</p>}
+        {/* Nothing loaded at all: someone signed in with no roadmap, say. The
+            footer is too small a place for the only thing on the screen. */}
+        {!state && error && <p className="empty">{error}</p>}
         {state && (
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />

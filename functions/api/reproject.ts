@@ -1,5 +1,6 @@
 import { only, refusal, revisionOf } from '../../src/server/http'
 import { mutate, reproject, type Env } from '../../src/server/repository'
+import { spaceOf } from '../../src/server/space'
 
 /**
  * Recomputes every projection from the current baselines. Run after reloading
@@ -10,11 +11,12 @@ import { mutate, reproject, type Env } from '../../src/server/repository'
  * derived from what is stored and cannot overwrite anyone's change, and scripts
  * call it with no body at all.
  */
-export const onRequest = only<Env>('POST', async ({ env, request }) => {
+export const onRequest = only<Env>('POST', async ({ env, data, request }) => {
+  const space = spaceOf(env, data)
   const body: unknown = await request.json().catch(() => null)
 
   try {
-    return Response.json(await mutate(env.DB, revisionOf(body), reproject))
+    return Response.json(await mutate(space, revisionOf(body), reproject))
   } catch (error) {
     const refused = refusal(error)
     if (refused) return refused

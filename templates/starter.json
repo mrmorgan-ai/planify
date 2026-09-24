@@ -1,0 +1,18 @@
+{
+  "timeZone": "UTC",
+  "phases": [{ "number": 1, "name": "Phase 1", "closingMilestoneId": null }],
+  "blackouts": [],
+  "dimensions": ["Foundations", "Tools", "Building", "Communication"],
+  "skills": {
+    "Core concepts": "Foundations",
+    "Reading primary sources": "Foundations",
+    "Tooling": "Tools",
+    "Debugging": "Tools",
+    "Building projects": "Building",
+    "Testing and measuring": "Building",
+    "Writing it up": "Communication",
+    "Explaining decisions": "Communication"
+  },
+  "workItems": [],
+  "items": []
+}

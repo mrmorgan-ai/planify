@@ -3,6 +3,7 @@ import type { AppState } from '../../src/core/types'
 import { missingRevision, only, refusal, revisionOf } from '../../src/server/http'
 import type { Env } from '../../src/server/repository'
 import { mutateTarget, previewIn, targetOf } from '../../src/server/target'
+import { spaceOf } from '../../src/server/space'
 
 /**
  * Changes the roadmap's content: `{ revision, edits }`, where each edit updates
@@ -16,7 +17,8 @@ import { mutateTarget, previewIn, targetOf } from '../../src/server/target'
  * not valid, a delete that would strand what depends on it — answers 400 naming
  * it. One that applies but would break a rule answers 422, like any other write.
  */
-export const onRequest = only<Env>('POST', async ({ env, request }) => {
+export const onRequest = only<Env>('POST', async ({ env, data, request }) => {
+  const space = spaceOf(env, data)
   let body: unknown
   try {
     body = await request.json()
@@ -32,8 +34,8 @@ export const onRequest = only<Env>('POST', async ({ env, request }) => {
     const transform = (state: AppState) => applyEdits(state, edits)
     return Response.json(
       (body as { dryRun?: unknown }).dryRun === true
-        ? await previewIn(env.DB, targetOf(body), revision, transform)
-        : await mutateTarget(env.DB, targetOf(body), revision, transform),
+        ? await previewIn(space, targetOf(body), revision, transform)
+        : await mutateTarget(space, targetOf(body), revision, transform),
     )
   } catch (error) {
     const refused = refusal(error)

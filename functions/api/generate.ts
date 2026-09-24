@@ -3,6 +3,7 @@ import { missingRevision, only, refusal, revisionOf } from '../../src/server/htt
 import { applyGenerate, previewGenerate } from '../../src/server/generating'
 import type { Env } from '../../src/server/repository'
 import { targetOf } from '../../src/server/target'
+import { spaceOf } from '../../src/server/space'
 
 /**
  * Adds a course, a certification, a project or practice blocks, placed in the
@@ -15,7 +16,8 @@ import { targetOf } from '../../src/server/target'
  * that is not a generator, or that finds no room, answers 400; one from an
  * older revision, 409; one that would bring in an error, 422.
  */
-export const onRequest = only<Env>('POST', async ({ env, request }) => {
+export const onRequest = only<Env>('POST', async ({ env, data, request }) => {
+  const space = spaceOf(env, data)
   let body: unknown
   try {
     body = await request.json()
@@ -31,8 +33,8 @@ export const onRequest = only<Env>('POST', async ({ env, request }) => {
     const parsed: GenerateRequest = parseGenerateRequest(generator)
     return Response.json(
       dryRun === true
-        ? await previewGenerate(env.DB, revision, parsed, targetOf(body))
-        : await applyGenerate(env.DB, revision, parsed, targetOf(body)),
+        ? await previewGenerate(space, revision, parsed, targetOf(body))
+        : await applyGenerate(space, revision, parsed, targetOf(body)),
     )
   } catch (error) {
     const refused = refusal(error)
