@@ -1128,15 +1128,18 @@ tr.detail td {
   max-width: none;
 }
 
-/* The gear, at the footer's left end. The negative margins let it be a full
-   button without making the footer taller than its line of text. */
+/* The gear, at the footer's left end, with its name beside it. The negative
+   margins let it be a full button without making the footer taller than its
+   line of text. */
 .settings-link {
   display: flex;
   align-items: center;
   justify-content: center;
   justify-self: start;
-  width: 2rem;
+  gap: 0.4rem;
+  min-width: 2rem;
   height: 2rem;
+  padding: 0 0.6rem 0 0.5rem;
   margin: -0.35rem 0 -0.35rem -0.5rem;
   border: 1px solid transparent;
   border-radius: 6px;
@@ -3043,11 +3046,17 @@ tr.part .name {
 }
 
 @media (pointer: coarse) {
-  /* A finger needs 44px. The footer grows by what the margins cannot absorb. */
+  /* A finger needs 44px. The footer grows by what the margins cannot absorb.
+     The icon is enough there; the name is for a pointer. */
   .settings-link {
     width: 2.75rem;
     height: 2.75rem;
+    padding: 0;
     margin: -0.5rem 0 -0.5rem -0.75rem;
+  }
+
+  .settings-label {
+    display: none;
   }
 
   .card-state {

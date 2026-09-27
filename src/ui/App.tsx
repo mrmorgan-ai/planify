@@ -1,4 +1,13 @@
-import { Link, NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import { useLayoutEffect, useRef, type MouseEvent, type RefObject } from 'react'
+import {
+  Link,
+  NavLink,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom'
 import { activeContext } from '../core/dashboard'
 import { planProgress } from '../core/hours'
 import type { AppState } from '../core/types'
@@ -23,13 +32,55 @@ const VIEWS = [
   { path: '/gantt', label: 'Gantt' },
 ] as const
 
+/** Where the gear was pressed from: the address, and how far `main` had scrolled. */
+type Place = { to: string; scroll: number }
+
 /**
  * Settings is the plan's setup, not a view of it and not part of the account, so
  * the gear leaves the header for the footer's left end, away from the session.
+ *
+ * It opens settings and, pressed again, closes them: back to the view it was
+ * opened from, at the scroll it had. That place is remembered here rather than
+ * read from history, because the settings pages push entries of their own and
+ * a reload or a link straight into settings leaves no history to go back to —
+ * then it falls back to the dashboard. The name shows beside the icon for a
+ * pointer; a finger gets the icon alone (see the stylesheet).
  */
-function SettingsLink() {
+function SettingsLink({ main }: { main: RefObject<HTMLElement | null> }) {
+  const { pathname, search, hash } = useLocation()
+  const navigate = useNavigate()
+  const open = pathname === '/settings' || pathname.startsWith('/settings/')
+  const from = useRef<Place | null>(null)
+  const restore = useRef<number | null>(null)
+
+  // After the view is back on screen: scrolling first would be clamped to the
+  // height of the settings page.
+  useLayoutEffect(() => {
+    if (open || restore.current === null) return
+    main.current?.scrollTo({ top: restore.current })
+    restore.current = null
+  }, [open, main])
+
+  const toggle = (event: MouseEvent) => {
+    // Leave a click that opens a new tab or window to the browser.
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return
+    }
+    if (open) {
+      event.preventDefault()
+      const place = from.current ?? { to: '/dashboard', scroll: 0 }
+      from.current = null
+      restore.current = place.scroll
+      navigate(place.to)
+    } else {
+      from.current = { to: pathname + search + hash, scroll: main.current?.scrollTop ?? 0 }
+      // Settings start at the top; main keeps its scroll across views.
+      main.current?.scrollTo({ top: 0 })
+    }
+  }
+
   return (
-    <NavLink className="settings-link" to="/settings" aria-label="Settings" title="Settings">
+    <NavLink className="settings-link" to="/settings" aria-label="Settings" onClick={toggle}>
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
         <path
           fill="none"
@@ -40,6 +91,7 @@ function SettingsLink() {
           d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"
         />
       </svg>
+      <span className="settings-label">Settings</span>
     </NavLink>
   )
 }
@@ -102,6 +154,7 @@ export function App() {
   const drafting = mode === 'draft'
   // Rescheduling moves the live plan: a draft is replanned by editing it.
   const alert = useLateAlert(drafting ? null : state)
+  const main = useRef<HTMLElement>(null)
 
   return (
     <div className={drafting ? 'app drafting' : 'app'}>
@@ -125,7 +178,7 @@ export function App() {
       <LateBanner alert={alert} />
 
       {/* Keyed by the world on screen, so no form carries a draft's values into the live roadmap. */}
-      <main key={mode}>
+      <main ref={main} key={mode}>
         {!state && !error && <p className="empty">Loading the roadmap…</p>}
         {/* Nothing loaded at all: someone signed in with no roadmap, say. The
             footer is too small a place for the only thing on the screen. */}
@@ -159,7 +212,7 @@ export function App() {
       )}
 
       <footer>
-        <SettingsLink />
+        <SettingsLink main={main} />
         <span className="credit">
           Made with{' '}
           <span className="heart" aria-label="love">
