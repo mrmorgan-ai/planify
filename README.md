@@ -93,6 +93,7 @@ npx wrangler d1 execute planify --local --file build/seed.sql
 Then:
 
 ```bash
+make prepare    # installs dependencies, only if any are missing (start runs it too)
 make start      # builds, migrates, starts the API on :8788 and the app on :5173
 make stop
 ```

@@ -42,10 +42,23 @@ endif
 # top of it leaves the rest running with the port still open.
 TREE_FUNC := tree() { local child; for child in $$(pgrep -P $$1); do tree $$child; done; echo $$1; };
 
-.PHONY: start start-overdue stop
+.PHONY: prepare start start-overdue stop
+
+# prepare: make sure node, npm and every dependency are in place. Installs only
+# when something in package.json is missing from node_modules or at the wrong
+# version, so on an up-to-date checkout it costs a fraction of a second.
+prepare:
+	@command -v node >/dev/null 2>&1 || { echo "node is not installed: get it from https://nodejs.org"; exit 1; }
+	@command -v npm >/dev/null 2>&1 || { echo "npm is not installed: it ships with node, https://nodejs.org"; exit 1; }
+	@if npm ls --depth=0 >/dev/null 2>&1; then \
+		echo "→ dependencies up to date"; \
+	else \
+		echo "→ installing missing dependencies"; \
+		npm install; \
+	fi
 
 # start: build, migrate the local database, and run the API and the web app.
-start:
+start: prepare
 	@mkdir -p $(RUN_DIR)
 	@$(PORT_FUNCS) \
 	for port in $(API_PORT) $(WEB_PORT); do \
@@ -103,7 +116,7 @@ start:
 # first, so there are late items to look at. Works on a running app too: it then
 # only shifts and reprojects. Rewrites the local database's dates; reload the
 # seed with --with-dates to get the originals back.
-start-overdue:
+start-overdue: prepare
 	@mkdir -p $(RUN_DIR)
 	@echo "→ moving the local plan four weeks into the past"
 	@npx wrangler d1 migrations apply planify --local >/dev/null 2>&1
