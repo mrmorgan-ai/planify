@@ -1,15 +1,18 @@
 import { useId, useState, type ReactNode } from 'react'
 import { WORK_TYPES } from '../core/constants'
 import type { Edit } from '../core/edits'
-import type { Phase, PhaseNumber, Story, WorkType } from '../core/types'
-import { Field } from './TaskForm'
+import type { AppState, Feature, Phase, PhaseNumber, Resource, Story, WorkType } from '../core/types'
+import { Field, ResourcesEditor, TaskPicker } from './TaskForm'
 
 type Draft = {
   name: string
   /** Empty for none: the type is an optional label. */
   type: WorkType | ''
   phase: PhaseNumber
+  /** Empty for none. */
+  featureId: string
   link: string
+  resources: Resource[]
   price: string
   notes: string
   doneWhen: string
@@ -20,7 +23,9 @@ export type StoryFormFields = {
   name: string
   type: WorkType | null
   phase: PhaseNumber
+  featureId: string | null
   link: string | null
+  resources: Resource[]
   price: string
   notes: string
   doneWhen: string
@@ -35,6 +40,7 @@ export type StoryFormFields = {
 export function StoryForm({
   story,
   phases,
+  features,
   phase,
   busy,
   error,
@@ -45,6 +51,7 @@ export function StoryForm({
   /** The story being edited, or null for a new one. */
   story: Story | null
   phases: readonly Phase[]
+  features: readonly Feature[]
   /** Where a new story starts. */
   phase: PhaseNumber
   busy: boolean
@@ -57,16 +64,24 @@ export function StoryForm({
     name: story?.name ?? '',
     type: story?.type ?? '',
     phase: story?.phase ?? phase,
+    featureId: story?.featureId ?? '',
     link: story?.link ?? '',
+    resources: story?.resources ?? [],
     price: story?.price ?? '',
     notes: story?.notes ?? '',
     doneWhen: story?.doneWhen ?? '',
   })
   const id = useId()
   const link = draft.link.trim()
+  const resources = draft.resources
+    .map((resource) => ({ label: resource.label.trim(), url: resource.url.trim() }))
+    .filter((resource) => resource.label !== '' || resource.url !== '')
   const problems = [
     ...(draft.name.trim() === '' ? ['It needs a name.'] : []),
     ...(link !== '' && !link.startsWith('https://') ? ['The link must start with https://.'] : []),
+    ...(resources.some((resource) => resource.label === '' || !resource.url.startsWith('https://'))
+      ? ['Each extra link needs a label and an https:// address.']
+      : []),
   ]
 
   return (
@@ -79,7 +94,9 @@ export function StoryForm({
           name: draft.name.trim(),
           type: draft.type === '' ? null : draft.type,
           phase: draft.phase,
+          featureId: draft.featureId === '' ? null : draft.featureId,
           link: link === '' ? null : link,
+          resources,
           price: draft.price.trim(),
           notes: draft.notes.trim(),
           doneWhen: draft.doneWhen.trim(),
@@ -123,6 +140,23 @@ export function StoryForm({
           ))}
         </select>
       </Field>
+      <Field label="Feature" htmlFor={`${id}-feature`}>
+        <select
+          id={`${id}-feature`}
+          value={draft.featureId}
+          disabled={busy}
+          onChange={(event) => setDraft({ ...draft, featureId: event.target.value })}
+        >
+          <option value="">None — it stands on its own</option>
+          {[...features]
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((feature) => (
+              <option key={feature.id} value={feature.id}>
+                {feature.name}
+              </option>
+            ))}
+        </select>
+      </Field>
       <Field label="Link" htmlFor={`${id}-link`}>
         <input
           id={`${id}-link`}
@@ -131,6 +165,13 @@ export function StoryForm({
           placeholder="https://…"
           disabled={busy}
           onChange={(event) => setDraft({ ...draft, link: event.target.value })}
+        />
+      </Field>
+      <Field label="More links">
+        <ResourcesEditor
+          resources={draft.resources}
+          disabled={busy}
+          onChange={(next) => setDraft({ ...draft, resources: next })}
         />
       </Field>
       <Field label="What it is" htmlFor={`${id}-notes`}>
@@ -238,6 +279,103 @@ export function DeleteStory({
           onClick={() => onDelete({ op: 'deleteStory', id: story.id })}
         >
           {busy ? 'Deleting…' : 'Delete story'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The edit that makes a task a step of `story`. A task with no links of its own
+ * shows its story's, so one moving out of a story that carried them takes them
+ * along: the links an older plan's lone item had live on the story it became.
+ */
+function moveEdit(state: AppState, id: string, story: Story): Edit {
+  const task = state.tasks.find((each) => each.id === id)
+  const from = state.stories.find((each) => each.id === task?.storyId)
+  const bare = task !== undefined && task.link === null && task.resources.length === 0
+  const carried = from !== undefined && (from.link !== null || from.resources.length > 0)
+  const same =
+    from !== undefined &&
+    from.link === story.link &&
+    JSON.stringify(from.resources) === JSON.stringify(story.resources)
+  return {
+    op: 'updateTask',
+    id,
+    fields:
+      bare && carried && !same
+        ? { storyId: story.id, link: from.link, resources: from.resources }
+        : { storyId: story.id },
+  }
+}
+
+/**
+ * Brings tasks of other stories in the same phase into this one: the way the
+ * many one-task stories an older plan was converted into are gathered under
+ * the deliverable they belong to. A story left with no tasks is kept, empty, to
+ * be filled again or deleted from its own form.
+ */
+export function MoveTasksHere({
+  state,
+  story,
+  busy,
+  onMove,
+  onCancel,
+}: {
+  state: AppState
+  story: Story
+  busy: boolean
+  onMove: (edits: Edit[]) => void
+  onCancel: () => void
+}) {
+  const [chosen, setChosen] = useState<string[]>([])
+  const storyName = new Map(state.stories.map((each) => [each.id, each.name]))
+  const left = (storyId: string) =>
+    state.tasks.filter((task) => task.storyId === storyId && !chosen.includes(task.id)).length
+  const emptied = [
+    ...new Set(
+      state.tasks.filter((task) => chosen.includes(task.id)).map((task) => task.storyId),
+    ),
+  ].filter((storyId) => left(storyId) === 0)
+
+  return (
+    <div className="move-tasks" role="group" aria-label={`Move tasks into ${story.name}`}>
+      <Field label="Move here">
+        <TaskPicker
+          state={{
+            ...state,
+            roadmap: {
+              ...state.roadmap,
+              phases: state.roadmap.phases.filter((phase) => phase.number === story.phase),
+            },
+          }}
+          values={chosen}
+          offered={(task) => task.storyId !== story.id}
+          placeholder="Add a task from another story in this phase…"
+          label={`Add a task to move into ${story.name}`}
+          disabled={busy}
+          onChange={setChosen}
+        />
+      </Field>
+      {emptied.length > 0 && (
+        <p className="faint">
+          {emptied.map((id) => storyName.get(id) ?? id).join(', ')}{' '}
+          {emptied.length === 1 ? 'is' : 'are'} left with no tasks, and kept empty.
+        </p>
+      )}
+      <div className="form-actions">
+        <button type="button" className="button" disabled={busy} onClick={onCancel}>
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="button primary"
+          disabled={busy || chosen.length === 0}
+          onClick={() => onMove(chosen.map((id) => moveEdit(state, id, story)))}
+        >
+          {busy
+            ? 'Moving…'
+            : `Move ${chosen.length === 0 ? '' : chosen.length + ' '}${chosen.length === 1 ? 'task' : 'tasks'} here`}
         </button>
       </div>
     </div>

@@ -21,13 +21,13 @@ import { PlanIssues } from './PlanIssues'
 import { LateBanner, RescheduleDialog, useLateAlert } from './Reschedule'
 import { Session } from './Session'
 import { Settings } from './Settings'
+import { Features } from './Features'
 import { useAppState } from './useAppState'
-import { Stories } from './Stories'
 
 const VIEWS = [
   { path: '/dashboard', label: 'Dashboard' },
   { path: '/backlog', label: 'Backlog' },
-  { path: '/stories', label: 'Stories' },
+  { path: '/features', label: 'Features' },
   { path: '/kanban', label: 'Kanban' },
   { path: '/gantt', label: 'Gantt' },
 ] as const
@@ -94,6 +94,15 @@ function SettingsLink({ main }: { main: RefObject<HTMLElement | null> }) {
       <span className="settings-label">Settings</span>
     </NavLink>
   )
+}
+
+/**
+ * Stories had a view of their own before the backlog listed them. A link to it —
+ * `/stories?story=…` — still lands on the story, now in the backlog.
+ */
+function StoriesMoved() {
+  const { search } = useLocation()
+  return <Navigate to={`/backlog${search}`} replace />
 }
 
 function Placeholder({ view }: { view: string }) {
@@ -195,7 +204,8 @@ export function App() {
             />
             <Route path="/backlog" element={<Backlog {...store} state={state} />} />
             <Route path="/kanban" element={<Kanban {...store} state={state} />} />
-            <Route path="/stories" element={<Stories {...store} state={state} />} />
+            <Route path="/features" element={<Features {...store} state={state} />} />
+            <Route path="/stories" element={<StoriesMoved />} />
             <Route path="/settings/*" element={<Settings {...store} state={state} />} />
             <Route path="*" element={<Placeholder view="Not found" />} />
           </Routes>

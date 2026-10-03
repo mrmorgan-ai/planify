@@ -3,7 +3,7 @@ import { addDays, firstStudyDayFrom, maxDate } from '../core/dates'
 import { dependentsOf, hasProgress, newId, type Edit } from '../core/edits'
 import type { AppState, CivilDate, Task, PhaseNumber } from '../core/types'
 import { DatePicker } from './DatePicker'
-import { Field, TaskForm, blankDraft, draftOf, editsFor, fieldsOf } from './TaskForm'
+import { Field, TaskForm, blankDraft, draftOf, editsFor, fieldsOf, neededByEdits } from './TaskForm'
 
 const STATE_WORD = { pending: 'pending', in_progress: 'in progress', done: 'done' } as const
 
@@ -18,6 +18,7 @@ const STATE_WORD = { pending: 'pending', in_progress: 'in progress', done: 'done
 export function NewTaskForm({
   state,
   phase,
+  storyId,
   busy,
   error,
   onCreate,
@@ -25,22 +26,25 @@ export function NewTaskForm({
 }: {
   state: AppState
   phase: PhaseNumber
+  /** The story it starts as a step of, when it was asked for from one. */
+  storyId?: string
   busy: boolean
   error: string | null
   onCreate: (edits: Edit[], id: string, phase: PhaseNumber) => void
   onCancel: () => void
 }) {
-  const [start, setStart] = useState(() => nextFreeDay(state, phase))
+  const story = state.stories.find((each) => each.id === storyId)
+  const [start, setStart] = useState(() => nextFreeDay(state, story?.phase ?? phase))
   const [end, setEnd] = useState(start)
   const { roadmap } = state
 
   return (
     <div className="new-task">
-      <h3>New task</h3>
+      <h3>{story ? `New task in ${story.name}` : 'New task'}</h3>
       <TaskForm
         state={state}
         self={null}
-        initial={blankDraft(latestStory(state, phase))}
+        initial={blankDraft(story?.id ?? latestStory(state, phase))}
         busy={busy}
         error={error}
         submitLabel="Create task"
@@ -74,7 +78,7 @@ export function NewTaskForm({
         onSubmit={(draft) => {
           const fields = fieldsOf(draft)
           const id = newId(fields.name, state)
-          const story = state.stories.find((each) => each.id === fields.storyId)
+          const chosen = state.stories.find((each) => each.id === fields.storyId)
           onCreate(
             [
               {
@@ -87,9 +91,10 @@ export function NewTaskForm({
                   dependsOn: draft.dependsOn,
                 },
               },
+              ...neededByEdits(id, state.tasks, draft.neededBy),
             ],
             id,
-            story?.phase ?? phase,
+            chosen?.phase ?? phase,
           )
         }}
       />
@@ -267,7 +272,7 @@ export function EditTaskForm({
     <TaskForm
       state={state}
       self={task.id}
-      initial={draftOf(task)}
+      initial={draftOf(task, state.tasks)}
       busy={busy}
       error={error}
       submitLabel="Save"
@@ -296,7 +301,7 @@ export function EditTaskForm({
       onCancel={onCancel}
       onSubmit={(draft) => {
         const phase = phaseOf(draft.storyId)
-        onSave([...editsFor(task, draft), ...move(phase)], phase)
+        onSave([...editsFor(task, draft, state.tasks), ...move(phase)], phase)
       }}
     />
   )
