@@ -95,7 +95,7 @@ export function TaskDetail({
           <span className="notes">
             <RouterLink
               className="part-link"
-              to={`/stories?story=${encodeURIComponent(part.story.id)}`}
+              to={`/backlog?story=${encodeURIComponent(part.story.id)}`}
               draggable={false}
             >
               {part.story.name}

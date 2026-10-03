@@ -633,8 +633,87 @@ select.state-select.done {
   font-size: 0.8rem;
 }
 
-/* A part shows where it sits in its unit as a counter, the way the Gantt does;
-   the unit's name and link live in the expanded detail. */
+/* The backlog reads as stories, each a line with its tasks under it. A story's
+   line carries the weight; its tasks are indented beneath it, on a guide that
+   ties them to it. */
+tr.story-row > td {
+  background: var(--raised);
+  border-bottom-color: var(--line);
+}
+
+tbody.story-group + tbody.story-group tr.story-row > td {
+  border-top: 6px solid var(--bg);
+}
+
+.story-name {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.story-name:hover,
+.story-name[aria-expanded='true'] {
+  color: var(--accent);
+}
+
+.story-count {
+  margin-left: 0.6rem;
+  white-space: nowrap;
+}
+
+.disclosure:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+tr.in-story td.col-name {
+  padding-left: 1.6rem;
+  box-shadow: inset 1.05rem 0 0 -0.95rem var(--line);
+}
+
+.features-summary {
+  margin: 0;
+}
+
+.feature-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.add-stories,
+.move-tasks {
+  padding-top: 0.4rem;
+}
+
+.add-stories-phase {
+  margin: 0 0 0.6rem;
+  padding: 0.4rem 0.7rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.add-stories-phase legend {
+  padding: 0 0.3rem;
+  color: var(--faint);
+  font-size: 0.82rem;
+}
+
+.add-stories-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+  font-size: 0.92rem;
+}
+
+/* A task shows where it sits in its story as a counter, the way the Gantt does;
+   the story's name and link live in the expanded detail. */
 .part-count {
   flex: 0 0 auto;
   margin: 0 0.35rem 0 0.3rem;
@@ -777,6 +856,9 @@ tr.detail td {
 /* Editing a task: the detail's own label-and-value lines, with inputs. */
 
 .detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   margin-top: 0.7rem;
 }
 
@@ -3292,6 +3374,33 @@ tr.part .name {
     flex: 1 0 100%;
   }
 
+  /* In the features table the name leads each card, ahead of its figures. */
+  table.units .col-name {
+    order: -1;
+  }
+
+  /* A story's tasks sit indented under its card, so the group still reads as one. */
+  table.tasks tr.in-story {
+    margin-left: 0.9rem;
+  }
+
+  tr.in-story td.col-name {
+    padding-left: 0;
+    box-shadow: none;
+  }
+
+  tbody.story-group + tbody.story-group tr.story-row > td {
+    border-top: 0;
+  }
+
+  table.tasks tr.story-row {
+    background: var(--raised);
+  }
+
+  table.tasks tr.story-row > td {
+    background: none;
+  }
+
   .resources {
     flex-direction: row;
     flex-wrap: wrap;
@@ -3299,8 +3408,8 @@ tr.part .name {
   }
 
   /* The detail spans the card: in the backlog its first cell only exists to line
-     up with the state and type columns, which are no longer columns. A work
-     task's detail is a single cell, so it keeps it. */
+     up with the state and type columns, which are no longer columns. A feature's
+     detail is a single cell, so it keeps it. */
   tr.detail {
     margin-top: -0.5rem;
     border-top: 0;

@@ -8,7 +8,7 @@ import type { TaskLabel } from '../core/stories'
 export function PartOf({ part }: { part: TaskLabel }) {
   return (
     <div className="part-of">
-      <RouterLink to={`/stories?story=${encodeURIComponent(part.story.id)}`}>
+      <RouterLink to={`/backlog?story=${encodeURIComponent(part.story.id)}`}>
         Task {part.index} of {part.total} · {part.story.name}
       </RouterLink>
     </div>

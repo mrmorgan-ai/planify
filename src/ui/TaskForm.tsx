@@ -15,9 +15,16 @@ export type Draft = {
   storyId: string
   skills: string[]
   dependsOn: string[]
+  /** The tasks that wait on this one: their dependencies, edited from here. */
+  neededBy: string[]
 }
 
-export function draftOf(task: Task): Draft {
+/** The tasks that list `id` among what they wait on. */
+export function dependentIds(id: string, tasks: readonly Task[]): string[] {
+  return tasks.filter((each) => each.dependsOn.includes(id)).map((each) => each.id)
+}
+
+export function draftOf(task: Task, tasks: readonly Task[]): Draft {
   return {
     name: task.name,
     duration: task.duration,
@@ -28,6 +35,7 @@ export function draftOf(task: Task): Draft {
     storyId: task.storyId,
     skills: task.skills,
     dependsOn: task.dependsOn,
+    neededBy: dependentIds(task.id, tasks),
   }
 }
 
@@ -43,6 +51,7 @@ export function blankDraft(storyId = ''): Draft {
     storyId,
     skills: [],
     dependsOn: [],
+    neededBy: [],
   }
 }
 
@@ -63,10 +72,31 @@ export function fieldsOf(draft: Draft): Required<TaskFields> {
 }
 
 /**
- * The edits that turn a task into the draft: only the fields that changed, and
- * the dependencies only when they did. Nothing changed means no edits at all.
+ * The edits that make exactly `neededBy` wait on `id`: each task that starts
+ * waiting on it gains it, each that stops loses it, and the rest are left alone.
+ * Sent after the task exists, so a new task can be waited on in its own write.
  */
-export function editsFor(task: Task, draft: Draft): Edit[] {
+export function neededByEdits(id: string, tasks: readonly Task[], neededBy: readonly string[]): Edit[] {
+  const wanted = new Set(neededBy)
+  return tasks.flatMap((each): Edit[] => {
+    const waits = each.dependsOn.includes(id)
+    if (wanted.has(each.id) === waits) return []
+    return [
+      {
+        op: 'setDependencies',
+        id: each.id,
+        dependsOn: waits ? each.dependsOn.filter((other) => other !== id) : [...each.dependsOn, id],
+      },
+    ]
+  })
+}
+
+/**
+ * The edits that turn a task into the draft: only the fields that changed, the
+ * dependencies only when they did, and the tasks waiting on it only where that
+ * changed. Nothing changed means no edits at all.
+ */
+export function editsFor(task: Task, draft: Draft, tasks: readonly Task[]): Edit[] {
   const fields = fieldsOf(draft)
   const changed = Object.fromEntries(
     Object.entries(fields).filter(
@@ -79,6 +109,7 @@ export function editsFor(task: Task, draft: Draft): Edit[] {
   if (JSON.stringify(task.dependsOn) !== JSON.stringify(draft.dependsOn)) {
     edits.push({ op: 'setDependencies', id: task.id, dependsOn: draft.dependsOn })
   }
+  edits.push(...neededByEdits(task.id, tasks, draft.neededBy))
   return edits
 }
 
@@ -108,7 +139,7 @@ export function problemsOf(draft: Draft): string[] {
 
 /**
  * A task's fields as a form: what it is, what finishing it means, which story
- * it is a step of, which skills it feeds and what it waits on. The dates are
+ * it is a step of, which skills it feeds, what it waits on and what waits on it. The dates are
  * edited on the row, because they move other tasks too; the phase is the
  * story's, so a task changes phase by changing story.
  */
@@ -145,7 +176,6 @@ export function TaskForm({
     setDraft((current) => ({ ...current, [key]: value }))
 
   const problems = problemsOf(draft)
-  const names = new Map(state.tasks.map((task) => [task.id, task.name]))
   const { roadmap } = state
 
   return (
@@ -210,59 +240,11 @@ export function TaskForm({
       </Field>
 
       <Field label="More links">
-        <div className="form-list">
-          {draft.resources.map((resource, index) => (
-            <div key={index} className="form-pair">
-              <input
-                aria-label={`Label of link ${index + 1}`}
-                value={resource.label}
-                placeholder="Label"
-                disabled={busy}
-                onChange={(event) =>
-                  set(
-                    'resources',
-                    draft.resources.map((each, at) =>
-                      at === index ? { ...each, label: event.target.value } : each,
-                    ),
-                  )
-                }
-              />
-              <input
-                aria-label={`Address of link ${index + 1}`}
-                type="url"
-                value={resource.url}
-                placeholder="https://…"
-                disabled={busy}
-                onChange={(event) =>
-                  set(
-                    'resources',
-                    draft.resources.map((each, at) =>
-                      at === index ? { ...each, url: event.target.value } : each,
-                    ),
-                  )
-                }
-              />
-              <RemoveButton
-                label={`Remove link ${index + 1}`}
-                disabled={busy}
-                onClick={() =>
-                  set(
-                    'resources',
-                    draft.resources.filter((_, at) => at !== index),
-                  )
-                }
-              />
-            </div>
-          ))}
-          <button
-            type="button"
-            className="link-button"
-            disabled={busy}
-            onClick={() => set('resources', [...draft.resources, { label: '', url: '' }])}
-          >
-            + Add a link
-          </button>
-        </div>
+        <ResourcesEditor
+          resources={draft.resources}
+          disabled={busy}
+          onChange={(resources) => set('resources', resources)}
+        />
       </Field>
 
       <Field label="Story" htmlFor={`${id}-story`}>
@@ -298,44 +280,28 @@ export function TaskForm({
       </Field>
 
       <Field label="Depends on">
-        <div className="form-list">
-          <Chips
-            values={draft.dependsOn}
-            labelOf={(dependency) => names.get(dependency) ?? dependency}
-            disabled={busy}
-            onRemove={(dependency) =>
-              set(
-                'dependsOn',
-                draft.dependsOn.filter((each) => each !== dependency),
-              )
-            }
-          />
-          <select
-            aria-label="Add a dependency"
-            value=""
-            disabled={busy}
-            onChange={(event) => set('dependsOn', [...draft.dependsOn, event.target.value])}
-          >
-            <option value="">Add something it waits on…</option>
-            {roadmap.phases.map((phase) => (
-              <optgroup key={phase.number} label={`Phase ${phase.number} · ${phase.name}`}>
-                {state.tasks
-                  .filter(
-                    (task) =>
-                      task.phase === phase.number &&
-                      task.id !== self &&
-                      !draft.dependsOn.includes(task.id),
-                  )
-                  .sort((a, b) => a.sortOrder - b.sortOrder)
-                  .map((task) => (
-                    <option key={task.id} value={task.id}>
-                      {task.name}
-                    </option>
-                  ))}
-              </optgroup>
-            ))}
-          </select>
-        </div>
+        <TaskPicker
+          state={state}
+          values={draft.dependsOn}
+          // Waiting on a task that waits on this one would close a loop.
+          offered={(task) => task.id !== self && !draft.neededBy.includes(task.id)}
+          placeholder="Add something it waits on…"
+          label="Add a dependency"
+          disabled={busy}
+          onChange={(dependsOn) => set('dependsOn', dependsOn)}
+        />
+      </Field>
+
+      <Field label="Needed by">
+        <TaskPicker
+          state={state}
+          values={draft.neededBy}
+          offered={(task) => task.id !== self && !draft.dependsOn.includes(task.id)}
+          placeholder="Add something that waits on it…"
+          label="Add a task that waits on it"
+          disabled={busy}
+          onChange={(neededBy) => set('neededBy', neededBy)}
+        />
       </Field>
 
       {problems.length > 0 && (
@@ -361,6 +327,110 @@ export function TaskForm({
         {danger}
       </div>
     </form>
+  )
+}
+
+/** Extra links, each a label and an address, edited as rows. */
+export function ResourcesEditor({
+  resources,
+  disabled,
+  onChange,
+}: {
+  resources: Resource[]
+  disabled: boolean
+  onChange: (resources: Resource[]) => void
+}) {
+  const change = (index: number, patch: Partial<Resource>) =>
+    onChange(resources.map((each, at) => (at === index ? { ...each, ...patch } : each)))
+  return (
+    <div className="form-list">
+      {resources.map((resource, index) => (
+        <div key={index} className="form-pair">
+          <input
+            aria-label={`Label of link ${index + 1}`}
+            value={resource.label}
+            placeholder="Label"
+            disabled={disabled}
+            onChange={(event) => change(index, { label: event.target.value })}
+          />
+          <input
+            aria-label={`Address of link ${index + 1}`}
+            type="url"
+            value={resource.url}
+            placeholder="https://…"
+            disabled={disabled}
+            onChange={(event) => change(index, { url: event.target.value })}
+          />
+          <RemoveButton
+            label={`Remove link ${index + 1}`}
+            disabled={disabled}
+            onClick={() => onChange(resources.filter((_, at) => at !== index))}
+          />
+        </div>
+      ))}
+      <button
+        type="button"
+        className="link-button"
+        disabled={disabled}
+        onClick={() => onChange([...resources, { label: '', url: '' }])}
+      >
+        + Add a link
+      </button>
+    </div>
+  )
+}
+
+/** Tasks chosen as chips, added from a list grouped by phase in plan order. */
+export function TaskPicker({
+  state,
+  values,
+  offered,
+  placeholder,
+  label,
+  disabled,
+  onChange,
+}: {
+  state: AppState
+  values: string[]
+  /** Whether a task may be added, besides not being chosen already. */
+  offered: (task: Task) => boolean
+  placeholder: string
+  label: string
+  disabled: boolean
+  onChange: (values: string[]) => void
+}) {
+  const names = new Map(state.tasks.map((task) => [task.id, task.name]))
+  return (
+    <div className="form-list">
+      <Chips
+        values={values}
+        labelOf={(id) => names.get(id) ?? id}
+        disabled={disabled}
+        onRemove={(id) => onChange(values.filter((each) => each !== id))}
+      />
+      <select
+        aria-label={label}
+        value=""
+        disabled={disabled}
+        onChange={(event) => onChange([...values, event.target.value])}
+      >
+        <option value="">{placeholder}</option>
+        {state.roadmap.phases.map((phase) => (
+          <optgroup key={phase.number} label={`Phase ${phase.number} · ${phase.name}`}>
+            {state.tasks
+              .filter(
+                (task) => task.phase === phase.number && !values.includes(task.id) && offered(task),
+              )
+              .sort((a, b) => a.sortOrder - b.sortOrder)
+              .map((task) => (
+                <option key={task.id} value={task.id}>
+                  {task.name}
+                </option>
+              ))}
+          </optgroup>
+        ))}
+      </select>
+    </div>
   )
 }
 

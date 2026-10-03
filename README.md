@@ -38,12 +38,12 @@ dates again?".
 | View | What it is for |
 |---|---|
 | Dashboard | Today and what is in progress; hours done against the hours the plan expected by today, overdue tasks, next milestone and pace; a skills radar with its dimensions |
-| Backlog | One phase at a time, one line per task: state, dates you can edit, resources. Moving a task's dates pushes everything that depends on it forward by the same study days. Expanding a row shows duration, description, outcome, its story, skills, price and dependencies |
-| Stories | The roadmap as stories rather than dates — each course, book, project or exam with its tasks, its phase and how far through it you are |
+| Backlog | One phase at a time, as its stories: each a line with its type, how far through its tasks, and its span, unfolding to its tasks. A story opens to show and edit its details, add a task, or move tasks in from other stories. Each task has its state, dates you can edit and resources; moving a task's dates pushes everything that depends on it forward by the same study days, and expanding it shows duration, description, outcome, skills, what it waits on and what waits on it |
+| Features | The goals wider than a phase — a certification, a large project — each with the stories that serve it, its phases, progress and hours |
 | Kanban | The active phase as a board, with the current week's available and scheduled hours, and tasks split into this week and later |
 | Gantt | One phase at a time, by day: the plan under the projection, pauses shaded, dependencies on hover, and the button that reschedules the plan |
 
-The backlog and the board write the same state. The dashboard, the stories
+The backlog and the board write the same state. The dashboard, the features
 and the Gantt only reflect it. Links between views land on the row they point
 at and highlight it.
 
@@ -204,7 +204,7 @@ section is one version, not five. The history keeps the last 50.
 ## Drafts
 
 **Start a draft** in the header to change the plan without changing the live
-roadmap. Every view then shows the draft — the backlog, the stories, the
+roadmap. Every view then shows the draft — the backlog, the features, the
 Gantt, the settings and the warnings — and every edit, date moved or generator
 run lands in it. Progress is always the live roadmap's: ticking a task off or
 logging hours is done there, and the draft shows it as it happens.
