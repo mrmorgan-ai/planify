@@ -19,7 +19,7 @@ const DRAG_TYPE = 'application/x-planify-skill'
  * at a time: choosing a chip opens its name, its axis and its removal. Dragging
  * a chip onto another card moves it there.
  *
- * A skill's new name follows it into every item that uses it; a skill still in
+ * A skill's new name follows it into every task that uses it; a skill still in
  * use cannot be removed, and neither can an axis that still holds skills.
  */
 export function SkillsSettings({ state, saver }: { state: AppState; saver: Saver }) {
@@ -44,10 +44,10 @@ export function SkillsSettings({ state, saver }: { state: AppState; saver: Saver
 
   const uses = useMemo(() => {
     const count = new Map<string, number>()
-    for (const item of state.items)
-      for (const skill of item.skills) count.set(skill, (count.get(skill) ?? 0) + 1)
+    for (const task of state.tasks)
+      for (const skill of task.skills) count.set(skill, (count.get(skill) ?? 0) + 1)
     return count
-  }, [state.items])
+  }, [state.tasks])
   const usedBy = (skill: SkillDraft) =>
     skill.original === null ? 0 : (uses.get(skill.original) ?? 0)
 
@@ -116,7 +116,7 @@ export function SkillsSettings({ state, saver }: { state: AppState; saver: Saver
   return (
     <Section
       title="Skills"
-      intro="The radar's axes, and the skills each item feeds. Choose a skill to rename, move or remove it; renaming a skill renames it in every item."
+      intro="The radar's axes, and the skills each task feeds. Choose a skill to rename, move or remove it; renaming a skill renames it in every task."
       saver={saver}
       dirty={dirty}
       problems={problems}
@@ -214,7 +214,7 @@ export function SkillsSettings({ state, saver }: { state: AppState; saver: Saver
                           type="button"
                           className={classes.filter(Boolean).join(' ')}
                           aria-expanded={skill.key === selected}
-                          title={used === 0 ? 'Not used by any item' : `Used by ${used}`}
+                          title={used === 0 ? 'Not used by any task' : `Used by ${used}`}
                           draggable={!saver.busy}
                           onDragStart={(event) => {
                             event.dataTransfer.setData(DRAG_TYPE, skill.key)
@@ -312,7 +312,7 @@ export function SkillsSettings({ state, saver }: { state: AppState; saver: Saver
 
 /**
  * The one skill being edited: its name, the axis it sits on, and its removal,
- * which waits until no item uses it. The axis list is the way to move a skill
+ * which waits until no task uses it. The axis list is the way to move a skill
  * where dragging is not available, as on a phone.
  */
 function SkillEditor({
@@ -366,7 +366,7 @@ function SkillEditor({
       </label>
       <div className="skill-editor-foot">
         <span className="faint">
-          {used === 0 ? 'Not used by any item' : `Used by ${used} ${used === 1 ? 'item' : 'items'}`}
+          {used === 0 ? 'Not used by any task' : `Used by ${used} ${used === 1 ? 'task' : 'tasks'}`}
           {skill.original !== null && skill.name.trim() !== skill.original && (
             <> · was {skill.original}</>
           )}
@@ -374,7 +374,7 @@ function SkillEditor({
         <button
           type="button"
           className="button"
-          title={used > 0 ? 'Take it off its items first' : 'Remove this skill'}
+          title={used > 0 ? 'Take it off its tasks first' : 'Remove this skill'}
           disabled={busy || used > 0}
           onClick={onRemove}
         >

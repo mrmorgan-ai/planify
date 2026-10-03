@@ -37,7 +37,7 @@ describe('refusal', () => {
       severity: 'error',
       rule: 'blackout-edge',
       message: 'x starts inside a pause',
-      itemId: 'x',
+      taskId: 'x',
     } as const
     const response = refusal(new InvalidWriteError([issue]))
 
@@ -54,6 +54,6 @@ describe('refusal', () => {
   })
 
   it('leaves any other error to the route', () => {
-    expect(refusal(new Error('No item with id x'))).toBeNull()
+    expect(refusal(new Error('No task with id x'))).toBeNull()
   })
 })

@@ -11,16 +11,17 @@ import {
 } from './dates'
 import { EditError, takenIds, unusedId } from './editing'
 import type { Edit } from './edits'
+import type { NewStory } from './structure'
 import { hoursByWeek } from './hours'
-import type { CivilDate, Item, ItemType, PhaseNumber, RoadmapContent } from './types'
+import type { CivilDate, Task, WorkType, PhaseNumber, RoadmapContent } from './types'
 
 // Generators turn a few answers — a course of 20 hours at 5 a week, a project in
-// six tasks — into the items the plan is made of, already placed. What they
+// six tasks — into the tasks the plan is made of, already placed. What they
 // produce is a list of edits like any other, so it lands through the same write,
 // the same validator and the same history as an edit made by hand.
 //
 // Placement fills what the weekly capacity leaves free, week by week, reading the
-// plan's own dates the way the capacity check does. Every new item lives inside
+// plan's own dates the way the capacity check does. Every new task lives inside
 // one week and on study days only, so none of them is too long, starts in a
 // pause or pushes a week over capacity.
 
@@ -28,13 +29,13 @@ export const GENERATOR_KINDS = ['course', 'certification', 'project', 'practice'
 export type GeneratorKind = (typeof GENERATOR_KINDS)[number]
 
 /** What a course generator can make: something read or watched, by the week. */
-export const COURSE_TYPES = ['Course', 'Book', 'Documentation'] as const satisfies ItemType[]
+export const COURSE_TYPES = ['Course', 'Book', 'Documentation'] as const satisfies WorkType[]
 
-/** Where the new items go, and what each of them feeds. */
+/** Where the new tasks go, and what each of them feeds. */
 export type Placement = {
   phase: PhaseNumber
   skills: string[]
-  /** The first of them waits on this item, and starts after it ends. */
+  /** The first of them waits on this task, and starts after it ends. */
   after: string | null
   /** Nothing starts before this day. Empty for today. */
   from: CivilDate | ''
@@ -85,7 +86,7 @@ export type GenerateRequest = Placement &
       }
   )
 
-/** A new item where the generator put it. */
+/** A new task where the generator put it. */
 export type Placed = {
   id: string
   name: string
@@ -113,10 +114,10 @@ const MAX_TASKS = 50
 /**
  * The edits that add what the request describes, placed in the plan.
  *
- * The first item waits on `after`, or, with nothing named, on the previous
+ * The first task waits on `after`, or, with nothing named, on the previous
  * phase's closing milestone, so the phase stays gated. The phase's own
- * milestone is made to wait on the new items when they end before it starts;
- * when they do not, it is left alone and the review shows the warning. New items
+ * milestone is made to wait on the new tasks when they end before it starts;
+ * when they do not, it is left alone and the review shows the warning. New tasks
  * take their place in the backlog's order by date.
  */
 export function generate(
@@ -124,14 +125,14 @@ export function generate(
   today: CivilDate,
   request: GenerateRequest,
 ): Generated {
-  const { roadmap, items } = content
+  const { roadmap, tasks } = content
   const { blackouts } = roadmap
   const phase = roadmap.phases.find((each) => each.number === request.phase)
   if (!phase) throw new EditError(`No phase ${request.phase}`)
 
-  const byId = new Map(items.map((item) => [item.id, item]))
+  const byId = new Map(tasks.map((task) => [task.id, task]))
   const after = request.after === null ? null : byId.get(request.after)
-  if (after === undefined) throw new EditError(`No item with id ${request.after}`)
+  if (after === undefined) throw new EditError(`No task with id ${request.after}`)
   const previous = roadmap.phases.find((each) => each.number === phase.number - 1)
   const gate = previous?.closingMilestoneId ? (byId.get(previous.closingMilestoneId) ?? null) : null
   const waitsOn = after ?? gate
@@ -146,33 +147,19 @@ export function generate(
   const name = request.name
   const taken = takenIds(content)
   const pieces: Piece[] = []
-  const units: Array<{
-    id: string
-    name: string
-    type: ItemType
-    link: string | null
-    notes: string
-  }> = []
-  const unit = (type: ItemType, link: string | null, notes = '') => {
-    const id = unusedId(name, taken)
-    taken.add(id)
-    units.push({ id, name, type, link, notes })
-    return id
-  }
+  /** The story everything generated is a task of: one per request, whatever its size. */
+  let story: Omit<NewStory, 'id' | 'name' | 'phase'>
   const first = waitsOn ? [waitsOn.id] : []
 
   switch (request.kind) {
     case 'course': {
       const parts = weeks.stream(request.hours, request.weeklyHours, from, name)
-      const workItemId = parts.length > 1 ? unit(request.type, request.link) : null
+      story = { type: request.type, link: request.link }
       parts.forEach((part, index) =>
         pieces.push({
           ...part,
-          name: workItemId ? `${name} — part ${index + 1}` : name,
-          type: request.type,
-          workItemId,
+          name: parts.length > 1 ? `${name} — part ${index + 1}` : name,
           chained: true,
-          link: workItemId ? null : request.link,
         }),
       )
       break
@@ -187,13 +174,11 @@ export function generate(
         request.examDate === ''
           ? weeks.fixed(request.examHours, 1, examFrom, name, 'early')
           : weeks.on(request.examDate, request.examHours, examFrom, name)
-      const workItemId = prep.length > 0 ? unit('Certification', request.link) : null
+      story = { type: 'Certification', link: request.link, price: request.price }
       prep.forEach((part, index) =>
         pieces.push({
           ...part,
           name: prep.length > 1 ? `${name} — prep ${index + 1}` : `${name} — prep`,
-          type: 'Exam prep',
-          workItemId,
           chained: true,
           doneWhen: request.prepDoneWhen,
         }),
@@ -201,12 +186,8 @@ export function generate(
       pieces.push({
         ...exam,
         hours: request.examHours,
-        name: workItemId ? `${name} — exam` : name,
-        type: 'Certification',
-        workItemId,
+        name: prep.length > 0 ? `${name} — exam` : name,
         chained: true,
-        link: workItemId ? null : request.link,
-        price: request.price,
       })
       break
     }
@@ -217,18 +198,14 @@ export function generate(
         cursor = studyDayAfter(slot.end, blackouts)
         return { ...slot, hours: task.hours, name: task.name }
       })
-      const workItemId = slots.length > 1 ? unit('Project', request.link, request.doneWhen) : null
+      story = { type: 'Project', link: request.link, doneWhen: request.doneWhen }
       slots.forEach((slot) =>
         pieces.push({
           ...slot,
-          name: workItemId ? slot.name : name,
+          name: slots.length > 1 ? slot.name : name,
           // "Deploy it" is a fine name inside its project and a poor id outside it.
-          idFrom: workItemId ? `${name} ${slot.name}` : name,
-          type: 'Project',
-          workItemId,
+          idFrom: slots.length > 1 ? `${name} ${slot.name}` : name,
           chained: true,
-          link: workItemId ? null : request.link,
-          doneWhen: workItemId ? '' : request.doneWhen,
         }),
       )
       break
@@ -241,14 +218,12 @@ export function generate(
         cursor = firstStudyDayFrom(addDays(startOfWeek(slot.start), 7), blackouts)
         return slot
       })
-      const workItemId = slots.length > 1 ? unit('Practice', null) : null
+      story = { type: 'Practice', link: null }
       slots.forEach((slot, index) =>
         pieces.push({
           ...slot,
           hours: request.hours,
-          name: workItemId ? `${name} — week ${index + 1}` : name,
-          type: 'Practice',
-          workItemId,
+          name: slots.length > 1 ? `${name} — week ${index + 1}` : name,
           chained: false,
           doneWhen: request.doneWhen,
         }),
@@ -257,44 +232,52 @@ export function generate(
     }
   }
 
-  const placed: Placed[] = []
-  const edits: Edit[] = units.map((each) => ({
-    op: 'createWorkItem',
-    workItem: { ...each, resources: [] },
-  }))
-  pieces.forEach((piece, index) => {
+  // Ids the way the migration gives them: a story of several tasks takes the
+  // name, and the only task of a story keeps the name for itself, its story
+  // becoming `<name>-story`.
+  const many = pieces.length > 1
+  const groupId = many ? unusedId(name, taken) : null
+  if (groupId) taken.add(groupId)
+  const ids = pieces.map((piece) => {
     const id = unusedId(piece.idFrom ?? piece.name, taken)
     taken.add(id)
+    return id
+  })
+  const storyId = groupId ?? unusedId(`${name} story`, taken)
+  taken.add(storyId)
+
+  const placed: Placed[] = []
+  const edits: Edit[] = [
+    { op: 'createStory', story: { ...story, id: storyId, name, phase: phase.number } },
+  ]
+  pieces.forEach((piece, index) => {
+    const id = ids[index]!
     const before = placed[index - 1]
     edits.push({
-      op: 'createItem',
-      item: {
+      op: 'createTask',
+      task: {
         id,
         name: piece.name,
-        type: piece.type,
-        phase: phase.number,
+        storyId,
         skills: request.skills,
-        workItemId: piece.workItemId,
         baselineStartDate: piece.start,
         baselineEndDate: piece.end,
         dependsOn: piece.chained && before ? [before.id] : first,
         duration: `~${hoursText(piece.hours)}h`,
-        link: piece.link ?? null,
         doneWhen: piece.doneWhen ?? '',
-        price: piece.price ?? '',
       },
     })
     placed.push({ id, name: piece.name, start: piece.start, end: piece.end, hours: piece.hours })
   })
 
-  edits.push(...inPlanOrder(items, phase.number, placed))
+  edits.push(...inPlanOrder(tasks, phase.number, placed))
   edits.push(...closingOn(phase.closingMilestoneId, byId, pieces, placed))
 
   const last = placed.reduce((latest, piece) => (piece.end > latest ? piece.end : latest), from)
   return {
     edits,
     placed,
-    summary: `Generated ${name}: ${placed.length} ${placed.length === 1 ? 'item' : 'items'}, ${placed[0]!.start} to ${last}`,
+    summary: `Generated ${name}: ${placed.length} ${placed.length === 1 ? 'task' : 'tasks'}, ${placed[0]!.start} to ${last}`,
   }
 }
 
@@ -304,14 +287,10 @@ type Piece = Slot & {
   name: string
   /** What its id is made from, when not its name: a task's, with its project's. */
   idFrom?: string
-  type: ItemType
   hours: number
-  workItemId: string | null
   /** Waits on the piece before it, rather than on what the whole thing waits on. */
   chained: boolean
-  link?: string | null
   doneWhen?: string
-  price?: string
 }
 
 /**
@@ -319,30 +298,30 @@ type Piece = Slot & {
  * it, less the hours the plan already puts there. Placing a piece takes its
  * hours from its week, so the next piece sees what is left after it.
  */
-function freeWeeks({ roadmap, items }: RoadmapContent) {
+function freeWeeks({ roadmap, tasks }: RoadmapContent) {
   const { blackouts } = roadmap
   const capacity = roadmap.weeklyHours.normal
   if (capacity <= 0) {
     throw new EditError(
-      'Set the weekly capacity in the settings first: new items are placed in the hours it leaves free',
+      'Set the weekly capacity in the settings first: new tasks are placed in the hours it leaves free',
     )
   }
   // What a study day holds at full capacity: how long a piece of so many hours takes.
   const perDay = capacity / 7
 
-  // Planned dates, as the capacity check reads them. An item with dates the
+  // Planned dates, as the capacity check reads them. A task with dates the
   // validator already refuses takes no room.
-  const planned = items
+  const planned = tasks
     .filter(
-      (item) =>
-        isCivilDate(item.baselineStartDate) &&
-        isCivilDate(item.baselineEndDate) &&
-        item.baselineStartDate <= item.baselineEndDate,
+      (task) =>
+        isCivilDate(task.baselineStartDate) &&
+        isCivilDate(task.baselineEndDate) &&
+        task.baselineStartDate <= task.baselineEndDate,
     )
-    .map((item) => ({
-      ...item,
-      projectedStartDate: item.baselineStartDate,
-      projectedEndDate: item.baselineEndDate,
+    .map((task) => ({
+      ...task,
+      projectedStartDate: task.baselineStartDate,
+      projectedEndDate: task.baselineEndDate,
     }))
   const used = hoursByWeek(planned, blackouts)
 
@@ -444,32 +423,32 @@ function freeWeeks({ roadmap, items }: RoadmapContent) {
 }
 
 /**
- * Moves each new item before the first item of the phase planned to start after
- * it, so the backlog's order stays the plan's. The new items arrive in date
+ * Moves each new task before the first task of the phase planned to start after
+ * it, so the backlog's order stays the plan's. The new tasks arrive in date
  * order, so each lands after the one before it.
  */
 function inPlanOrder(
-  items: readonly Item[],
+  tasks: readonly Task[],
   phase: PhaseNumber,
   placed: readonly Placed[],
 ): Edit[] {
-  const order = items
-    .filter((item) => item.phase === phase)
+  const order = tasks
+    .filter((task) => task.phase === phase)
     .sort((a, b) => a.sortOrder - b.sortOrder)
   return placed.flatMap((piece): Edit[] => {
-    const next = order.find((item) => item.baselineStartDate > piece.start)
-    return next ? [{ op: 'moveItem', id: piece.id, phase, before: next.id }] : []
+    const next = order.find((task) => task.baselineStartDate > piece.start)
+    return next ? [{ op: 'moveTask', id: piece.id, before: next.id }] : []
   })
 }
 
 /**
- * Makes the phase's closing milestone wait on the last of the new items, when
+ * Makes the phase's closing milestone wait on the last of the new tasks, when
  * they all end before it starts. Later than that, waiting on them would move
  * the milestone, and that is the person's call.
  */
 function closingOn(
   milestoneId: string | null,
-  byId: ReadonlyMap<string, Item>,
+  byId: ReadonlyMap<string, Task>,
   pieces: readonly Piece[],
   placed: readonly Placed[],
 ): Edit[] {
@@ -536,7 +515,7 @@ export function parseGenerateRequest(raw: unknown): GenerateRequest {
   }
   const after = value.after ?? null
   if (after !== null && typeof after !== 'string') {
-    throw new EditError('generator.after must be an item id or null')
+    throw new EditError('generator.after must be a task id or null')
   }
   const placement: Placement = {
     phase: phase as PhaseNumber,

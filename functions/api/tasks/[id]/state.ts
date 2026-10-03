@@ -7,7 +7,7 @@ import { mutate, scheduleOptions, type Env } from '../../../../src/server/reposi
 import { spaceOf } from '../../../../src/server/space'
 
 /**
- * Moves one item to a new state. Nothing here blocks anything: dependencies feed
+ * Moves one task to a new state. Nothing here blocks anything: dependencies feed
  * the date recalculation, they never gate what you are allowed to complete.
  *
  * Returns the whole new world rather than a patch — the client replaces its
@@ -17,7 +17,7 @@ import { spaceOf } from '../../../../src/server/space'
 export const onRequest = only<Env>('PATCH', async ({ env, data, params, request }) => {
   const space = spaceOf(env, data)
   const id = Array.isArray(params.id) ? params.id[0] : params.id
-  if (!id) return Response.json({ error: 'Missing item id' }, { status: 400 })
+  if (!id) return Response.json({ error: 'Missing task id' }, { status: 400 })
 
   let body: unknown
   try {
@@ -38,7 +38,7 @@ export const onRequest = only<Env>('PATCH', async ({ env, data, params, request 
   try {
     const state = await mutate(space, revision, (current) =>
       applyStateChange(
-        current.items,
+        current.tasks,
         id,
         next as State,
         completedAt,
@@ -50,7 +50,7 @@ export const onRequest = only<Env>('PATCH', async ({ env, data, params, request 
     const refused = refusal(error)
     if (refused) return refused
     const message = error instanceof Error ? error.message : 'Unknown error'
-    const status = message.startsWith('No item with id') ? 404 : 500
+    const status = message.startsWith('No task with id') ? 404 : 500
     return Response.json({ error: message }, { status })
   }
 })

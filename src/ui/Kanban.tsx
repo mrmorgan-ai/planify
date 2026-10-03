@@ -10,10 +10,10 @@ import {
 import { STATES } from '../core/constants'
 import { BOARD_COLUMNS, groupByState, isOverdue, unfinishedDependencies } from '../core/selectors'
 import type { Week } from '../core/hours'
-import type { AppState, Item, Phase, Resource, State } from '../core/types'
-import { linksOf, partLabel, type PartLabel } from '../core/workItems'
+import type { AppState, Task, Phase, Resource, State } from '../core/types'
+import { linksOf, taskLabel, type TaskLabel } from '../core/stories'
 import { dateRange } from './format'
-import { ItemDetail } from './ItemDetail'
+import { TaskDetail } from './TaskDetail'
 import { PartOf } from './PartOf'
 import type { Store } from './useAppState'
 
@@ -30,22 +30,22 @@ const COLUMN_LABEL: Record<State, string> = {
  * Scoped to the active phase and nothing else: no phase picker, because the
  * board is for the work in hand and the backlog is where you go to look around.
  * Inside Pending, what this week touches is separated from what comes later —
- * a week holds one to five items in this roadmap, too few to be a column of its
+ * a week holds one to five tasks in this roadmap, too few to be a column of its
  * own, but the scope you actually plan against.
  *
- * The board still never blocks. An item started before its dependencies are
+ * The board still never blocks. A task started before its dependencies are
  * done is marked, not refused.
  */
 export function Kanban({ state, pendingId, changeState, changeHours }: Store & { state: AppState }) {
-  const [dragging, setDragging] = useState<Item | null>(null)
+  const [dragging, setDragging] = useState<Task | null>(null)
   const [over, setOver] = useState<State | null>(null)
   /** One card open at a time: the board stays a board and not a list of essays. */
   const [expanded, setExpanded] = useState<string | null>(null)
   const [collapsed, toggleColumn] = useCollapsed()
 
   const phase = activePhase(state)
-  const items = state.items.filter((item) => phase === null || item.phase === phase.number)
-  const columns = groupByState(items)
+  const tasks = state.tasks.filter((task) => phase === null || task.phase === phase.number)
+  const columns = groupByState(tasks)
 
   const capacity = state.roadmap.weeklyHours
   // Before the plan starts, the current week ends before any of it: showing that
@@ -56,29 +56,29 @@ export function Kanban({ state, pendingId, changeState, changeHours }: Store & {
       : state.today
   const week = weekOf(anchor, capacity)
   const started = anchor === state.today
-  const thisWeek = new Set(inWeek(items, week).map((item) => item.id))
-  const names = new Map(state.items.map((item) => [item.id, item.name]))
+  const thisWeek = new Set(inWeek(tasks, week).map((task) => task.id))
+  const names = new Map(state.tasks.map((task) => [task.id, task.name]))
 
   /**
    * One place builds a card, so the two groups inside Pending and the other two
    * columns cannot drift apart, and the groups do not have to carry every
    * callback down as a prop.
    */
-  const card = (item: Item) => (
+  const card = (task: Task) => (
     <Card
-      key={item.id}
-      item={item}
+      key={task.id}
+      task={task}
       today={state.today}
-      blockers={unfinishedDependencies(item, state.items)}
-      part={partLabel(item, state.workItems, state.items)}
-      links={linksOf(item, state.workItems)}
+      blockers={unfinishedDependencies(task, state.tasks)}
+      part={taskLabel(task, state.stories, state.tasks)}
+      links={linksOf(task, state.stories)}
       names={names}
-      open={expanded === item.id}
-      busy={pendingId === item.id}
-      onToggle={() => setExpanded((current) => (current === item.id ? null : item.id))}
-      onChange={(next) => changeState(item.id, next)}
-      onHours={(hours) => changeHours(item.id, hours)}
-      onDragStart={() => setDragging(item)}
+      open={expanded === task.id}
+      busy={pendingId === task.id}
+      onToggle={() => setExpanded((current) => (current === task.id ? null : task.id))}
+      onChange={(next) => changeState(task.id, next)}
+      onHours={(hours) => changeHours(task.id, hours)}
+      onDragStart={() => setDragging(task)}
       onDragEnd={() => {
         setDragging(null)
         setOver(null)
@@ -96,8 +96,8 @@ export function Kanban({ state, pendingId, changeState, changeHours }: Store & {
     setDragging(null)
     setOver(null)
     const id = event.dataTransfer.getData('text/plain')
-    const item = state.items.find((candidate) => candidate.id === id)
-    if (item && item.state !== column) void changeState(item.id, column)
+    const task = state.tasks.find((candidate) => candidate.id === id)
+    if (task && task.state !== column) void changeState(task.id, column)
   }
 
   return (
@@ -109,7 +109,7 @@ export function Kanban({ state, pendingId, changeState, changeHours }: Store & {
       <WeekPanel
         week={week}
         started={started}
-        scheduled={hoursInWeek(items, week, state.roadmap.blackouts)}
+        scheduled={hoursInWeek(tasks, week, state.roadmap.blackouts)}
       />
 
       <div className="board">
@@ -148,14 +148,14 @@ export function Kanban({ state, pendingId, changeState, changeHours }: Store & {
                 </span>
                 <span className="column-name">{COLUMN_LABEL[column]}</span>
               </button>
-              <Totals items={columns[column].length} hours={sumHours(columns[column])} />
+              <Totals tasks={columns[column].length} hours={sumHours(columns[column])} />
             </header>
 
             {collapsed.has(column) ? null : columns[column].length === 0 ? (
               <p className="column-empty">Nothing here.</p>
             ) : column === 'pending' ? (
               <Split
-                items={columns[column]}
+                tasks={columns[column]}
                 thisWeek={thisWeek}
                 week={week}
                 state={state}
@@ -208,7 +208,7 @@ function useCollapsed(): [ReadonlySet<string>, (section: string) => void] {
  * information, not a reason to hide the label.
  */
 function Split({
-  items,
+  tasks,
   thisWeek,
   week,
   state,
@@ -216,16 +216,16 @@ function Split({
   collapsed,
   onToggle,
 }: {
-  items: Item[]
+  tasks: Task[]
   thisWeek: Set<string>
   week: Week
   state: AppState
-  card: (item: Item) => ReactNode
+  card: (task: Task) => ReactNode
   collapsed: ReadonlySet<string>
   onToggle: (section: string) => void
 }) {
-  const now = items.filter((item) => thisWeek.has(item.id))
-  const later = items.filter((item) => !thisWeek.has(item.id))
+  const now = tasks.filter((task) => thisWeek.has(task.id))
+  const later = tasks.filter((task) => !thisWeek.has(task.id))
 
   return (
     <>
@@ -235,7 +235,7 @@ function Split({
           label: 'This week',
           group: now,
           empty: 'nothing scheduled this week',
-          // The share of each item that actually lands in the week, so this
+          // The share of each task that actually lands in the week, so this
           // total and the one in the header are the same number.
           hours: hoursInWeek(now, week, state.roadmap.blackouts),
         },
@@ -260,7 +260,7 @@ function Split({
               </span>
               <span className="group-name">{label}</span>
             </button>
-            <Totals items={group.length} hours={hours} />
+            <Totals tasks={group.length} hours={hours} />
           </div>
           {collapsed.has(key) ? null : group.length === 0 ? (
             <p className="column-empty">{empty}</p>
@@ -331,11 +331,11 @@ function WeekPanel({
 }
 
 /** Two labelled numbers, inline: the recommended shape for secondary figures. */
-function Totals({ items, hours }: { items: number; hours: number }) {
+function Totals({ tasks, hours }: { tasks: number; hours: number }) {
   return (
     <span className="totals">
       <span className="total">
-        <span className="total-label">Items</span> {items}
+        <span className="total-label">Tasks</span> {tasks}
       </span>
       <span className="total">
         <span className="total-label">Hours</span> {hours.toFixed(1)}h
@@ -345,7 +345,7 @@ function Totals({ items, hours }: { items: number; hours: number }) {
 }
 
 function Card({
-  item,
+  task,
   today,
   blockers,
   part,
@@ -359,10 +359,10 @@ function Card({
   onDragStart,
   onDragEnd,
 }: {
-  item: Item
+  task: Task
   today: string
-  blockers: Item[]
-  part: PartLabel | null
+  blockers: Task[]
+  part: TaskLabel | null
   links: { link: string | null; resources: Resource[] }
   names: Map<string, string>
   open: boolean
@@ -373,17 +373,17 @@ function Card({
   onDragStart: () => void
   onDragEnd: () => void
 }) {
-  const late = isOverdue(item, today)
-  const hours = estimatedHours(item)
-  const done = progressHours(item)
+  const late = isOverdue(task, today)
+  const hours = estimatedHours(task)
+  const done = progressHours(task)
   // Started or finished with dependencies still open. Reported, never refused.
-  const outOfOrder = item.state !== 'pending' && blockers.length > 0
+  const outOfOrder = task.state !== 'pending' && blockers.length > 0
 
   return (
     <article
       className={[
         'card',
-        item.state,
+        task.state,
         busy ? 'busy' : '',
         outOfOrder ? 'out-of-order' : '',
         open ? 'open' : '',
@@ -393,19 +393,19 @@ function Card({
       draggable={!busy}
       onDragStart={(event) => {
         // Firefox only starts a drag when the event carries data.
-        event.dataTransfer.setData('text/plain', item.id)
+        event.dataTransfer.setData('text/plain', task.id)
         event.dataTransfer.effectAllowed = 'move'
         onDragStart()
       }}
       onDragEnd={onDragEnd}
     >
       <div className="card-head">
-        <span className="type-tag">{item.type}</span>
+        {part?.story.type && <span className="type-tag">{part.story.type}</span>}
         <span className="card-hours">
           {hours === null ? 'no estimate' : done > 0 ? `${trim(done)} / ${trim(hours)}h` : `${trim(hours)}h`}
         </span>
         <span className={late ? 'card-date bad' : 'card-date'}>
-          {item.state === 'done' ? 'ended' : 'ends'} {item.projectedEndDate}
+          {task.state === 'done' ? 'ended' : 'ends'} {task.projectedEndDate}
         </span>
       </div>
 
@@ -413,18 +413,18 @@ function Card({
         type="button"
         className="card-name"
         aria-expanded={open}
-        aria-label={`Details of ${item.name}`}
+        aria-label={`Details of ${task.name}`}
         onClick={onToggle}
       >
         <span className="disclosure" aria-hidden="true">
           {open ? '\u25be' : '\u25b8'}
         </span>
-        {item.name}
+        {task.name}
       </button>
 
-      {item.doneWhen && !open && (
+      {task.doneWhen && !open && (
         <div className="card-done-when">
-          <span className="card-done-label">Done when</span> {item.doneWhen}
+          <span className="card-done-label">Done when</span> {task.doneWhen}
         </div>
       )}
       {part && !open && <PartOf part={part} />}
@@ -440,8 +440,8 @@ function Card({
       )}
 
       {open && (
-        <ItemDetail
-          item={item}
+        <TaskDetail
+          task={task}
           part={part}
           links={links}
           names={names}
@@ -450,17 +450,17 @@ function Card({
         />
       )}
 
-      {open && hours !== null && item.state !== 'done' && (
-        <HoursEditor item={item} estimate={hours} done={done} busy={busy} onSave={onHours} />
+      {open && hours !== null && task.state !== 'done' && (
+        <HoursEditor task={task} estimate={hours} done={done} busy={busy} onSave={onHours} />
       )}
 
       {/* Dragging a card needs a mouse. On a touch screen the same move is made
           by picking the state here, so the board works with a finger too. */}
       <select
-        className={`card-state state-select ${item.state}`}
-        value={item.state}
+        className={`card-state state-select ${task.state}`}
+        value={task.state}
         disabled={busy}
-        aria-label={`State of ${item.name}`}
+        aria-label={`State of ${task.name}`}
         onChange={(event) => onChange(event.target.value as State)}
       >
         {STATES.map((candidate) => (
@@ -491,13 +491,13 @@ function Card({
  * has hours you sit, not hours you accumulate.
  */
 function HoursEditor({
-  item,
+  task,
   estimate,
   done,
   busy,
   onSave,
 }: {
-  item: Item
+  task: Task
   estimate: number
   done: number
   busy: boolean
@@ -506,10 +506,10 @@ function HoursEditor({
   const [value, setValue] = useState(String(done))
 
   // A card that moves between columns keeps its component, so the field has to
-  // follow the item it is showing rather than whatever was typed on the last one.
+  // follow the task it is showing rather than whatever was typed on the last one.
   useEffect(() => {
     setValue(String(done))
-  }, [item.id, done])
+  }, [task.id, done])
 
   const parsed = Number(value.replace(',', '.'))
   const invalid = value.trim() === '' || !Number.isFinite(parsed) || parsed < 0
@@ -517,11 +517,11 @@ function HoursEditor({
 
   return (
     <div className="card-progress-edit">
-      <label className="card-progress-label" htmlFor={`hours-${item.id}`}>
+      <label className="card-progress-label" htmlFor={`hours-${task.id}`}>
         Hours done
       </label>
       <input
-        id={`hours-${item.id}`}
+        id={`hours-${task.id}`}
         type="number"
         inputMode="decimal"
         min={0}
@@ -536,8 +536,8 @@ function HoursEditor({
         type="button"
         className="icon-button save"
         disabled={busy || invalid || !changed}
-        title={`Declare the hours done on ${item.name}`}
-        aria-label={`Declare the hours done on ${item.name}`}
+        title={`Declare the hours done on ${task.name}`}
+        aria-label={`Declare the hours done on ${task.name}`}
         onClick={() => onSave(Math.min(parsed, estimate))}
       >
         ✓
@@ -550,7 +550,7 @@ function HoursEditor({
  * Two names and a count, never the whole list: a phase-closing milestone depends
  * on everything before it, and printing all eight turns the card into the note.
  */
-function summarize(blockers: Item[]): string {
+function summarize(blockers: Task[]): string {
   const shown = blockers.slice(0, 2).map((blocker) => blocker.name)
   const rest = blockers.length - shown.length
   return rest === 0 ? shown.join(' · ') : `${shown.join(' · ')} +${rest} more`
@@ -562,7 +562,7 @@ function summarize(blockers: Item[]): string {
  */
 function activePhase(state: AppState): Phase | null {
   const open = state.roadmap.phases.find((phase) =>
-    state.items.some((item) => item.phase === phase.number && item.state !== 'done'),
+    state.tasks.some((task) => task.phase === phase.number && task.state !== 'done'),
   )
   return open ?? state.roadmap.phases[state.roadmap.phases.length - 1] ?? null
 }

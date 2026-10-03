@@ -1,26 +1,26 @@
 import { Link as RouterLink } from 'react-router-dom'
 import { estimatedHours, progressHours } from '../core/hours'
-import type { Item, Resource } from '../core/types'
-import type { PartLabel } from '../core/workItems'
+import type { Task, Resource } from '../core/types'
+import type { TaskLabel } from '../core/stories'
 
 /**
- * Everything about one item that is not its state or its dates: what it is, what
- * finishing it means, the unit it belongs to, and what it waits on. One
+ * Everything about one task that is not its state or its dates: what it is, what
+ * finishing it means, the story it belongs to, and what it waits on. One
  * component and not a copy per view, because the backlog row and the board card
  * answer the same question and two copies of an answer drift.
  */
-export function ItemDetail({
-  item,
+export function TaskDetail({
+  task,
   part,
   links,
   names,
   showResources = false,
   showProgress = true,
 }: {
-  item: Item
-  /** Which work item this item is a part of, when it is one. */
-  part: PartLabel | null
-  /** Its own links, or its work item's when it carries none. */
+  task: Task
+  /** Which story this task is a step of; null only when that story is missing. */
+  part: TaskLabel | null
+  /** Its own links, or its story's when it carries none. */
   links: { link: string | null; resources: Resource[] }
   /** Dependency names, so the list reads as names instead of ids. */
   names: Map<string, string>
@@ -30,15 +30,15 @@ export function ItemDetail({
   showProgress?: boolean
 }) {
   const hasLinks = links.link !== null || links.resources.length > 0
-  const estimate = estimatedHours(item)
-  const done = progressHours(item)
+  const estimate = estimatedHours(task)
+  const done = progressHours(task)
 
   return (
-    <div className="item-detail">
-      {item.duration && (
+    <div className="task-detail">
+      {task.duration && (
         <div className="detail-line">
           <span className="detail-label">Duration</span>
-          <span>{item.duration}</span>
+          <span>{task.duration}</span>
         </div>
       )}
 
@@ -51,17 +51,17 @@ export function ItemDetail({
         </div>
       )}
 
-      {item.notes && (
+      {task.notes && (
         <div className="detail-line">
           <span className="detail-label">What it is</span>
-          <span className="notes">{item.notes}</span>
+          <span className="notes">{task.notes}</span>
         </div>
       )}
 
-      {item.doneWhen && (
+      {task.doneWhen && (
         <div className="detail-line">
           <span className="detail-label">Done when</span>
-          <span className="notes">{item.doneWhen}</span>
+          <span className="notes">{task.doneWhen}</span>
         </div>
       )}
 
@@ -91,28 +91,28 @@ export function ItemDetail({
 
       {part && (
         <div className="detail-line">
-          <span className="detail-label">Part of</span>
+          <span className="detail-label">Story</span>
           <span className="notes">
             <RouterLink
               className="part-link"
-              to={`/work-items?unit=${encodeURIComponent(part.workItem.id)}`}
+              to={`/stories?story=${encodeURIComponent(part.story.id)}`}
               draggable={false}
             >
-              {part.workItem.name}
+              {part.story.name}
             </RouterLink>{' '}
             <span className="faint">
-              · part {part.index} of {part.total}
+              · task {part.index} of {part.total}
             </span>
-            {part.workItem.notes && <div>{part.workItem.notes}</div>}
+            {part.story.notes && <div>{part.story.notes}</div>}
           </span>
         </div>
       )}
 
-      {item.skills.length > 0 && (
+      {task.skills.length > 0 && (
         <div className="detail-line">
           <span className="detail-label">Skills</span>
           <span className="skills">
-            {item.skills.map((skill) => (
+            {task.skills.map((skill) => (
               <span key={skill} className="skill">
                 {skill}
               </span>
@@ -121,19 +121,19 @@ export function ItemDetail({
         </div>
       )}
 
-      {item.price && (
+      {part?.story.price && (
         <div className="detail-line">
           <span className="detail-label">Price</span>
-          <span className="notes">{item.price}</span>
+          <span className="notes">{part.story.price}</span>
         </div>
       )}
 
       <div className="detail-line">
         <span className="detail-label">Depends on</span>
         <span className="depends">
-          {item.dependsOn.length === 0
+          {task.dependsOn.length === 0
             ? 'nothing — it can be started at any time'
-            : item.dependsOn.map((id) => names.get(id) ?? id).join(' · ')}
+            : task.dependsOn.map((id) => names.get(id) ?? id).join(' · ')}
         </span>
       </div>
     </div>

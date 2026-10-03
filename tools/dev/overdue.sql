@@ -1,5 +1,5 @@
 -- Moves the local plan so it starts on the Monday four weeks ago, keeping its
--- shape: every item, completion, pause and the plan's start move by the same
+-- shape: every task, completion, pause and the plan's start move by the same
 -- number of days. Leaves an empty database alone.
 --
 -- Only the plan moves. The projections are left for the engine: a projection
@@ -16,16 +16,16 @@
 INSERT INTO meta (roadmap_id, key, value)
   SELECT 1, 'dev_shift',
          (julianday(date('now', 'weekday 1', '-28 days')) - julianday(MIN(baseline_start))) || ' days'
-  FROM items
+  FROM tasks
   WHERE roadmap_id = 1
   HAVING COUNT(*) > 0;
 
-UPDATE items SET
+UPDATE tasks SET
   baseline_start = date(baseline_start, (SELECT value FROM meta WHERE roadmap_id = 1 AND key = 'dev_shift')),
   baseline_end   = date(baseline_end,   (SELECT value FROM meta WHERE roadmap_id = 1 AND key = 'dev_shift'))
 WHERE roadmap_id = 1 AND EXISTS (SELECT 1 FROM meta WHERE roadmap_id = 1 AND key = 'dev_shift');
 
-UPDATE items SET
+UPDATE tasks SET
   completed_at = strftime('%Y-%m-%dT%H:%M:%SZ', completed_at,
                           (SELECT value FROM meta WHERE roadmap_id = 1 AND key = 'dev_shift'))
 WHERE completed_at IS NOT NULL

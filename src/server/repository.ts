@@ -2,24 +2,26 @@ import { DEFAULT_TIME_ZONE } from '../core/constants'
 import { describeChanges, type VersionReason } from '../core/history'
 import { recomputeProjections } from '../core/schedule'
 import { introducedErrors, type Issue } from '../core/validate'
-import type { AppState, Item, Roadmap, RoadmapContent, ScheduleOptions } from '../core/types'
+import type { AppState, Task, Roadmap, RoadmapContent, ScheduleOptions } from '../core/types'
 import { nowIso, todayIn } from './clock'
 import { contentWrites, planOf } from './diff'
 import { keepVersion } from './history'
 import {
   toBlackout,
-  toItem,
+  toFeature,
+  toTask,
   toMeta,
   toPhase,
   toSkillDimension,
-  toWorkItem,
+  toStory,
   type BlackoutRow,
   type DimensionRow,
-  type ItemRow,
+  type FeatureRow,
+  type TaskRow,
   type MetaRow,
   type PhaseRow,
   type SkillRow,
-  type WorkItemRow,
+  type StoryRow,
 } from './rows'
 import type { Space } from './space'
 
@@ -27,10 +29,10 @@ export type Env = {
   DB: D1Database
 }
 
-const ITEM_COLUMNS = `id, name, type, phase, work_item_id, skills, depends_on,
-  baseline_start, baseline_end, projected_start, projected_end,
-  price, link, resources, duration, notes, done_when, state, completed_at,
-  hours_done, sort_order`
+const TASK_COLUMNS = `t.id, t.name, t.story_id, t.skills, t.depends_on,
+  t.baseline_start, t.baseline_end, t.projected_start, t.projected_end,
+  t.link, t.resources, t.duration, t.notes, t.done_when, t.state, t.completed_at,
+  t.hours_done, t.sort_order`
 
 /**
  * Reads the whole world of one roadmap in one batch. The roadmap is small enough
@@ -39,9 +41,18 @@ const ITEM_COLUMNS = `id, name, type, phase, work_item_id, skills, depends_on,
  */
 export async function loadAppState({ db, roadmapId }: Space): Promise<AppState> {
   const scoped = (sql: string) => db.prepare(sql).bind(roadmapId)
-  const [items, workItems, phases, blackouts, dimensions, skills, meta, draft] = await db.batch([
-    scoped(`SELECT ${ITEM_COLUMNS} FROM items WHERE roadmap_id = ? ORDER BY phase, sort_order`),
-    scoped('SELECT id, name, type, link, resources, notes FROM work_items WHERE roadmap_id = ? ORDER BY id'),
+  const [tasks, stories, features, phases, blackouts, dimensions, skills, meta, draft] = await db.batch([
+    // A task's phase is its story's; a task whose story is missing sorts last.
+    scoped(
+      `SELECT ${TASK_COLUMNS} FROM tasks t
+       LEFT JOIN stories s ON s.roadmap_id = t.roadmap_id AND s.id = t.story_id
+       WHERE t.roadmap_id = ? ORDER BY s.phase, t.sort_order`,
+    ),
+    scoped(
+      `SELECT id, name, type, phase, feature_id, link, resources, price, notes, done_when
+       FROM stories WHERE roadmap_id = ? ORDER BY id`,
+    ),
+    scoped('SELECT id, name, type, link, notes FROM features WHERE roadmap_id = ? ORDER BY id'),
     scoped('SELECT number, name, closing_milestone_id FROM phases WHERE roadmap_id = ? ORDER BY number'),
     scoped('SELECT from_date, to_date, reason FROM blackouts WHERE roadmap_id = ? ORDER BY from_date'),
     scoped('SELECT name FROM dimensions WHERE roadmap_id = ? ORDER BY sort_order'),
@@ -69,14 +80,21 @@ export async function loadAppState({ db, roadmapId }: Space): Promise<AppState> 
     | { started_at: string; updated_at: string }
     | undefined
 
+  const storyList = ((stories?.results ?? []) as StoryRow[]).map(toStory)
+  const phaseOf = new Map(storyList.map((story) => [story.id, story.phase]))
+  const firstPhase = roadmap.phases[0]?.number ?? 1
+
   return {
     today: todayIn(roadmap.timeZone),
     revision: Number(settings.revision ?? '0'),
     seedVersion: settings.seed_version ?? '0',
     draft: drafting ? { startedAt: drafting.started_at, updatedAt: drafting.updated_at } : null,
     roadmap,
-    workItems: ((workItems?.results ?? []) as WorkItemRow[]).map(toWorkItem),
-    items: ((items?.results ?? []) as ItemRow[]).map(toItem),
+    features: ((features?.results ?? []) as FeatureRow[]).map(toFeature),
+    stories: storyList,
+    tasks: ((tasks?.results ?? []) as TaskRow[]).map((row) =>
+      toTask(row, phaseOf.get(row.story_id) ?? firstPhase),
+    ),
   }
 }
 
@@ -160,7 +178,7 @@ export async function mutateContent(
     if (broken.length > 0) throw new InvalidWriteError(broken)
   }
   const kept =
-    planChanged && state.items.length > 0
+    planChanged && state.tasks.length > 0
       ? keepVersion(space, {
           plan,
           revision: state.revision,
@@ -207,22 +225,27 @@ export async function mutateContent(
   return { ...state, ...next, revision }
 }
 
-/** `mutateContent` for the writes that only move items: progress, dates, projections. */
+/** `mutateContent` for the writes that only move tasks: progress, dates, projections. */
 export function mutate(
   space: Space,
   expectedRevision: number | null,
-  transform: (state: AppState) => Item[],
+  transform: (state: AppState) => Task[],
   options?: WriteOptions,
 ): Promise<AppState> {
   return mutateContent(
     space,
     expectedRevision,
-    (state) => ({ roadmap: state.roadmap, workItems: state.workItems, items: transform(state) }),
+    (state) => ({
+      roadmap: state.roadmap,
+      features: state.features,
+      stories: state.stories,
+      tasks: transform(state),
+    }),
     options,
   )
 }
 
 /** Recomputes every projection from the current baselines and completions. */
-export function reproject(state: AppState): Item[] {
-  return recomputeProjections(state.items, scheduleOptions(state.roadmap))
+export function reproject(state: AppState): Task[] {
+  return recomputeProjections(state.tasks, scheduleOptions(state.roadmap))
 }

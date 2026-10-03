@@ -216,7 +216,7 @@ function RoadmapFile({
     <section className="block settings-section">
       <h2>Roadmap file</h2>
       <p className="settings-text">
-        The whole roadmap as one JSON file: items, work items, phases, pauses, capacity and skills.
+        The whole roadmap as one JSON file: tasks, stories, phases, pauses, capacity and skills.
         Progress stays in the app. Edit the file anywhere and import it back — you see what changes
         before anything is saved.
       </p>

@@ -100,20 +100,20 @@ start: prepare
 		tail -n 15 $(RUN_DIR)/web.log | sed 's/^/  /'; \
 		exit 1; \
 	fi
-	@items=$$(curl -s --max-time 5 http://127.0.0.1:$(API_PORT)/api/health | sed -n 's/.*"items":\([0-9]*\).*/\1/p'); \
+	@tasks=$$(curl -s --max-time 5 http://127.0.0.1:$(API_PORT)/api/health | sed -n 's/.*"tasks":\([0-9]*\).*/\1/p'); \
 	echo; \
-	if [ "$$items" = "0" ] || [ -z "$$items" ]; then \
-		echo "the database has no items yet. Load a roadmap with:"; \
+	if [ "$$tasks" = "0" ] || [ -z "$$tasks" ]; then \
+		echo "the database has no tasks yet. Load a roadmap with:"; \
 		echo "  npm run seed:sql && npx wrangler d1 execute planify --local --file build/seed.sql"; \
 	else \
-		echo "$$items items loaded"; \
+		echo "$$tasks tasks loaded"; \
 	fi
 	@echo "app  http://127.0.0.1:$(WEB_PORT)"
 	@echo "api  http://127.0.0.1:$(API_PORT)/api/state"
 	@echo "logs $(RUN_DIR)/api.log · $(RUN_DIR)/web.log"
 
 # start-overdue: start, with the local plan moved four weeks into the past
-# first, so there are late items to look at. Works on a running app too: it then
+# first, so there are late tasks to look at. Works on a running app too: it then
 # only shifts and reprojects. Rewrites the local database's dates; reload the
 # seed with --with-dates to get the originals back.
 start-overdue: prepare

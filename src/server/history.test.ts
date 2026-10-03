@@ -32,7 +32,7 @@ async function loaded() {
   return database
 }
 
-const rename = (id: string, name: string): Edit => ({ op: 'updateItem', id, fields: { name } })
+const rename = (id: string, name: string): Edit => ({ op: 'updateTask', id, fields: { name } })
 
 /** Applies edits from the current revision, as the edits endpoint does. */
 async function edit(space: Space, edits: Edit[], minutes: number): Promise<AppState> {
@@ -66,10 +66,10 @@ describe('keeping versions', () => {
   it('keeps nothing for progress: a tick is not a change of plan', async () => {
     const { space } = await loaded()
     await mutate(space, 1, (state) =>
-      state.items.map((item) =>
-        item.id === 'read-the-thing'
-          ? { ...item, state: 'done' as const, completedAt: '2030-01-09T10:00:00Z', hoursDone: 3 }
-          : item,
+      state.tasks.map((task) =>
+        task.id === 'read-the-thing'
+          ? { ...task, state: 'done' as const, completedAt: '2030-01-09T10:00:00Z', hoursDone: 3 }
+          : task,
       ),
     )
     expect(await listVersions(space)).toEqual([])
@@ -102,7 +102,7 @@ describe('keeping versions', () => {
     const { space } = await loaded()
     await edit(space, [rename('read-the-thing', 'One')], 0)
     const file = toSeedFile(await loadAppState(space))
-    file.items = file.items.filter((item) => item.id !== 'the-optional-thing')
+    file.tasks = file.tasks.filter((task) => task.id !== 'the-optional-thing')
     await applyImport(space, 2, file)
 
     const versions = await listVersions(space)
@@ -124,7 +124,7 @@ describe('keeping versions', () => {
   it('keeps nothing when the change is refused', async () => {
     const { space } = await loaded()
     const intoPause = structuredClone(example)
-    intoPause.items.find((item) => item.id === 'build-part-2')!.baselineStartDate = '2030-02-03'
+    intoPause.tasks.find((task) => task.id === 'build-part-2')!.baselineStartDate = '2030-02-03'
 
     await expect(mutateContent(space, 1, () => intoPause)).rejects.toBeInstanceOf(InvalidWriteError)
     expect(await listVersions(space)).toEqual([])
@@ -143,17 +143,17 @@ describe('keeping versions', () => {
 })
 
 describe('restoring a version', () => {
-  /** The example with one item finished, then another deleted: revision 3. */
+  /** The example with one task finished, then another deleted: revision 3. */
   async function afterADelete() {
     const { space } = await loaded()
     await mutate(space, 1, (state) =>
-      state.items.map((item) =>
-        item.id === 'read-the-thing'
-          ? { ...item, state: 'done' as const, completedAt: '2030-01-09T10:00:00Z', hoursDone: 3 }
-          : item,
+      state.tasks.map((task) =>
+        task.id === 'read-the-thing'
+          ? { ...task, state: 'done' as const, completedAt: '2030-01-09T10:00:00Z', hoursDone: 3 }
+          : task,
       ),
     )
-    await edit(space, [{ op: 'deleteItem', id: 'the-optional-thing' }], 0)
+    await edit(space, [{ op: 'deleteTask', id: 'the-optional-thing' }], 0)
     return space
   }
 
@@ -161,7 +161,7 @@ describe('restoring a version', () => {
     const space = await afterADelete()
     const preview = await previewRestore(space, 3, 1)
 
-    expect(preview.changes.items.added).toEqual(['the-optional-thing'])
+    expect(preview.changes.tasks.added).toEqual(['the-optional-thing'])
     expect(preview.introduced).toEqual([])
     expect((await loadAppState(space)).revision).toBe(3)
   })
@@ -170,8 +170,8 @@ describe('restoring a version', () => {
     const space = await afterADelete()
     const restored = await applyRestore(space, 3, 1)
 
-    expect(restored.items.map((item) => item.id)).toContain('the-optional-thing')
-    expect(restored.items.find((item) => item.id === 'read-the-thing')).toMatchObject({
+    expect(restored.tasks.map((task) => task.id)).toContain('the-optional-thing')
+    expect(restored.tasks.find((task) => task.id === 'read-the-thing')).toMatchObject({
       state: 'done',
       hoursDone: 3,
     })
@@ -183,7 +183,7 @@ describe('restoring a version', () => {
     })
 
     const undone = await applyRestore(space, 4, latest!.id)
-    expect(undone.items.map((item) => item.id)).not.toContain('the-optional-thing')
+    expect(undone.tasks.map((task) => task.id)).not.toContain('the-optional-thing')
   })
 
   it('refuses a restore made from an old copy of the roadmap', async () => {

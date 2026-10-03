@@ -4,14 +4,14 @@ import { mutate, scheduleOptions, type Env } from '../../../../src/server/reposi
 import { spaceOf } from '../../../../src/server/space'
 
 /**
- * Declares the hours already spent on one item. Progress only: the item's state
+ * Declares the hours already spent on one task. Progress only: the task's state
  * is left exactly where it was, and the whole recalculated world comes back, as
  * with every other write.
  */
 export const onRequest = only<Env>('PATCH', async ({ env, data, params, request }) => {
   const space = spaceOf(env, data)
   const id = Array.isArray(params.id) ? params.id[0] : params.id
-  if (!id) return Response.json({ error: 'Missing item id' }, { status: 400 })
+  if (!id) return Response.json({ error: 'Missing task id' }, { status: 400 })
 
   let body: unknown
   try {
@@ -29,14 +29,14 @@ export const onRequest = only<Env>('PATCH', async ({ env, data, params, request 
 
   try {
     const state = await mutate(space, revision, (current) =>
-      applyHoursDone(current.items, id, hours, scheduleOptions(current.roadmap)),
+      applyHoursDone(current.tasks, id, hours, scheduleOptions(current.roadmap)),
     )
     return Response.json(state)
   } catch (error) {
     const refused = refusal(error)
     if (refused) return refused
     const message = error instanceof Error ? error.message : 'Unknown error'
-    const status = message.startsWith('No item with id')
+    const status = message.startsWith('No task with id')
       ? 404
       : message.includes('no hours estimate') || message.startsWith('Hours must be')
         ? 400

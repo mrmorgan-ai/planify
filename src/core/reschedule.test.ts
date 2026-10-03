@@ -1,26 +1,25 @@
 import { describe, expect, it } from 'vitest'
 import { lateness, needsReschedule, reschedulePlan } from './reschedule'
 import { recomputeProjections } from './schedule'
-import type { Blackout, Item, ScheduleOptions } from './types'
+import type { Blackout, Task, ScheduleOptions } from './types'
 
 // A synthetic calendar: the real pauses are roadmap content.
 const BREAK: Blackout[] = [{ from: '2030-02-18', to: '2030-02-24', reason: 'Break' }]
 const OPTIONS: ScheduleOptions = { blackouts: BREAK, timeZone: 'America/New_York' }
 
-function item(id: string, start: string, end: string, overrides: Partial<Item> = {}): Item {
+function task(id: string, start: string, end: string, overrides: Partial<Task> = {}): Task {
   return {
     id,
     name: id,
-    type: 'Course',
     phase: 1,
     skills: [],
-    workItemId: null,
+    // A story of its own, as a task on its own was before every task had one.
+    storyId: `${id}-story`,
     baselineStartDate: start,
     baselineEndDate: end,
     projectedStartDate: start,
     projectedEndDate: end,
     dependsOn: [],
-    price: '',
     link: null,
     resources: [],
     duration: '~6h',
@@ -38,31 +37,31 @@ function item(id: string, start: string, end: string, overrides: Partial<Item> =
  * Three weeks of plan: a finished week, a week that slipped, and one ahead.
  * `loose` depends on nothing, `in-hand` is half done.
  */
-function plan(): Item[] {
+function plan(): Task[] {
   return recomputeProjections(
     [
-      item('done', '2030-02-04', '2030-02-06', {
+      task('done', '2030-02-04', '2030-02-06', {
         state: 'done',
         completedAt: '2030-02-06T18:00:00-05:00',
         sortOrder: 1,
       }),
-      item('in-hand', '2030-02-07', '2030-02-10', {
+      task('in-hand', '2030-02-07', '2030-02-10', {
         state: 'in_progress',
         hoursDone: 3,
         dependsOn: ['done'],
         sortOrder: 2,
       }),
-      item('loose', '2030-02-08', '2030-02-09', { sortOrder: 3 }),
-      item('next', '2030-02-11', '2030-02-13', { dependsOn: ['in-hand'], sortOrder: 4 }),
-      item('later', '2030-02-25', '2030-02-27', { dependsOn: ['next'], sortOrder: 5 }),
+      task('loose', '2030-02-08', '2030-02-09', { sortOrder: 3 }),
+      task('next', '2030-02-11', '2030-02-13', { dependsOn: ['in-hand'], sortOrder: 4 }),
+      task('later', '2030-02-25', '2030-02-27', { dependsOn: ['next'], sortOrder: 5 }),
     ],
     OPTIONS,
   )
 }
 
-function find(items: Item[], id: string): Item {
-  const found = items.find((entry) => entry.id === id)
-  if (!found) throw new Error(`No fixture item ${id}`)
+function find(tasks: Task[], id: string): Task {
+  const found = tasks.find((entry) => entry.id === id)
+  if (!found) throw new Error(`No fixture task ${id}`)
   return found
 }
 
@@ -71,12 +70,12 @@ describe('lateness', () => {
     expect(lateness(plan(), '2030-02-07')).toBeNull()
   })
 
-  it('measures from the oldest late item, ignoring what is done', () => {
+  it('measures from the oldest late task, ignoring what is done', () => {
     const behind = lateness(plan(), '2030-02-17')
 
     expect(behind?.since).toBe('2030-02-09')
     expect(behind?.days).toBe(8)
-    expect(behind?.items.map((entry) => entry.id)).toEqual(['loose', 'in-hand', 'next'])
+    expect(behind?.tasks.map((entry) => entry.id)).toEqual(['loose', 'in-hand', 'next'])
   })
 
   it('recommends rescheduling from a full week behind, not before', () => {
@@ -91,16 +90,16 @@ describe('reschedulePlan', () => {
     const result = reschedulePlan(plan(), '2030-02-14', OPTIONS)
 
     expect(result.restart).toBe('2030-02-11')
-    expect(find(result.items, 'in-hand').projectedStartDate).toBe('2030-02-14')
+    expect(find(result.tasks, 'in-hand').projectedStartDate).toBe('2030-02-14')
     expect(result.shift).toBe(7)
   })
 
-  it('moves by whole weeks whatever day is chosen, so every item keeps its weekday', () => {
+  it('moves by whole weeks whatever day is chosen, so every task keeps its weekday', () => {
     // Monday, Wednesday or Sunday of the same week: the same move.
     for (const day of ['2030-02-11', '2030-02-13', '2030-02-17']) {
       const result = reschedulePlan(plan(), day, OPTIONS)
       expect(result.shift).toBe(7)
-      expect(find(result.items, 'in-hand').projectedStartDate).toBe('2030-02-14')
+      expect(find(result.tasks, 'in-hand').projectedStartDate).toBe('2030-02-14')
     }
   })
 
@@ -109,45 +108,45 @@ describe('reschedulePlan', () => {
     const result = reschedulePlan(plan(), '2030-02-25', OPTIONS)
 
     expect(result.shift).toBe(14)
-    expect(find(result.items, 'loose').projectedStartDate).toBe('2030-03-01')
+    expect(find(result.tasks, 'loose').projectedStartDate).toBe('2030-03-01')
   })
 
-  it('moves every unfinished item by the same study days, linked or not', () => {
+  it('moves every unfinished task by the same study days, linked or not', () => {
     const result = reschedulePlan(plan(), '2030-02-14', OPTIONS)
 
-    expect(find(result.items, 'loose').projectedStartDate).toBe('2030-02-15')
+    expect(find(result.tasks, 'loose').projectedStartDate).toBe('2030-02-15')
     // Seven study days after 02-11 steps over the break (02-18 to 02-24).
-    expect(find(result.items, 'next').projectedStartDate).toBe('2030-02-25')
+    expect(find(result.tasks, 'next').projectedStartDate).toBe('2030-02-25')
     expect(result.moved.sort()).toEqual(['in-hand', 'later', 'loose', 'next'])
   })
 
-  it('keeps each item the same number of study days long', () => {
+  it('keeps each task the same number of study days long', () => {
     const result = reschedulePlan(plan(), '2030-02-14', OPTIONS)
 
-    const next = find(result.items, 'next')
+    const next = find(result.tasks, 'next')
     expect([next.projectedStartDate, next.projectedEndDate]).toEqual(['2030-02-25', '2030-02-27'])
   })
 
   it('writes the new dates as the plan, so nothing reads as slipped afterwards', () => {
     const result = reschedulePlan(plan(), '2030-02-14', OPTIONS)
 
-    for (const entry of result.items.filter((candidate) => candidate.state !== 'done')) {
+    for (const entry of result.tasks.filter((candidate) => candidate.state !== 'done')) {
       expect(entry.baselineStartDate).toBe(entry.projectedStartDate)
       expect(entry.baselineEndDate).toBe(entry.projectedEndDate)
     }
   })
 
-  it('leaves done items where they ended', () => {
+  it('leaves done tasks where they ended', () => {
     const result = reschedulePlan(plan(), '2030-02-14', OPTIONS)
 
-    const done = find(result.items, 'done')
+    const done = find(result.tasks, 'done')
     expect([done.baselineStartDate, done.projectedEndDate]).toEqual(['2030-02-04', '2030-02-06'])
   })
 
-  it('keeps an item in progress in progress, with its declared hours', () => {
+  it('keeps a task in progress in progress, with its declared hours', () => {
     const result = reschedulePlan(plan(), '2030-02-14', OPTIONS)
 
-    const inHand = find(result.items, 'in-hand')
+    const inHand = find(result.tasks, 'in-hand')
     expect([inHand.state, inHand.hoursDone]).toEqual(['in_progress', 3])
   })
 
@@ -156,10 +155,10 @@ describe('reschedulePlan', () => {
 
     expect(result.restart).toBe('2030-02-25')
     // Thursday of the first week after the break, as it was a Thursday before.
-    expect(find(result.items, 'in-hand').projectedStartDate).toBe('2030-02-28')
+    expect(find(result.tasks, 'in-hand').projectedStartDate).toBe('2030-02-28')
   })
 
-  it('moves an item from where it really is when a late finish already pushed it', () => {
+  it('moves a task from where it really is when a late finish already pushed it', () => {
     const pushed = recomputeProjections(
       plan().map((entry) =>
         entry.id === 'done' ? { ...entry, completedAt: '2030-02-09T18:00:00-05:00' } : entry,
@@ -172,8 +171,8 @@ describe('reschedulePlan', () => {
 
     // `loose` (Friday 02-08) is now the earliest unfinished start. Both move a
     // week, keeping their weekdays and their two-day distance.
-    expect(find(result.items, 'loose').projectedStartDate).toBe('2030-02-15')
-    expect(find(result.items, 'in-hand').projectedStartDate).toBe('2030-02-17')
+    expect(find(result.tasks, 'loose').projectedStartDate).toBe('2030-02-15')
+    expect(find(result.tasks, 'in-hand').projectedStartDate).toBe('2030-02-17')
   })
 
   it('moves nothing when the restart is in the week the plan is already in', () => {
@@ -185,7 +184,7 @@ describe('reschedulePlan', () => {
 
     expect(result.shift).toBe(0)
     expect(result.moved).toEqual([])
-    expect(find(result.items, 'in-hand').projectedStartDate).toBe('2030-02-07')
+    expect(find(result.tasks, 'in-hand').projectedStartDate).toBe('2030-02-07')
   })
 
   it('moves nothing when everything is done', () => {

@@ -78,8 +78,8 @@ function IssueList({
         {issues.map((issue, index) => (
           <li key={`${issue.rule}-${index}`} className={issue.severity}>
             <span className="plan-issues-rule">{issue.rule}</span>
-            {issue.itemId ? (
-              <Link to={`/backlog?item=${encodeURIComponent(issue.itemId)}`} onClick={onFollow}>
+            {issue.taskId ? (
+              <Link to={`/backlog?task=${encodeURIComponent(issue.taskId)}`} onClick={onFollow}>
                 {issue.message}
               </Link>
             ) : (

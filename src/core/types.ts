@@ -11,7 +11,13 @@ export type IsoDateTime = string
 
 export type State = 'pending' | 'in_progress' | 'done'
 
-export type ItemType =
+/**
+ * What a story or a feature is — a course, a certification, a project — picked
+ * from a fixed list. A label for reading and grouping, never required: nothing
+ * about the plan depends on it beyond the conventions some rules check when it
+ * is set. Tasks carry none; a task is what its story is.
+ */
+export type WorkType =
   | 'Certification'
   | 'Course'
   | 'Book'
@@ -32,21 +38,28 @@ export type PhaseNumber = 1 | 2 | 3 | 4 | 5 | 6
  */
 export type Dimension = string
 
-/** An extra link an item carries, beyond its own `link`. */
+/** An extra link a task carries, beyond its own `link`. */
 export type Resource = {
   label: string
   url: string
 }
 
-export type Item = {
+/**
+ * One scheduled step, finishable inside a week: what the engine places, the
+ * board moves and progress is recorded on. Every task belongs to a story.
+ */
+export type Task = {
   id: string
   name: string
-  type: ItemType
+  /**
+   * Its story's phase, never its own: filled in from the story whenever a roadmap
+   * is read or changed (see `withStoryPhases`), and not stored with the task.
+   */
   phase: PhaseNumber
   skills: string[]
 
-  /** The unit this item is one part of, or null when it stands on its own. */
-  workItemId: string | null
+  /** The story this task is one step of. */
+  storyId: string
 
   /** The original plan. Never recalculated. */
   baselineStartDate: CivilDate
@@ -59,7 +72,7 @@ export type Item = {
   /** Ids scheduled before this one. A date relationship, never a lock. */
   dependsOn: string[]
 
-  price: string
+  /** Its own links. Empty, it shows its story's (see `linksOf`). */
   link: string | null
   resources: Resource[]
   /**
@@ -67,11 +80,11 @@ export type Item = {
    * `estimatedHours` in hours.ts reads a number out of it when there is one.
    */
   duration: string
-  /** A plain description of what the item is. No durations, no links. */
+  /** A plain description of what the task is. No durations, no links. */
   notes: string
   /**
    * What finishing it produces, stated so it can be checked — "gradients match
-   * autograd within 1e-6". Empty when the item's end is obvious, like a chapter.
+   * autograd within 1e-6". Empty when the task's end is obvious, like a chapter.
    */
   doneWhen: string
 
@@ -89,21 +102,42 @@ export type Item = {
 }
 
 /**
- * A unit of work split into parts: a course cut by week, a book read across
- * phases, a project in numbered tasks. It groups and nothing else — no dates, no
- * state, no dependencies of its own. All of that is read off its parts, so it can
- * never disagree with them, and the engine does not know it exists.
- *
- * An item with no work item is its own unit of one; it is not stored twice.
+ * A deliverable inside one phase, made of tasks: a course's weeks in that phase,
+ * a project's numbered steps, a paper read in one sitting. It has no dates, state
+ * or dependencies of its own — all of that is read off its tasks, so it can never
+ * disagree with them, and the engine does not know it exists. Anything longer
+ * than a phase is a feature, split into a story per phase.
  */
-export type WorkItem = {
+export type Story = {
   id: string
   name: string
-  type: ItemType
-  /** Where the whole unit lives, when its parts share one link. */
+  /** What it is, or null when it is not labelled. */
+  type: WorkType | null
+  /** The phase it and every one of its tasks sit in. */
+  phase: PhaseNumber
+  /** The wider goal it serves, or null when it stands on its own. */
+  featureId: string | null
+  /** Where the whole story lives, when its tasks share one link. */
   link: string | null
   resources: Resource[]
-  /** What the unit is as a whole — for a project, what done means. */
+  price: string
+  /** What the story is as a whole. */
+  notes: string
+  /** What finishing it produces, stated so it can be checked. */
+  doneWhen: string
+}
+
+/**
+ * A goal wider than a phase — a certification, a large project — served by
+ * stories in one or more phases. Like a story, it holds no dates or state: its
+ * span and progress are read off its stories' tasks.
+ */
+export type Feature = {
+  id: string
+  name: string
+  /** What it is, or null when it is not labelled. */
+  type: WorkType | null
+  link: string | null
   notes: string
 }
 
@@ -111,7 +145,7 @@ export type Phase = {
   number: PhaseNumber
   name: string
   /**
-   * The item that closes the phase. Not derivable from `type`: a phase with no
+   * The task that closes the phase. Not derivable from `type`: a phase with no
    * certification closes on a deliverable instead.
    */
   closingMilestoneId: string | null
@@ -153,8 +187,9 @@ export type ScheduleOptions = {
 /** A roadmap on its own: what is validated, imported and exported. */
 export type RoadmapContent = {
   roadmap: Roadmap
-  workItems: WorkItem[]
-  items: Item[]
+  features: Feature[]
+  stories: Story[]
+  tasks: Task[]
 }
 
 /**
@@ -179,6 +214,7 @@ export type AppState = {
    */
   draft: DraftMark | null
   roadmap: Roadmap
-  workItems: WorkItem[]
-  items: Item[]
+  features: Feature[]
+  stories: Story[]
+  tasks: Task[]
 }

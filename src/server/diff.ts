@@ -1,6 +1,6 @@
 import { toSeedFile } from '../core/seed'
 import type { RoadmapContent } from '../core/types'
-import { fromItem, fromWorkItem } from './rows'
+import { fromFeature, fromTask, fromStory } from './rows'
 
 /** One SQL statement and what it binds, before it meets a database. */
 export type Statement = { sql: string; params: Array<string | number | null> }
@@ -16,10 +16,10 @@ export type Statement = { sql: string; params: Array<string | number | null> }
  * query limit, so a statement per row would cap the size of an import or a
  * reschedule.
  *
- * The order follows the foreign keys: a part needs its work item, a phase's
- * closing milestone needs its item, a skill needs its axis. What is written comes
+ * The order follows the foreign keys: a story needs its feature, a task its
+ * story, a phase's closing milestone its task, a skill its axis. What is written comes
  * first, parents before children, and what is removed goes last, children
- * before parents — so a milestone moved to a new item already points at it by
+ * before parents — so a milestone moved to a new task already points at it by
  * the time the old one is deleted.
  *
  * Every statement is bound to `roadmapId`: it writes that roadmap's rows and
@@ -33,8 +33,9 @@ export function contentWrites(
   const writes: Statement[] = []
   const removals: Statement[] = []
 
-  const workItems = diff(before.workItems.map(fromWorkItem), after.workItems.map(fromWorkItem), (row) => row.id)
-  const items = diff(before.items.map(fromItem), after.items.map(fromItem), (row) => row.id)
+  const features = diff(before.features.map(fromFeature), after.features.map(fromFeature), (row) => row.id)
+  const stories = diff(before.stories.map(fromStory), after.stories.map(fromStory), (row) => row.id)
+  const tasks = diff(before.tasks.map(fromTask), after.tasks.map(fromTask), (row) => row.id)
   const phases = diff(
     before.roadmap.phases.map(phaseRow),
     after.roadmap.phases.map(phaseRow),
@@ -50,8 +51,9 @@ export function contentWrites(
   const meta = diff(metaRows(before), metaRows(after), (row) => String(row.key))
 
   const upsert = (table: string, key: string, rows: Row[]) => upsertIn(roadmapId, table, key, rows)
-  if (workItems.written.length > 0) writes.push(upsert('work_items', 'id', workItems.written))
-  if (items.written.length > 0) writes.push(upsert('items', 'id', items.written))
+  if (features.written.length > 0) writes.push(upsert('features', 'id', features.written))
+  if (stories.written.length > 0) writes.push(upsert('stories', 'id', stories.written))
+  if (tasks.written.length > 0) writes.push(upsert('tasks', 'id', tasks.written))
   if (dimensions.written.length > 0) {
     // sort_order is unique and SQLite checks that row by row, so reordering the
     // axes in place would collide halfway. Parking every existing axis on a
@@ -74,8 +76,9 @@ export function contentWrites(
     ['blackouts', 'from_date', blackouts.removed],
     ['skills', 'name', skills.removed],
     ['dimensions', 'name', dimensions.removed],
-    ['items', 'id', items.removed],
-    ['work_items', 'id', workItems.removed],
+    ['tasks', 'id', tasks.removed],
+    ['stories', 'id', stories.removed],
+    ['features', 'id', features.removed],
   ] as const) {
     if (removed.length > 0) removals.push(remove(roadmapId, table, key, removed))
   }
@@ -86,7 +89,7 @@ export function contentWrites(
 /**
  * The plan alone, as the roadmap file has it: what the validator judges and the
  * history keeps. State, hours and projections are left out, so two roadmaps
- * with the same plan give the same text, and ticking an item off changes
+ * with the same plan give the same text, and ticking a task off changes
  * nothing here — it never pays for a full check or keeps a version.
  */
 export function planOf(content: RoadmapContent): string {

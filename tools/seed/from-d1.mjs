@@ -50,6 +50,7 @@ const metaRows = query(`SELECT key, value FROM meta WHERE ${mine}`)
 const meta = Object.fromEntries(metaRows.map((row) => [row.key, row.value]))
 
 const roadmap = {
+  format: 2,
   timeZone: meta.time_zone ?? 'UTC',
   startDate: meta.start_date || undefined,
   weeklyHours: meta.weekly_hours_normal
@@ -76,31 +77,37 @@ const roadmap = {
        ORDER BY d.sort_order, s.name`,
     ).map((row) => [row.name, row.dimension]),
   ),
-  workItems: query(`SELECT id, name, type, link, resources, notes FROM work_items WHERE ${mine} ORDER BY id`).map(
-    (row) => ({
-      id: row.id,
-      name: row.name,
-      type: row.type,
-      link: row.link ?? null,
-      resources: JSON.parse(row.resources === '' ? '[]' : row.resources),
-      notes: row.notes,
-    }),
+  features: query(`SELECT id, name, type, link, notes FROM features WHERE ${mine} ORDER BY id`).map(
+    (row) => ({ id: row.id, name: row.name, type: row.type ?? null, link: row.link ?? null, notes: row.notes }),
   ),
-  items: query(
-    `SELECT id, name, type, phase, work_item_id, skills, depends_on, baseline_start, baseline_end,
-            price, link, resources, duration, notes, done_when, sort_order
-     FROM items WHERE ${mine} ORDER BY phase, sort_order`,
+  stories: query(
+    `SELECT id, name, type, phase, feature_id, link, resources, price, notes, done_when
+     FROM stories WHERE ${mine} ORDER BY id`,
   ).map((row) => ({
     id: row.id,
     name: row.name,
-    type: row.type,
+    type: row.type ?? null,
     phase: row.phase,
-    workItemId: row.work_item_id ?? null,
+    featureId: row.feature_id ?? null,
+    link: row.link ?? null,
+    resources: JSON.parse(row.resources === '' ? '[]' : row.resources),
+    price: row.price,
+    notes: row.notes,
+    doneWhen: row.done_when ?? '',
+  })),
+  tasks: query(
+    `SELECT t.id, t.name, t.story_id, t.skills, t.depends_on, t.baseline_start, t.baseline_end,
+            t.link, t.resources, t.duration, t.notes, t.done_when, t.sort_order
+     FROM tasks t LEFT JOIN stories s ON s.roadmap_id = t.roadmap_id AND s.id = t.story_id
+     WHERE t.${mine} ORDER BY s.phase, t.sort_order`,
+  ).map((row) => ({
+    id: row.id,
+    name: row.name,
+    storyId: row.story_id,
     skills: JSON.parse(row.skills),
     baselineStartDate: row.baseline_start,
     baselineEndDate: row.baseline_end,
     dependsOn: JSON.parse(row.depends_on),
-    price: row.price,
     link: row.link ?? null,
     resources: JSON.parse(row.resources === '' ? '[]' : row.resources),
     duration: row.duration,
@@ -118,7 +125,8 @@ const out = new URL(`../../seed/${name}.json`, import.meta.url)
 writeFileSync(out, `${JSON.stringify(roadmap, null, 2)}\n`)
 
 console.log(
-  `${out.pathname.split('/').slice(-2).join('/')} — ${roadmap.items.length} items, ${roadmap.workItems.length} work items, ` +
+  `${out.pathname.split('/').slice(-2).join('/')} — ${roadmap.tasks.length} tasks, ${roadmap.stories.length} stories, ` +
+    `${roadmap.features.length} features, ` +
     `${roadmap.phases.length} phases, ` +
     `${Object.keys(roadmap.skills).length} skills, from roadmap ${roadmapId} in ${target.slice(2)} D1`,
 )

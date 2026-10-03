@@ -1,22 +1,22 @@
 import { addDays, maxDate, minDate, startOfWeek, studyDaysBetween, toEpochDay } from './dates'
-import type { Blackout, CivilDate, Item, PhaseNumber, WeeklyHours } from './types'
+import type { Blackout, CivilDate, Task, PhaseNumber, WeeklyHours } from './types'
 
-// Hours are read out of the `duration` text an item already carries, rather than
+// Hours are read out of the `duration` text a task already carries, rather than
 // stored as a number. The text is the honest record — "~25h, 7 videos" says more
 // than 25 does — and an estimate that has to be kept in two places drifts.
 
 const DURATION = /(\d+(?:[.,]\d+)?)\s*(?:[-–]\s*(\d+(?:[.,]\d+)?)\s*)?(h|hrs?|hours|min|minutes)\b/i
 
 /**
- * The hours an item's duration text claims, or null when it claims none. A
+ * The hours a task's duration text claims, or null when it claims none. A
  * range is read as its midpoint: "~2.5-3h" is 2.75.
  *
  * Returning null rather than 0 matters — a project task with no estimate is not
  * a task that takes no time, and a caller that wants to say so needs to see the
  * difference.
  */
-export function estimatedHours(item: Item): number | null {
-  const match = DURATION.exec(item.duration)
+export function estimatedHours(task: Task): number | null {
+  const match = DURATION.exec(task.duration)
   if (!match) return null
 
   const low = Number(match[1]!.replace(',', '.'))
@@ -26,33 +26,33 @@ export function estimatedHours(item: Item): number | null {
 }
 
 /**
- * The hours of an item that count as done.
+ * The hours of a task that count as done.
  *
- * A finished item counts its whole estimate, whatever was declared along the
+ * A finished task counts its whole estimate, whatever was declared along the
  * way: finished is finished. An unfinished one counts what was declared, never
  * more than the estimate. With no estimate there is nothing to be part of, so it
  * counts nothing — which is also why the board offers no field to declare on it.
  */
-export function progressHours(item: Item): number {
-  const estimate = estimatedHours(item)
+export function progressHours(task: Task): number {
+  const estimate = estimatedHours(task)
   if (estimate === null) return 0
-  if (item.state === 'done') return estimate
-  return Math.min(Math.max(item.hoursDone, 0), estimate)
+  if (task.state === 'done') return estimate
+  return Math.min(Math.max(task.hoursDone, 0), estimate)
 }
 
 /** Declared or finished hours across a list. */
-export function sumProgressHours(items: readonly Item[]): number {
-  return items.reduce((total, item) => total + progressHours(item), 0)
+export function sumProgressHours(tasks: readonly Task[]): number {
+  return tasks.reduce((total, task) => total + progressHours(task), 0)
 }
 
 /** Hours across a list, ignoring what carries no estimate. */
-export function sumHours(items: readonly Item[]): number {
-  return items.reduce((total, item) => total + (estimatedHours(item) ?? 0), 0)
+export function sumHours(tasks: readonly Task[]): number {
+  return tasks.reduce((total, task) => total + (estimatedHours(task) ?? 0), 0)
 }
 
 /** How many in a list have no estimate at all — what the sum above leaves out. */
-export function withoutEstimate(items: readonly Item[]): number {
-  return items.filter((item) => estimatedHours(item) === null).length
+export function withoutEstimate(tasks: readonly Task[]): number {
+  return tasks.filter((task) => estimatedHours(task) === null).length
 }
 
 export type Week = {
@@ -70,33 +70,33 @@ export function weekOf(date: CivilDate, capacity: WeeklyHours): Week {
   return { from, to: addDays(from, 6), hours: capacity.normal }
 }
 
-/** Items whose projection touches the week at all, not only those starting in it. */
-export function inWeek(items: readonly Item[], week: Week): Item[] {
-  return items.filter(
-    (item) => item.projectedStartDate <= week.to && item.projectedEndDate >= week.from,
+/** Tasks whose projection touches the week at all, not only those starting in it. */
+export function inWeek(tasks: readonly Task[], week: Week): Task[] {
+  return tasks.filter(
+    (task) => task.projectedStartDate <= week.to && task.projectedEndDate >= week.from,
   )
 }
 
 /**
- * The hours of a list that fall inside one week, spread across each item's own
+ * The hours of a list that fall inside one week, spread across each task's own
  * study days.
  *
  * Counting a whole estimate in every week it touches is what makes a weekly
  * figure meaningless: a 25h course spanning four weeks is not 25h of work in
- * each of them. An item with no estimate contributes nothing, same as anywhere
+ * each of them. A task with no estimate contributes nothing, same as anywhere
  * else.
  */
 export function hoursInWeek(
-  items: readonly Item[],
+  tasks: readonly Task[],
   week: Week,
   blackouts: readonly Blackout[],
 ): number {
-  return items.reduce((total, item) => {
-    const share = shareOf(item, blackouts)
+  return tasks.reduce((total, task) => {
+    const share = shareOf(task, blackouts)
     if (share === null) return total
 
-    const from = maxDate(item.projectedStartDate, week.from)
-    const to = minDate(item.projectedEndDate, week.to)
+    const from = maxDate(task.projectedStartDate, week.from)
+    const to = minDate(task.projectedEndDate, week.to)
     if (to < from) return total
 
     return total + share(from, to)
@@ -104,23 +104,23 @@ export function hoursInWeek(
 }
 
 /**
- * `hoursInWeek` for every week the items touch, keyed by Monday.
+ * `hoursInWeek` for every week the tasks touch, keyed by Monday.
  *
- * Each item is read once and visits only its own weeks. Asking `hoursInWeek`
- * week by week reads every item for every week of the plan, which made the
+ * Each task is read once and visits only its own weeks. Asking `hoursInWeek`
+ * week by week reads every task for every week of the plan, which made the
  * capacity check most of what validating a roadmap costs.
  */
 export function hoursByWeek(
-  items: readonly Item[],
+  tasks: readonly Task[],
   blackouts: readonly Blackout[],
 ): Map<CivilDate, number> {
   const weeks = new Map<CivilDate, number>()
-  for (const item of items) {
-    const share = shareOf(item, blackouts)
+  for (const task of tasks) {
+    const share = shareOf(task, blackouts)
     if (share === null) continue
 
-    const start = item.projectedStartDate
-    const end = item.projectedEndDate
+    const start = task.projectedStartDate
+    const end = task.projectedEndDate
     for (let monday = startOfWeek(start); monday <= end; monday = addDays(monday, 7)) {
       const hours = share(maxDate(start, monday), minDate(end, addDays(monday, 6)))
       weeks.set(monday, (weeks.get(monday) ?? 0) + hours)
@@ -130,17 +130,17 @@ export function hoursByWeek(
 }
 
 /**
- * The hours of an item that fall in `[from, to]`, spread evenly over its study
- * days. Null for an item that has no hours to spread.
+ * The hours of a task that fall in `[from, to]`, spread evenly over its study
+ * days. Null for a task that has no hours to spread.
  */
 function shareOf(
-  item: Item,
+  task: Task,
   blackouts: readonly Blackout[],
 ): ((from: CivilDate, to: CivilDate) => number) | null {
-  const hours = estimatedHours(item)
+  const hours = estimatedHours(task)
   if (hours === null) return null
 
-  const span = studyDaysBetween(item.projectedStartDate, item.projectedEndDate, blackouts)
+  const span = studyDaysBetween(task.projectedStartDate, task.projectedEndDate, blackouts)
   if (span === 0) return null
 
   return (from, to) => (hours * studyDaysBetween(from, to, blackouts)) / span
@@ -154,9 +154,9 @@ export function daysLeftInWeek(week: Week, today: CivilDate): number {
 }
 
 export type PlanProgress = {
-  /** Hours done: whole items finished, plus the hours declared on the rest. */
+  /** Hours done: whole tasks finished, plus the hours declared on the rest. */
   done: number
-  /** Hours of the items the plan expected finished before today. */
+  /** Hours of the tasks the plan expected finished before today. */
   expected: number
   total: number
   /** Each phase's share of the total, in phase order — where the plan's stages start and end. */
@@ -166,19 +166,19 @@ export type PlanProgress = {
 /**
  * Progress through the plan in hours, against where the plan says you should be.
  *
- * What is done counts finished items in full and, on the rest, the hours
+ * What is done counts finished tasks in full and, on the rest, the hours
  * declared on them: the work in hand is real work, and a bar that only moved on
  * completion left a week's effort invisible until its last day. The expectation
- * still counts whole items — an item is expected once its planned end is behind
+ * still counts whole tasks — a task is expected once its planned end is behind
  * today, the same line `isOverdue` draws, so the two never disagree.
  */
 export function planProgress(
-  items: readonly Item[],
+  tasks: readonly Task[],
   phases: readonly PhaseNumber[],
   today: CivilDate,
 ): PlanProgress {
   const byPhase = phases.map((phase) => {
-    const inPhase = items.filter((item) => item.phase === phase)
+    const inPhase = tasks.filter((task) => task.phase === phase)
     return {
       phase,
       hours: sumHours(inPhase),
@@ -186,9 +186,9 @@ export function planProgress(
     }
   })
   return {
-    done: sumProgressHours(items),
-    expected: sumHours(items.filter((item) => item.baselineEndDate < today)),
-    total: sumHours(items),
+    done: sumProgressHours(tasks),
+    expected: sumHours(tasks.filter((task) => task.baselineEndDate < today)),
+    total: sumHours(tasks),
     phases: byPhase,
   }
 }

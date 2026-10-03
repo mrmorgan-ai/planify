@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
-import { newItemId } from '../core/edits'
+import { newId } from '../core/edits'
 import { estimatedHours } from '../core/hours'
-import type { AppState, ItemType, State, WorkItem } from '../core/types'
-import { unitHours, unitPhases, unitState, unitsOf, type Unit } from '../core/workItems'
+import type { AppState, WorkType, State, Story } from '../core/types'
+import { storyEntries, storyHours, storyState, type StoryEntry } from '../core/stories'
 import type { Edit } from '../core/edits'
 import type { Store } from './useAppState'
 import { scrollToRow, useArrival } from './useArrival'
-import { DeleteWorkItem, WorkItemForm } from './WorkItemEditing'
+import { DeleteStory, StoryForm } from './StoryEditing'
 
 const STATE_LABEL: Record<State, string> = {
   pending: 'Pending',
@@ -19,8 +19,8 @@ type StateFilter = 'all' | State
 const FILTERS: readonly StateFilter[] = ['all', 'pending', 'in_progress', 'done'] as const
 const FILTER_LABEL: Record<StateFilter, string> = { all: 'All', ...STATE_LABEL }
 
-/** Deliverables first, then what is studied, then the weekly routine. */
-const SECTIONS: ReadonlyArray<{ type: ItemType; label: string }> = [
+/** Deliverables first, then what is studied, then the weekly routine, then the unlabelled. */
+const SECTIONS: ReadonlyArray<{ type: WorkType | null; label: string }> = [
   { type: 'Project', label: 'Projects' },
   { type: 'Certification', label: 'Certifications' },
   { type: 'Course', label: 'Courses' },
@@ -30,19 +30,19 @@ const SECTIONS: ReadonlyArray<{ type: ItemType; label: string }> = [
   { type: 'Case study', label: 'Case studies' },
   { type: 'Exam prep', label: 'Exam prep' },
   { type: 'Practice', label: 'Practice' },
+  { type: null, label: 'Other' },
 ]
 
 /**
- * The roadmap as units of work rather than as a calendar: a course with its
- * weeks, a book with the chapters read across phases, a project with its tasks.
- * No dates on purpose — the question here is "how far through this am I", and
- * the backlog and the Gantt already answer "when".
+ * The roadmap as stories rather than as a calendar: a course with its weeks, a
+ * project with its steps. No dates on purpose — the question here is "how far
+ * through this am I", and the backlog and the Gantt already answer "when".
  *
  * State is changed where it always is, on the backlog or the board, and every
- * part links back to its row there. What is edited here is the work item
- * itself; which items are its parts is chosen in each item's own form.
+ * task links back to its row there. What is edited here is the story itself;
+ * which story a task is a step of is chosen in the task's own form.
  */
-export function WorkItems({
+export function Stories({
   state,
   error,
   pendingId,
@@ -52,8 +52,9 @@ export function WorkItems({
   const [open, setOpen] = useState<Set<string>>(new Set())
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
-  /** The form whose last save was refused: a work item's id, or `new`. */
+  /** The form whose last save was refused: a story's id, or `new`. */
   const [refused, setRefused] = useState<string | null>(null)
+  const { phases } = state.roadmap
 
   const save = async (key: string, edits: Edit[]) => {
     const saved = await edit(edits, key)
@@ -61,42 +62,45 @@ export function WorkItems({
     return saved
   }
 
-  /** The form for one work item, or null when it is not being edited. */
-  const editorFor = (workItem: WorkItem, parts: number): ReactNode =>
-    editing === workItem.id ? (
-      <WorkItemForm
-        key={workItem.id}
-        workItem={workItem}
-        busy={pendingId === workItem.id}
-        error={refused === workItem.id ? error : null}
+  /** The form for one story, or null when it is not being edited. */
+  const editorFor = (story: Story, tasks: number): ReactNode =>
+    editing === story.id ? (
+      <StoryForm
+        key={story.id}
+        story={story}
+        phases={phases}
+        phase={story.phase}
+        busy={pendingId === story.id}
+        error={refused === story.id ? error : null}
         onCancel={() => setEditing(null)}
         onSubmit={async (fields) => {
-          const edits: Edit[] = [{ op: 'updateWorkItem', id: workItem.id, fields }]
-          if (await save(workItem.id, edits)) setEditing(null)
+          const edits: Edit[] = [{ op: 'updateStory', id: story.id, fields }]
+          if (await save(story.id, edits)) setEditing(null)
         }}
         danger={
-          <DeleteWorkItem
-            workItem={workItem}
-            parts={parts}
-            busy={pendingId === workItem.id}
+          <DeleteStory
+            story={story}
+            tasks={tasks}
+            busy={pendingId === story.id}
             onDelete={async (deletion) => {
-              if (await save(workItem.id, [deletion])) setEditing(null)
+              if (await save(story.id, [deletion])) setEditing(null)
             }}
           />
         }
       />
     ) : null
 
-  const units = unitsOf(state.items, state.workItems)
-  const partless = state.workItems.filter(
-    (workItem) => !state.items.some((item) => item.workItemId === workItem.id),
-  )
-  const visible = units.filter((unit) => filter === 'all' || unitState(unit.parts) === filter)
+  const entries = storyEntries(state.tasks, state.stories)
+  const started = entries.filter((entry) => entry.tasks.length > 0)
+  const empty = entries.filter((entry) => entry.tasks.length === 0)
+  const matches = (entry: StoryEntry, candidate: StateFilter) =>
+    candidate === 'all' || storyState(entry.tasks) === candidate
+  const visible = started.filter((entry) => matches(entry, filter))
 
-  /** `?unit=` is how a part hands its work item over: open it, bring it into view, highlight it. */
+  /** `?story=` is how a task hands its story over: open it, bring it into view, highlight it. */
   const { arrived, missing } = useArrival(
-    'unit',
-    (id) => units.some((unit) => unit.id === id),
+    'story',
+    (id) => entries.some((entry) => entry.story.id === id),
     (id) => {
       setFilter('all')
       setOpen((current) => new Set(current).add(id))
@@ -113,8 +117,8 @@ export function WorkItems({
   }
 
   return (
-    <section className="work-items">
-      <h2 className="board-title">Work items</h2>
+    <section className="stories">
+      <h2 className="board-title">Stories</h2>
 
       {missing && (
         <p className="notice" role="status">
@@ -132,11 +136,7 @@ export function WorkItems({
           >
             {FILTER_LABEL[candidate]}
             <span className="count">
-              {
-                units.filter(
-                  (unit) => candidate === 'all' || unitState(unit.parts) === candidate,
-                ).length
-              }
+              {started.filter((entry) => matches(entry, candidate)).length}
             </span>
           </button>
         ))}
@@ -149,48 +149,51 @@ export function WorkItems({
             setCreating(true)
           }}
         >
-          + New work item
+          + New story
         </button>
       </div>
 
       {creating && (
-        <div className="new-item">
-          <h3>New work item</h3>
-          <WorkItemForm
-            workItem={null}
+        <div className="new-task">
+          <h3>New story</h3>
+          <StoryForm
+            story={null}
+            phases={phases}
+            phase={phases[0]?.number ?? 1}
             busy={pendingId === 'new'}
             error={refused === 'new' ? error : null}
             onCancel={() => setCreating(false)}
             onSubmit={async (fields) => {
-              const id = newItemId(fields.name, state)
-              const edits: Edit[] = [{ op: 'createWorkItem', workItem: { ...fields, id } }]
+              const id = newId(fields.name, state)
+              const edits: Edit[] = [{ op: 'createStory', story: { ...fields, id } }]
               if (await save('new', edits)) setCreating(false)
             }}
           />
         </div>
       )}
 
-      {partless.length > 0 && (
+      {empty.length > 0 && (
         <div className="unit-section">
           <h3 className="unit-section-title">
-            No parts yet <span className="count">{partless.length}</span>
+            No tasks yet <span className="count">{empty.length}</span>
           </h3>
           <p className="settings-text">
-            An item joins a work item from its own form in the backlog, under “Part of”.
+            A task joins a story from its own form in the backlog, under “Story”.
           </p>
           <ul className="settings-rows partless">
-            {partless.map((workItem) => (
-              <li key={workItem.id}>
-                {editorFor(workItem, 0) ?? (
+            {empty.map(({ story }) => (
+              <li key={story.id}>
+                {editorFor(story, 0) ?? (
                   <div className="partless-line">
-                    <span className="name">{workItem.name}</span>
-                    <span className="type-tag">{workItem.type}</span>
+                    <span className="name">{story.name}</span>
+                    {story.type && <span className="type-tag">{story.type}</span>}
+                    <span className="faint">Phase {story.phase}</span>
                     <button
                       type="button"
                       className="button push-end"
                       onClick={() => {
                         setRefused(null)
-                        setEditing(workItem.id)
+                        setEditing(story.id)
                       }}
                     >
                       Edit
@@ -206,43 +209,36 @@ export function WorkItems({
       {visible.length === 0 && <p className="empty">Nothing matches this filter.</p>}
 
       {SECTIONS.map(({ type, label }) => {
-        const inSection = visible.filter((unit) => unit.type === type)
+        const inSection = visible.filter((entry) => entry.story.type === type)
         if (inSection.length === 0) return null
         return (
           <div key={type} className="unit-section">
             <h3 className="unit-section-title">
               {label} <span className="count">{inSection.length}</span>
             </h3>
-            <table className="items units">
+            <table className="tasks units">
               <thead>
                 <tr>
-                  <th className="col-name">Work item</th>
-                  <th className="col-phases">Phases</th>
+                  <th className="col-name">Story</th>
+                  <th className="col-phases">Phase</th>
                   <th className="col-progress">Progress</th>
                   <th className="col-hours">Hours</th>
                   <th className="col-unit-state">State</th>
                 </tr>
               </thead>
               <tbody>
-                {inSection.map((unit) => (
-                  <UnitRows
-                    key={unit.id}
-                    unit={unit}
-                    open={open.has(unit.id)}
-                    arrived={arrived === unit.id}
-                    editor={
-                      unit.standalone
-                        ? null
-                        : editorFor(
-                            state.workItems.find((each) => each.id === unit.id)!,
-                            unit.parts.length,
-                          )
-                    }
+                {inSection.map((entry) => (
+                  <StoryRows
+                    key={entry.story.id}
+                    entry={entry}
+                    open={open.has(entry.story.id)}
+                    arrived={arrived === entry.story.id}
+                    editor={editorFor(entry.story, entry.tasks.length)}
                     onEdit={() => {
                       setRefused(null)
-                      setEditing(unit.id)
+                      setEditing(entry.story.id)
                     }}
-                    onToggle={() => toggle(unit.id)}
+                    onToggle={() => toggle(entry.story.id)}
                   />
                 ))}
               </tbody>
@@ -254,18 +250,18 @@ export function WorkItems({
   )
 }
 
-function UnitRows({
-  unit,
+function StoryRows({
+  entry,
   open,
   arrived,
   editor,
   onEdit,
   onToggle,
 }: {
-  unit: Unit
+  entry: StoryEntry
   open: boolean
   arrived: boolean
-  /** The work item's form, while it is being edited. */
+  /** The story's form, while it is being edited. */
   editor: ReactNode
   onEdit: () => void
   onToggle: () => void
@@ -275,10 +271,10 @@ function UnitRows({
     if (arrived) scrollToRow(row.current)
   }, [arrived])
 
-  const current = unitState(unit.parts)
-  const hours = unitHours(unit.parts)
-  const done = unit.parts.filter((part) => part.state === 'done').length
-  const only = unit.parts[0]
+  const { story, tasks } = entry
+  const current = storyState(tasks)
+  const hours = storyHours(tasks)
+  const done = tasks.filter((task) => task.state === 'done').length
 
   return (
     <>
@@ -292,44 +288,32 @@ function UnitRows({
       >
         <td className="col-name">
           <div className="name-line">
-            {unit.standalone ? (
-              <span className="disclosure-spacer" />
-            ) : (
-              <button
-                type="button"
-                className="disclosure"
-                aria-expanded={open}
-                aria-label={`Parts of ${unit.name}`}
-                onClick={onToggle}
-              >
-                {open ? '▾' : '▸'}
-              </button>
-            )}
-            <span className="name">{unit.name}</span>
-            {unit.standalone && only ? (
-              <BacklogLink id={only.id} name={only.name} />
-            ) : (
-              <span className="count">{unit.parts.length} parts</span>
-            )}
+            <button
+              type="button"
+              className="disclosure"
+              aria-expanded={open}
+              aria-label={`Tasks of ${story.name}`}
+              onClick={onToggle}
+            >
+              {open ? '▾' : '▸'}
+            </button>
+            <span className="name">{story.name}</span>
+            <span className="count">
+              {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'}
+            </span>
           </div>
         </td>
-        <td className="col-phases">{unitPhases(unit.parts).join(' · ')}</td>
+        <td className="col-phases">{story.phase}</td>
         <td className="col-progress">
-          {unit.standalone ? (
-            <span className="faint">—</span>
-          ) : (
-            <>
-              <span className="progress-count">
-                {done} of {unit.parts.length}
-              </span>
-              <div className="meter">
-                <div
-                  className="meter-fill"
-                  style={{ width: `${Math.round((done / unit.parts.length) * 100)}%` }}
-                />
-              </div>
-            </>
-          )}
+          <span className="progress-count">
+            {done} of {tasks.length}
+          </span>
+          <div className="meter">
+            <div
+              className="meter-fill"
+              style={{ width: `${Math.round((done / tasks.length) * 100)}%` }}
+            />
+          </div>
         </td>
         <td className="col-hours">
           {hours.done > 0 ? `${trim(hours.done)} of ${trim(hours.total)}h` : `${trim(hours.total)}h`}
@@ -340,14 +324,14 @@ function UnitRows({
         </td>
       </tr>
 
-      {open && !unit.standalone && (
+      {open && (
         <tr className="detail">
           <td colSpan={5}>
             {editor ?? (
               <div className="detail-line unit-notes">
-                {unit.notes && <span className="notes">{unit.notes}</span>}
+                {story.notes && <span className="notes">{story.notes}</span>}
                 <button type="button" className="button push-end" onClick={onEdit}>
-                  Edit work item
+                  Edit story
                 </button>
               </div>
             )}
@@ -356,23 +340,22 @@ function UnitRows({
       )}
 
       {open &&
-        unit.parts.map((part, index) => {
-          const partHours = estimatedHours(part)
+        tasks.map((task, index) => {
+          const taskHours = estimatedHours(task)
           return (
-            <tr key={part.id} className={part.state === 'done' ? 'part done' : 'part'}>
+            <tr key={task.id} className={task.state === 'done' ? 'part done' : 'part'}>
               <td className="col-name">
                 <div className="name-line part-line">
                   <span className="part-index">{index + 1}</span>
-                  <span className="name">{part.name}</span>
-                  {part.type !== unit.type && <span className="type-tag">{part.type}</span>}
-                  <BacklogLink id={part.id} name={part.name} />
+                  <span className="name">{task.name}</span>
+                  <BacklogLink id={task.id} name={task.name} />
                 </div>
               </td>
-              <td className="col-phases">{part.phase}</td>
+              <td className="col-phases">{task.phase}</td>
               <td className="col-progress" />
-              <td className="col-hours">{partHours === null ? '—' : `${trim(partHours)}h`}</td>
+              <td className="col-hours">{taskHours === null ? '—' : `${trim(taskHours)}h`}</td>
               <td className="col-unit-state">
-                <span className={`state-tag ${part.state}`}>{STATE_LABEL[part.state]}</span>
+                <span className={`state-tag ${task.state}`}>{STATE_LABEL[task.state]}</span>
               </td>
             </tr>
           )
@@ -385,7 +368,7 @@ function BacklogLink({ id, name }: { id: string; name: string }) {
   return (
     <RouterLink
       className="icon-button unit-jump"
-      to={`/backlog?item=${encodeURIComponent(id)}`}
+      to={`/backlog?task=${encodeURIComponent(id)}`}
       title={`Open ${name} in the backlog`}
       aria-label={`Open ${name} in the backlog`}
     >

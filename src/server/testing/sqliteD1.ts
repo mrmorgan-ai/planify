@@ -13,18 +13,28 @@ const MIGRATIONS = new URL('../../../migrations/', import.meta.url)
  * A batch is one transaction, as in D1. `sqlite` is exposed so a test can act
  * as another device writing in the middle of a request. `space` is the first
  * roadmap, the one every migration leaves in place; `roadmap` adds another.
+ *
+ * `before` stops short of a migration, so a test can fill the schema as it was
+ * and then `migrate` the rest, the way a deploy meets data already stored.
  */
-export function sqliteD1(): {
+export function sqliteD1({ before }: { before?: string } = {}): {
   db: D1Database
   sqlite: DatabaseSync
   space: Space
   roadmap: (id: number) => Space
+  /** Applies the migrations `before` held back. */
+  migrate: () => void
 } {
   const sqlite = new DatabaseSync(':memory:')
   sqlite.exec('PRAGMA foreign_keys = ON')
-  for (const file of readdirSync(MIGRATIONS).filter((name) => name.endsWith('.sql')).sort()) {
-    sqlite.exec(readFileSync(new URL(file, MIGRATIONS), 'utf8'))
+  const files = readdirSync(MIGRATIONS)
+    .filter((name) => name.endsWith('.sql'))
+    .sort()
+  const apply = (names: string[]) => {
+    for (const file of names) sqlite.exec(readFileSync(new URL(file, MIGRATIONS), 'utf8'))
   }
+  const held = before === undefined ? [] : files.filter((name) => name >= before)
+  apply(files.filter((name) => !held.includes(name)))
 
   const statement = (sql: string, params: SQLInputValue[] = []) => ({
     sql,
@@ -56,5 +66,11 @@ export function sqliteD1(): {
       .run(id, `Roadmap ${id}`)
     return { db: d1, roadmapId: id }
   }
-  return { db: d1, sqlite, space: { db: d1, roadmapId: FIRST_ROADMAP }, roadmap }
+  return {
+    db: d1,
+    sqlite,
+    space: { db: d1, roadmapId: FIRST_ROADMAP },
+    roadmap,
+    migrate: () => apply(held.splice(0)),
+  }
 }

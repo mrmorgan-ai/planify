@@ -22,29 +22,35 @@ export type PlanVersion = {
  * What a change did to the plan, in a line a person can scan: "Added Read the
  * thing; Edited Build part 2 (baselineStartDate, baselineEndDate)". One thing is
  * named, several are counted. The names are the ones the change saw, so the
- * line still reads right after an item is renamed again or deleted.
+ * line still reads right after a task is renamed again or deleted.
  */
 export function describeChanges(before: RoadmapContent, after: RoadmapContent): string {
   const changes = importChanges(before, after)
-  // The name an item had before the change, which is what it is called in the
+  // The name a task had before the change, which is what it is called in the
   // version this line describes; one the change adds only has its new name.
-  const names = new Map([...after.items, ...before.items].map((item) => [item.id, item.name]))
-  const units = new Map(
-    [...after.workItems, ...before.workItems].map((workItem) => [workItem.id, workItem.name]),
+  const names = new Map([...after.tasks, ...before.tasks].map((task) => [task.id, task.name]))
+  const groups = new Map(
+    [...after.stories, ...before.stories, ...after.features, ...before.features].map((each) => [
+      each.id,
+      each.name,
+    ]),
   )
   const name = (id: string) => names.get(id) ?? id
-  const unit = (id: string) => units.get(id) ?? id
+  const group = (id: string) => groups.get(id) ?? id
 
-  const { added, removed, changed } = changes.items
+  const { added, removed, changed } = changes.tasks
   const parts = [
-    counted('Added', added, name, 'items'),
-    counted('Deleted', removed.map((item) => item.id), name, 'items'),
+    counted('Added', added, name, 'tasks'),
+    counted('Deleted', removed.map((task) => task.id), name, 'tasks'),
     changed.length === 1
       ? `Edited ${name(changed[0]!.id)} (${changed[0]!.fields.join(', ')})`
-      : counted('Edited', changed.map((item) => item.id), name, 'items'),
-    counted('Added work item', changes.workItems.added, unit, 'work items', 'Added'),
-    counted('Deleted work item', changes.workItems.removed, unit, 'work items', 'Deleted'),
-    counted('Edited work item', changes.workItems.changed, unit, 'work items', 'Edited'),
+      : counted('Edited', changed.map((task) => task.id), name, 'tasks'),
+    counted('Added story', changes.stories.added, group, 'stories', 'Added'),
+    counted('Deleted story', changes.stories.removed, group, 'stories', 'Deleted'),
+    counted('Edited story', changes.stories.changed, group, 'stories', 'Edited'),
+    counted('Added feature', changes.features.added, group, 'features', 'Added'),
+    counted('Deleted feature', changes.features.removed, group, 'features', 'Deleted'),
+    counted('Edited feature', changes.features.changed, group, 'features', 'Edited'),
     changes.settings.length > 0
       ? `Changed the ${changes.settings.map((key) => SECTION_LABEL[key] ?? key).join(', ')}`
       : '',
@@ -52,7 +58,7 @@ export function describeChanges(before: RoadmapContent, after: RoadmapContent): 
   return parts.filter((part) => part !== '').join('; ') || 'No change to the plan'
 }
 
-/** "Added Read the thing" for one, "Added 3 items" for more, nothing for none. */
+/** "Added Read the thing" for one, "Added 3 tasks" for more, nothing for none. */
 function counted(
   verb: string,
   ids: readonly string[],

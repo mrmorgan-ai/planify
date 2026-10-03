@@ -8,15 +8,15 @@ import {
   discardDraft,
   fetchDraft,
   fetchState,
-  generateItems,
+  generateTasks,
   importRoadmap,
   publishDraft,
   reschedule,
   restoreVersion,
   sendEdits,
-  setItemDates,
-  setItemHours,
-  setItemState,
+  setTaskDates,
+  setTaskHours,
+  setTaskState,
   startDraft,
 } from './api'
 
@@ -27,19 +27,19 @@ export type Store = {
   state: AppState | null
   mode: Mode
   error: string | null
-  /** The item currently being written, so one row can show it without freezing the rest. */
+  /** The task currently being written, so one row can show it without freezing the rest. */
   pendingId: string | null
   changeState: (id: string, next: State) => Promise<void>
-  /** Moves an item's baseline. Resolves true when the server accepted it. */
+  /** Moves a task's baseline. Resolves true when the server accepted it. */
   changeDates: (id: string, start: string, end: string) => Promise<boolean>
-  /** Declares hours spent on an item. Resolves true when the server accepted it. */
+  /** Declares hours spent on a task. Resolves true when the server accepted it. */
   changeHours: (id: string, hours: number) => Promise<boolean>
   /** True while a reschedule is being written. */
   rescheduling: boolean
   /** Restarts the plan on a date. Resolves true when the server accepted it. */
   reschedulePlan: (restartDate: string) => Promise<boolean>
   /**
-   * Changes the roadmap's content. `id` names the item being changed, so its row
+   * Changes the roadmap's content. `id` names the task being changed, so its row
    * can show it. Resolves true when the server accepted the whole list.
    */
   edit: (edits: Edit[], id?: string) => Promise<boolean>
@@ -63,7 +63,7 @@ export type Store = {
 const MODE_KEY = 'planify.mode'
 
 const PROGRESS_IS_LIVE =
-  'Progress is recorded on the live roadmap. Go back to it to tick items off or log hours.'
+  'Progress is recorded on the live roadmap. Go back to it to tick tasks off or log hours.'
 const LIVE_ONLY = 'This acts on the live roadmap. Publish or leave the draft first.'
 
 /**
@@ -171,7 +171,7 @@ export function useAppState(): Store {
     (cause: unknown) => {
       if (cause instanceof StaleStateError) setState(cause.state)
       if (cause instanceof RequestError && cause.status === 404 && drafting.current) {
-        // A 404 may also be an item another device deleted: ask whether the draft is gone.
+        // A 404 may also be a task another device deleted: ask whether the draft is gone.
         fetchDraft()
           .then((draft) => (draft === null ? draftEnded() : setError(messageOf(cause))))
           .catch(() => setError(messageOf(cause)))
@@ -195,7 +195,7 @@ export function useAppState(): Store {
       setPendingId(id)
       setError(null)
       try {
-        setState(await setItemState(id, next, revision.current))
+        setState(await setTaskState(id, next, revision.current))
       } catch (cause: unknown) {
         fail(cause)
       } finally {
@@ -210,7 +210,7 @@ export function useAppState(): Store {
       setPendingId(id)
       setError(null)
       try {
-        setState(await setItemDates(id, start, end, revision.current, drafting.current))
+        setState(await setTaskDates(id, start, end, revision.current, drafting.current))
         return true
       } catch (cause: unknown) {
         fail(cause)
@@ -228,7 +228,7 @@ export function useAppState(): Store {
       setPendingId(id)
       setError(null)
       try {
-        setState(await setItemHours(id, hours, revision.current))
+        setState(await setTaskHours(id, hours, revision.current))
         return true
       } catch (cause: unknown) {
         fail(cause)
@@ -309,7 +309,7 @@ export function useAppState(): Store {
     async (generator: GenerateRequest, revision: number) => {
       setError(null)
       try {
-        setState(await generateItems(generator, revision, drafting.current))
+        setState(await generateTasks(generator, revision, drafting.current))
         return true
       } catch (cause: unknown) {
         fail(cause)

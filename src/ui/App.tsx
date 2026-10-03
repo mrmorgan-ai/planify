@@ -22,12 +22,12 @@ import { LateBanner, RescheduleDialog, useLateAlert } from './Reschedule'
 import { Session } from './Session'
 import { Settings } from './Settings'
 import { useAppState } from './useAppState'
-import { WorkItems } from './WorkItems'
+import { Stories } from './Stories'
 
 const VIEWS = [
   { path: '/dashboard', label: 'Dashboard' },
   { path: '/backlog', label: 'Backlog' },
-  { path: '/work-items', label: 'Work items' },
+  { path: '/stories', label: 'Stories' },
   { path: '/kanban', label: 'Kanban' },
   { path: '/gantt', label: 'Gantt' },
 ] as const
@@ -111,10 +111,10 @@ function Placeholder({ view }: { view: string }) {
  * 25-minute case study and an 8-hour course are not the same amount of plan.
  */
 function Status({ state }: { state: AppState }) {
-  const { items, today, roadmap } = state
-  const context = activeContext(today, roadmap, items)
+  const { tasks, today, roadmap } = state
+  const context = activeContext(today, roadmap, tasks)
   const { done, total } = planProgress(
-    items,
+    tasks,
     roadmap.phases.map((phase) => phase.number),
     today,
   )
@@ -136,9 +136,9 @@ function Status({ state }: { state: AppState }) {
 function whereYouAre(state: AppState, context: ReturnType<typeof activeContext>): string {
   if (context.kind === 'phase') return `Phase ${context.phase.number} · ${context.phase.name}`
   if (context.kind === 'blackout') return context.blackout.reason
-  const start = state.items.reduce<string | null>(
-    (earliest, item) =>
-      earliest === null || item.projectedStartDate < earliest ? item.projectedStartDate : earliest,
+  const start = state.tasks.reduce<string | null>(
+    (earliest, task) =>
+      earliest === null || task.projectedStartDate < earliest ? task.projectedStartDate : earliest,
     null,
   )
   return start !== null && state.today < start ? `Plan starts ${shortDate(start)}` : 'Plan finished'
@@ -195,7 +195,7 @@ export function App() {
             />
             <Route path="/backlog" element={<Backlog {...store} state={state} />} />
             <Route path="/kanban" element={<Kanban {...store} state={state} />} />
-            <Route path="/work-items" element={<WorkItems {...store} state={state} />} />
+            <Route path="/stories" element={<Stories {...store} state={state} />} />
             <Route path="/settings/*" element={<Settings {...store} state={state} />} />
             <Route path="*" element={<Placeholder view="Not found" />} />
           </Routes>

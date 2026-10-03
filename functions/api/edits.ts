@@ -7,13 +7,13 @@ import { spaceOf } from '../../src/server/space'
 
 /**
  * Changes the roadmap's content: `{ revision, edits }`, where each edit updates
- * an item's fields, sets its dependencies, creates an item or deletes one. The
+ * a task's fields, sets its dependencies, creates a task or deletes one. The
  * list lands as one batch or not at all, and the answer is the new world.
  * With `draft: true` they land in the draft instead, and `revision` is the
  * draft's. With `dryRun: true` nothing is written, and the answer says what they
  * would change and which rules the result would break.
  *
- * An edit that cannot be applied as asked — an unknown item, a field that is
+ * An edit that cannot be applied as asked — an unknown task, a field that is
  * not valid, a delete that would strand what depends on it — answers 400 naming
  * it. One that applies but would break a rule answers 422, like any other write.
  */

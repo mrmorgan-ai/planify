@@ -33,7 +33,7 @@ const project: GenerateRequest = {
 }
 
 describe('generating', () => {
-  it('previews the items it would add, and writes nothing', async () => {
+  it('previews the tasks it would add, and writes nothing', async () => {
     const space = await loaded()
     const preview = await previewGenerate(space, 1, project)
 
@@ -41,10 +41,10 @@ describe('generating', () => {
       'a-project-set-it-up',
       'a-project-ship-it',
     ])
-    expect(preview.changes.items.added).toEqual(['a-project-set-it-up', 'a-project-ship-it'])
-    expect(preview.changes.workItems.added).toEqual(['a-project'])
-    // The milestone now waits on the last task; the items moved down to make room are not listed.
-    expect(preview.changes.items.changed).toEqual([{ id: 'phase-1-exam', fields: ['dependsOn'] }])
+    expect(preview.changes.tasks.added).toEqual(['a-project-set-it-up', 'a-project-ship-it'])
+    expect(preview.changes.stories.added).toEqual(['a-project'])
+    // The milestone now waits on the last task; the tasks moved down to make room are not listed.
+    expect(preview.changes.tasks.changed).toEqual([{ id: 'phase-1-exam', fields: ['dependsOn'] }])
     expect(preview.introduced).toEqual([])
     expect((await loadAppState(space)).revision).toBe(1)
   })
@@ -54,13 +54,13 @@ describe('generating', () => {
     // An edit a moment before: a generation is never folded into it.
     const state = await loadAppState(space)
     await mutateContent(space, 1, () =>
-      applyEdits(state, [{ op: 'updateItem', id: 'read-the-thing', fields: { notes: 'Read' } }]),
+      applyEdits(state, [{ op: 'updateTask', id: 'read-the-thing', fields: { notes: 'Read' } }]),
     )
     const preview = await previewGenerate(space, 2, project)
     const written = await applyGenerate(space, 2, project)
 
     for (const piece of preview.placed) {
-      expect(written.items.find((item) => item.id === piece.id)).toMatchObject({
+      expect(written.tasks.find((task) => task.id === piece.id)).toMatchObject({
         baselineStartDate: piece.start,
         baselineEndDate: piece.end,
       })
@@ -68,7 +68,7 @@ describe('generating', () => {
     const versions = await listVersions(space)
     expect(versions.map((version) => version.reason)).toEqual(['generate', 'edit'])
     expect(versions[0]).toMatchObject({
-      summary: 'Generated A project: 2 items, 2030-01-11 to 2030-01-15',
+      summary: 'Generated A project: 2 tasks, 2030-01-11 to 2030-01-15',
       laterChanges: 0,
       revision: 2,
     })

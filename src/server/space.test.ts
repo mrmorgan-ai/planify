@@ -102,7 +102,7 @@ describe('resolveRoadmap', () => {
 })
 
 describe('two roadmaps in one database', () => {
-  const rename = (id: string, name: string): Edit => ({ op: 'updateItem', id, fields: { name } })
+  const rename = (id: string, name: string): Edit => ({ op: 'updateTask', id, fields: { name } })
 
   /** Both roadmaps holding the example, so every id exists twice. */
   async function twoLoaded() {
@@ -115,7 +115,7 @@ describe('two roadmaps in one database', () => {
   }
 
   const nameOf = async (space: Parameters<typeof loadAppState>[0], id: string) =>
-    (await loadAppState(space)).items.find((item) => item.id === id)?.name
+    (await loadAppState(space)).tasks.find((task) => task.id === id)?.name
 
   it('keeps the same ids apart, with a revision each', async () => {
     const { first, second } = await twoLoaded()
@@ -130,10 +130,10 @@ describe('two roadmaps in one database', () => {
   it('deletes only among its own rows', async () => {
     const { first, second } = await twoLoaded()
     const smaller = readSeedFile(EXAMPLE_SEED)
-    smaller.items = smaller.items.filter((item) => item.id !== 'the-optional-thing')
+    smaller.tasks = smaller.tasks.filter((task) => task.id !== 'the-optional-thing')
     await applyImport(second, 1, smaller)
 
-    const ids = async (space: typeof first) => (await loadAppState(space)).items.map((i) => i.id)
+    const ids = async (space: typeof first) => (await loadAppState(space)).tasks.map((i) => i.id)
     expect(await ids(second)).not.toContain('the-optional-thing')
     expect(await ids(first)).toContain('the-optional-thing')
   })
@@ -154,7 +154,7 @@ describe('two roadmaps in one database', () => {
     await startDraft(second)
     await mutateDraft(second, 1, (state) => applyEdits(state, [rename('read-the-thing', 'Drafted')]))
 
-    expect((await loadDraftState(second)).items.find((i) => i.id === 'read-the-thing')?.name).toBe(
+    expect((await loadDraftState(second)).tasks.find((i) => i.id === 'read-the-thing')?.name).toBe(
       'Drafted',
     )
     expect((await loadAppState(first)).draft).toBeNull()

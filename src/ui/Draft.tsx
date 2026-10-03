@@ -210,7 +210,7 @@ export function DraftBar({
             note={
               <>
                 <p className="muted">
-                  Compared with the live roadmap as it is now. Progress on the items the draft keeps
+                  Compared with the live roadmap as it is now. Progress on the tasks the draft keeps
                   stays, and the plan it replaces is kept in the history.
                 </p>
                 {review.preview.liveChanged && (

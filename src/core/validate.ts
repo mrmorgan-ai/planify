@@ -1,23 +1,24 @@
 import { addDays, isBlackoutDay, isCivilDate, startOfWeek, studyDaysBetween } from './dates'
 import { estimatedHours, hoursByWeek, weekOf } from './hours'
-import type { CivilDate, Item, PhaseNumber, RoadmapContent } from './types'
-import { partsOf } from './workItems'
+import type { CivilDate, Task, PhaseNumber, RoadmapContent } from './types'
+import { tasksOf } from './stories'
 
 /**
  * An error is data the app cannot run on, and a write carrying one is refused. A
- * warning is one of the plan's own conventions — a week over capacity, an item
+ * warning is one of the plan's own conventions — a week over capacity, a task
  * longer than a week — shown but never blocking, because an edit in progress has
  * to be able to pass through a state that breaks one. A note is a convention many
- * plans follow but a sound plan may not — an optional item outside its phase's
- * milestone, a work item with one part — so it is told, never counted as a problem.
+ * plans follow but a sound plan may not — an optional task outside its phase's
+ * milestone, a story with one task — so it is told, never counted as a problem.
  */
 export type Severity = 'error' | 'warning' | 'info'
 
 /** Every rule and how hard it is. The one place a rule's severity is decided. */
 export const RULES = {
-  'item-id': 'error',
+  'task-id': 'error',
   'duplicate-id': 'error',
-  'work-item-id': 'error',
+  'story-id': 'error',
+  'feature-id': 'error',
   'phase-numbering': 'error',
   'unknown-phase': 'error',
   'closing-milestone': 'error',
@@ -29,7 +30,8 @@ export const RULES = {
   'before-start': 'error',
   dependency: 'error',
   cycle: 'error',
-  'unknown-work-item': 'error',
+  'unknown-story': 'error',
+  'unknown-feature': 'error',
   'unmapped-skill': 'error',
   'unknown-dimension': 'error',
 
@@ -38,7 +40,7 @@ export const RULES = {
   'late-dependency': 'warning',
   'phase-gate': 'warning',
   'project-chain': 'warning',
-  'overlapping-parts': 'warning',
+  'overlapping-tasks': 'warning',
   'done-when': 'warning',
   'no-estimate': 'warning',
   'over-capacity': 'warning',
@@ -46,7 +48,7 @@ export const RULES = {
   'empty-axis': 'warning',
 
   'milestone-coverage': 'info',
-  'single-part': 'info',
+  'single-task': 'info',
 } as const satisfies Record<string, Severity>
 
 export type Rule = keyof typeof RULES
@@ -55,14 +57,14 @@ export type Issue = {
   severity: Severity
   rule: Rule
   message: string
-  /** The item to open to fix it, when one item is the thing to change. */
-  itemId: string | null
+  /** The task to open to fix it, when one task is the thing to change. */
+  taskId: string | null
 }
 
-type Report = (rule: Rule, message: string, itemId?: string) => void
+type Report = (rule: Rule, message: string, taskId?: string) => void
 
 const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/
-/** Every item must be finishable inside one week, so a slip shows in days. */
+/** Every task must be finishable inside one week, so a slip shows in days. */
 const MAX_STUDY_DAYS = 7
 /** Slack for the pro-rating's floating point when a week is filled exactly. */
 const CAPACITY_TOLERANCE = 0.01
@@ -70,8 +72,8 @@ const CAPACITY_TOLERANCE = 0.01
 /** Every rule the roadmap follows, checked against the whole roadmap at once. */
 export function validate(content: RoadmapContent): Issue[] {
   const issues: Issue[] = []
-  const report: Report = (rule, message, itemId) => {
-    issues.push({ severity: RULES[rule], rule, message, itemId: itemId ?? null })
+  const report: Report = (rule, message, taskId) => {
+    issues.push({ severity: RULES[rule], rule, message, taskId: taskId ?? null })
   }
 
   const idsUnique = checkIds(content, report)
@@ -79,7 +81,7 @@ export function validate(content: RoadmapContent): Issue[] {
   checkSettings(content, report)
   const dated = checkDates(content, report)
   checkGraph(content, report, idsUnique)
-  checkWorkItems(content, report)
+  checkStories(content, report)
   checkHours(content, report, dated)
   checkSkills(content, report)
 
@@ -109,33 +111,45 @@ export function introducedErrors(
   return errors.filter((issue) => !existing.has(key(issue)))
 }
 
-function checkIds({ items, workItems }: RoadmapContent, report: Report): boolean {
-  const itemIds = new Set<string>()
+function checkIds({ tasks, stories, features }: RoadmapContent, report: Report): boolean {
+  const taskIds = new Set<string>()
   let unique = true
-  for (const item of items) {
-    if (!KEBAB.test(item.id)) report('item-id', `${item.id} is not kebab-case`, item.id)
-    if (itemIds.has(item.id)) {
-      report('duplicate-id', `${item.id} is used by more than one item`, item.id)
+  for (const task of tasks) {
+    if (!KEBAB.test(task.id)) report('task-id', `${task.id} is not kebab-case`, task.id)
+    if (taskIds.has(task.id)) {
+      report('duplicate-id', `${task.id} is used by more than one task`, task.id)
       unique = false
     }
-    itemIds.add(item.id)
+    taskIds.add(task.id)
   }
 
-  const workItemIds = new Set<string>()
-  for (const workItem of workItems) {
-    if (!KEBAB.test(workItem.id)) report('work-item-id', `${workItem.id} is not kebab-case`)
-    if (workItemIds.has(workItem.id)) {
-      report('work-item-id', `${workItem.id} is used by more than one work item`)
+  const storyIds = new Set<string>()
+  for (const story of stories) {
+    if (!KEBAB.test(story.id)) report('story-id', `${story.id} is not kebab-case`)
+    if (storyIds.has(story.id)) {
+      report('story-id', `${story.id} is used by more than one story`)
     }
-    if (itemIds.has(workItem.id)) {
-      report('work-item-id', `${workItem.id} is both an item and a work item`)
+    if (taskIds.has(story.id)) {
+      report('story-id', `${story.id} is both a task and a story`)
     }
-    workItemIds.add(workItem.id)
+    storyIds.add(story.id)
+  }
+
+  const featureIds = new Set<string>()
+  for (const feature of features) {
+    if (!KEBAB.test(feature.id)) report('feature-id', `${feature.id} is not kebab-case`)
+    if (featureIds.has(feature.id)) {
+      report('feature-id', `${feature.id} is used by more than one feature`)
+    }
+    if (taskIds.has(feature.id) || storyIds.has(feature.id)) {
+      report('feature-id', `${feature.id} is both a feature and a task or story`)
+    }
+    featureIds.add(feature.id)
   }
   return unique
 }
 
-function checkPhases({ roadmap, items }: RoadmapContent, report: Report): void {
+function checkPhases({ roadmap, stories, tasks }: RoadmapContent, report: Report): void {
   const numbers = roadmap.phases.map((phase) => phase.number).sort((a, b) => a - b)
   if (numbers.some((number, index) => number !== index + 1)) {
     report(
@@ -144,18 +158,15 @@ function checkPhases({ roadmap, items }: RoadmapContent, report: Report): void {
     )
   }
 
+  // A task's phase is its story's, so the story is where an undefined one is named.
   const defined = new Set<number>(numbers)
-  for (const item of items) {
-    if (!defined.has(item.phase)) {
-      report(
-        'unknown-phase',
-        `${item.id} is in phase ${item.phase}, which is not defined`,
-        item.id,
-      )
+  for (const story of stories) {
+    if (!defined.has(story.phase)) {
+      report('unknown-phase', `${story.id} is in phase ${story.phase}, which is not defined`)
     }
   }
 
-  const byId = new Map(items.map((item) => [item.id, item]))
+  const byId = new Map(tasks.map((task) => [task.id, task]))
   for (const phase of roadmap.phases) {
     const milestoneId = phase.closingMilestoneId
     if (milestoneId === null) continue
@@ -176,22 +187,22 @@ function checkPhases({ roadmap, items }: RoadmapContent, report: Report): void {
 
   for (const phase of roadmap.phases) {
     const seen = new Map<number, string>()
-    for (const item of items.filter((candidate) => candidate.phase === phase.number)) {
-      const other = seen.get(item.sortOrder)
+    for (const task of tasks.filter((candidate) => candidate.phase === phase.number)) {
+      const other = seen.get(task.sortOrder)
       if (other !== undefined) {
         report(
           'sort-order',
-          `${other} and ${item.id} share position ${item.sortOrder} in phase ${phase.number}`,
-          item.id,
+          `${other} and ${task.id} share position ${task.sortOrder} in phase ${phase.number}`,
+          task.id,
         )
       }
-      seen.set(item.sortOrder, item.id)
+      seen.set(task.sortOrder, task.id)
     }
   }
 
-  // Phase windows are read off the items rather than declared, so they can
+  // Phase windows are read off the tasks rather than declared, so they can
   // never disagree with the dates they describe.
-  const window = (phase: PhaseNumber) => span(items.filter((item) => item.phase === phase))
+  const window = (phase: PhaseNumber) => span(tasks.filter((task) => task.phase === phase))
   for (const phase of roadmap.phases) {
     const next = roadmap.phases.find((other) => other.number === phase.number + 1)
     if (!next) continue
@@ -206,7 +217,10 @@ function checkPhases({ roadmap, items }: RoadmapContent, report: Report): void {
   }
 }
 
-function checkSettings({ roadmap, items, workItems }: RoadmapContent, report: Report): void {
+function checkSettings(
+  { roadmap, tasks, stories, features }: RoadmapContent,
+  report: Report,
+): void {
   try {
     new Intl.DateTimeFormat('en-CA', { timeZone: roadmap.timeZone })
   } catch {
@@ -214,56 +228,56 @@ function checkSettings({ roadmap, items, workItems }: RoadmapContent, report: Re
   }
 
   const badLink = (link: string | null) => link !== null && !link.startsWith('https://')
-  for (const item of items) {
-    if (badLink(item.link)) {
-      report('link', `${item.id} links to ${item.link}; links must be https or empty`, item.id)
+  for (const task of tasks) {
+    if (badLink(task.link)) {
+      report('link', `${task.id} links to ${task.link}; links must be https or empty`, task.id)
     }
   }
-  for (const workItem of workItems) {
-    if (badLink(workItem.link)) {
-      report('link', `${workItem.id} links to ${workItem.link}; links must be https or empty`)
+  for (const each of [...stories, ...features]) {
+    if (badLink(each.link)) {
+      report('link', `${each.id} links to ${each.link}; links must be https or empty`)
     }
   }
 }
 
-/** Returns the items whose dates are sound enough to count hours on. */
-function checkDates({ roadmap, items }: RoadmapContent, report: Report): Item[] {
+/** Returns the tasks whose dates are sound enough to count hours on. */
+function checkDates({ roadmap, tasks }: RoadmapContent, report: Report): Task[] {
   const { blackouts, startDate } = roadmap
-  const dated: Item[] = []
+  const dated: Task[] = []
 
-  for (const item of items) {
-    const start = item.baselineStartDate
-    const end = item.baselineEndDate
+  for (const task of tasks) {
+    const start = task.baselineStartDate
+    const end = task.baselineEndDate
     if (!isCivilDate(start) || !isCivilDate(end)) {
-      report('dates', `${item.id} has planned dates not in YYYY-MM-DD: ${start}..${end}`, item.id)
+      report('dates', `${task.id} has planned dates not in YYYY-MM-DD: ${start}..${end}`, task.id)
       continue
     }
 
     const studyDays = end < start ? 0 : studyDaysBetween(start, end, blackouts)
     if (studyDays < 1) {
-      report('dates', `${item.id} has no study day between ${start} and ${end}`, item.id)
+      report('dates', `${task.id} has no study day between ${start} and ${end}`, task.id)
       continue
     }
-    dated.push(item)
+    dated.push(task)
 
     if (isBlackoutDay(start, blackouts)) {
-      report('blackout-edge', `${item.id} starts inside a pause, on ${start}`, item.id)
+      report('blackout-edge', `${task.id} starts inside a pause, on ${start}`, task.id)
     }
     if (isBlackoutDay(end, blackouts)) {
-      report('blackout-edge', `${item.id} ends inside a pause, on ${end}`, item.id)
+      report('blackout-edge', `${task.id} ends inside a pause, on ${end}`, task.id)
     }
     if (startDate !== '' && start < startDate) {
       report(
         'before-start',
-        `${item.id} starts on ${start}, before the plan does (${startDate})`,
-        item.id,
+        `${task.id} starts on ${start}, before the plan does (${startDate})`,
+        task.id,
       )
     }
     if (studyDays > MAX_STUDY_DAYS) {
       report(
         'too-long',
-        `${item.id} spans ${studyDays} study days; split it into parts of ${MAX_STUDY_DAYS} or fewer`,
-        item.id,
+        `${task.id} spans ${studyDays} study days; split it into parts of ${MAX_STUDY_DAYS} or fewer`,
+        task.id,
       )
     }
   }
@@ -271,31 +285,31 @@ function checkDates({ roadmap, items }: RoadmapContent, report: Report): Item[] 
 }
 
 function checkGraph(
-  { roadmap, items, workItems }: RoadmapContent,
+  { roadmap, tasks, stories }: RoadmapContent,
   report: Report,
   idsUnique: boolean,
 ): void {
-  const byId = new Map(items.map((item) => [item.id, item]))
+  const byId = new Map(tasks.map((task) => [task.id, task]))
 
-  for (const item of items) {
+  for (const task of tasks) {
     const seen = new Set<string>()
-    for (const dependency of item.dependsOn) {
-      if (dependency === item.id) report('dependency', `${item.id} depends on itself`, item.id)
+    for (const dependency of task.dependsOn) {
+      if (dependency === task.id) report('dependency', `${task.id} depends on itself`, task.id)
       else if (!byId.has(dependency)) {
-        report('dependency', `${item.id} depends on ${dependency}, which does not exist`, item.id)
+        report('dependency', `${task.id} depends on ${dependency}, which does not exist`, task.id)
       }
       if (seen.has(dependency)) {
-        report('dependency', `${item.id} lists ${dependency} twice`, item.id)
+        report('dependency', `${task.id} lists ${dependency} twice`, task.id)
       }
       seen.add(dependency)
     }
   }
 
-  // Only the edges that point somewhere real: a missing item is its own error,
+  // Only the edges that point somewhere real: a missing task is its own error,
   // and letting it through would read as a cycle as well.
-  const known = items.map((item) => ({
-    ...item,
-    dependsOn: item.dependsOn.filter((id) => id !== item.id && byId.has(id)),
+  const known = tasks.map((task) => ({
+    ...task,
+    dependsOn: task.dependsOn.filter((id) => id !== task.id && byId.has(id)),
   }))
   if (idsUnique) {
     const cycle = findCycle(known)
@@ -304,18 +318,18 @@ function checkGraph(
     }
   }
 
-  // The engine starts an item the study day after its latest dependency ends.
-  // A dependency ending on or after the planned start therefore shifts the item
+  // The engine starts a task the study day after its latest dependency ends.
+  // A dependency ending on or after the planned start therefore shifts the task
   // the moment the plan is loaded: the plan is born already late.
-  for (const item of known) {
-    for (const dependencyId of item.dependsOn) {
+  for (const task of known) {
+    for (const dependencyId of task.dependsOn) {
       const dependency = byId.get(dependencyId)
-      if (dependency && dependency.baselineEndDate >= item.baselineStartDate) {
+      if (dependency && dependency.baselineEndDate >= task.baselineStartDate) {
         report(
           'late-dependency',
-          `${item.id} is planned to start on ${item.baselineStartDate}, ` +
+          `${task.id} is planned to start on ${task.baselineStartDate}, ` +
             `but ${dependencyId} ends on ${dependency.baselineEndDate}`,
-          item.id,
+          task.id,
         )
       }
     }
@@ -334,12 +348,12 @@ function checkGraph(
       )
       continue
     }
-    for (const item of items.filter((candidate) => candidate.phase === phase.number)) {
-      if (!reachedFrom(item.id).has(gate)) {
+    for (const task of tasks.filter((candidate) => candidate.phase === phase.number)) {
+      if (!reachedFrom(task.id).has(gate)) {
         report(
           'phase-gate',
-          `${item.id} does not wait on ${gate}, which closes phase ${previous.number}`,
-          item.id,
+          `${task.id} does not wait on ${gate}, which closes phase ${previous.number}`,
+          task.id,
         )
       }
     }
@@ -349,17 +363,17 @@ function checkGraph(
     const milestoneId = phase.closingMilestoneId
     if (milestoneId === null || byId.get(milestoneId)?.phase !== phase.number) continue
     const reached = reachedFrom(milestoneId)
-    for (const other of items.filter((candidate) => candidate.phase === phase.number)) {
+    for (const other of tasks.filter((candidate) => candidate.phase === phase.number)) {
       if (other.id !== milestoneId && !reached.has(other.id)) {
         report('milestone-coverage', `${milestoneId} does not wait on ${other.id}`, milestoneId)
       }
     }
   }
 
-  for (const workItem of workItems.filter((candidate) => candidate.type === 'Project')) {
-    const parts = partsOf(workItem.id, items)
-    parts.forEach((part, index) => {
-      const previous = parts[index - 1]
+  for (const story of stories.filter((candidate) => candidate.type === 'Project')) {
+    const steps = tasksOf(story.id, tasks)
+    steps.forEach((part, index) => {
+      const previous = steps[index - 1]
       if (previous && !part.dependsOn.includes(previous.id)) {
         report(
           'project-chain',
@@ -371,9 +385,9 @@ function checkGraph(
   }
 }
 
-/** Everything an item waits on, directly or not. Safe on a graph with cycles. */
-function transitiveDependencies(items: readonly Item[]): (id: string) => Set<string> {
-  const byId = new Map(items.map((item) => [item.id, item]))
+/** Everything a task waits on, directly or not. Safe on a graph with cycles. */
+function transitiveDependencies(tasks: readonly Task[]): (id: string) => Set<string> {
+  const byId = new Map(tasks.map((task) => [task.id, task]))
   const cache = new Map<string, Set<string>>()
   return (id) => {
     const cached = cache.get(id)
@@ -393,12 +407,12 @@ function transitiveDependencies(items: readonly Item[]): (id: string) => Set<str
 
 /**
  * One cycle in the dependency graph, as the path that closes it — `a → b → a` —
- * or null when there is none. The path and not every item stuck behind it: the
- * engine can only say which items it could not order, which for one loop early
+ * or null when there is none. The path and not every task stuck behind it: the
+ * engine can only say which tasks it could not order, which for one loop early
  * in the plan is everything after it.
  */
-function findCycle(items: readonly Item[]): string[] | null {
-  const byId = new Map(items.map((item) => [item.id, item]))
+function findCycle(tasks: readonly Task[]): string[] | null {
+  const byId = new Map(tasks.map((task) => [task.id, task]))
   const done = new Set<string>()
   const path: string[] = []
   const onPath = new Set<string>()
@@ -418,38 +432,45 @@ function findCycle(items: readonly Item[]): string[] | null {
     return null
   }
 
-  for (const item of items) {
-    const found = visit(item.id)
+  for (const task of tasks) {
+    const found = visit(task.id)
     if (found) return found
   }
   return null
 }
 
-function checkWorkItems({ items, workItems }: RoadmapContent, report: Report): void {
-  const workItemIds = new Set(workItems.map((workItem) => workItem.id))
-  for (const item of items) {
-    if (item.workItemId !== null && !workItemIds.has(item.workItemId)) {
+function checkStories({ tasks, stories, features }: RoadmapContent, report: Report): void {
+  const storyIds = new Set(stories.map((story) => story.id))
+  for (const task of tasks) {
+    if (!storyIds.has(task.storyId)) {
       report(
-        'unknown-work-item',
-        `${item.id} is a part of ${item.workItemId}, which does not exist`,
-        item.id,
+        'unknown-story',
+        `${task.id} is a task of ${task.storyId}, which does not exist`,
+        task.id,
       )
     }
   }
 
-  for (const workItem of workItems) {
-    const parts = partsOf(workItem.id, items)
-    if (parts.length < 2) {
+  const featureIds = new Set(features.map((feature) => feature.id))
+  for (const story of stories) {
+    if (story.featureId !== null && !featureIds.has(story.featureId)) {
+      report('unknown-feature', `${story.id} serves ${story.featureId}, which does not exist`)
+    }
+  }
+
+  for (const story of stories) {
+    const steps = tasksOf(story.id, tasks)
+    if (steps.length < 2) {
       report(
-        'single-part',
-        `${workItem.id} has ${parts.length} part(s); a work item groups at least two`,
+        'single-task',
+        `${story.id} has ${steps.length} ${steps.length === 1 ? 'task' : 'tasks'}; a story usually groups at least two`,
       )
     }
-    parts.forEach((part, index) => {
-      const previous = parts[index - 1]
+    steps.forEach((part, index) => {
+      const previous = steps[index - 1]
       if (previous && part.baselineStartDate <= previous.baselineEndDate) {
         report(
-          'overlapping-parts',
+          'overlapping-tasks',
           `${part.id} starts on ${part.baselineStartDate}, ` +
             `before ${previous.id} ends on ${previous.baselineEndDate}`,
           part.id,
@@ -460,27 +481,30 @@ function checkWorkItems({ items, workItems }: RoadmapContent, report: Report): v
 }
 
 function checkHours(
-  { roadmap, items }: RoadmapContent,
+  { roadmap, stories, tasks }: RoadmapContent,
   report: Report,
-  dated: readonly Item[],
+  dated: readonly Task[],
 ): void {
   // Neither has a natural end the way a chapter does. Without a stated outcome,
-  // done means the hours were spent, not that anything was learned.
-  for (const item of items) {
-    const needsOutcome = item.type === 'Practice' || item.type === 'Exam prep'
-    if (needsOutcome && item.doneWhen.trim() === '') {
-      report('done-when', `${item.id} does not say what done means`, item.id)
+  // done means the hours were spent, not that anything was learned. Read off the
+  // story's type, when it has one: a task is what its story is.
+  const typeOf = new Map(stories.map((story) => [story.id, story.type]))
+  for (const task of tasks) {
+    const type = typeOf.get(task.storyId)
+    const needsOutcome = type === 'Practice' || type === 'Exam prep'
+    if (needsOutcome && task.doneWhen.trim() === '') {
+      report('done-when', `${task.id} does not say what done means`, task.id)
     }
   }
 
-  // An item with no estimate counts as zero in every weekly total, which is how
+  // A task with no estimate counts as zero in every weekly total, which is how
   // a week gets planned past its capacity without anything showing it.
-  for (const item of items) {
-    if (estimatedHours(item) === null) {
+  for (const task of tasks) {
+    if (estimatedHours(task) === null) {
       report(
         'no-estimate',
-        `${item.id} has no hour estimate in its duration "${item.duration}"`,
-        item.id,
+        `${task.id} has no hour estimate in its duration "${task.duration}"`,
+        task.id,
       )
     }
   }
@@ -488,10 +512,10 @@ function checkHours(
   // Capacity is a property of the plan. `hoursByWeek` spreads hours over the
   // projection, which moves with progress — finish something two days late and
   // the weeks after it fill up — so it is handed the planned dates instead.
-  const planned = dated.map((item) => ({
-    ...item,
-    projectedStartDate: item.baselineStartDate,
-    projectedEndDate: item.baselineEndDate,
+  const planned = dated.map((task) => ({
+    ...task,
+    projectedStartDate: task.baselineStartDate,
+    projectedEndDate: task.baselineEndDate,
   }))
   const capacity = roadmap.weeklyHours
   const plan = span(planned)
@@ -509,18 +533,18 @@ function checkHours(
   }
 }
 
-/** The first planned start and the last planned end, or null with no items. */
-function span(items: readonly Item[]): { start: CivilDate; end: CivilDate } | null {
+/** The first planned start and the last planned end, or null with no tasks. */
+function span(tasks: readonly Task[]): { start: CivilDate; end: CivilDate } | null {
   let start: CivilDate | null = null
   let end: CivilDate | null = null
-  for (const item of items) {
-    if (start === null || item.baselineStartDate < start) start = item.baselineStartDate
-    if (end === null || item.baselineEndDate > end) end = item.baselineEndDate
+  for (const task of tasks) {
+    if (start === null || task.baselineStartDate < start) start = task.baselineStartDate
+    if (end === null || task.baselineEndDate > end) end = task.baselineEndDate
   }
   return start === null || end === null ? null : { start, end }
 }
 
-function checkSkills({ roadmap, items }: RoadmapContent, report: Report): void {
+function checkSkills({ roadmap, tasks }: RoadmapContent, report: Report): void {
   const { dimensions, skillDimension } = roadmap
 
   for (const [skill, dimension] of Object.entries(skillDimension)) {
@@ -529,18 +553,18 @@ function checkSkills({ roadmap, items }: RoadmapContent, report: Report): void {
     }
   }
 
-  for (const item of items) {
-    for (const skill of item.skills) {
+  for (const task of tasks) {
+    for (const skill of task.skills) {
       if (skillDimension[skill] === undefined) {
-        report('unmapped-skill', `${item.id} uses "${skill}", which is on no radar axis`, item.id)
+        report('unmapped-skill', `${task.id} uses "${skill}", which is on no radar axis`, task.id)
       }
     }
   }
 
   // An unused skill sits in the radar's denominator forever, capping its axis.
-  const used = new Set(items.flatMap((item) => item.skills))
+  const used = new Set(tasks.flatMap((task) => task.skills))
   for (const skill of Object.keys(skillDimension)) {
-    if (!used.has(skill)) report('unused-skill', `"${skill}" is on the radar but no item covers it`)
+    if (!used.has(skill)) report('unused-skill', `"${skill}" is on the radar but no task covers it`)
   }
 
   const covered = new Set(Object.values(skillDimension))

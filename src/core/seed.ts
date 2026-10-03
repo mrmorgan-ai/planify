@@ -1,28 +1,33 @@
-import { ITEM_TYPES, PHASE_NUMBERS } from './constants'
+import { WORK_TYPES, PHASE_NUMBERS } from './constants'
 import { isCivilDate } from './dates'
 import type {
   Blackout,
   CivilDate,
   Dimension,
+  Feature,
   IsoDateTime,
-  Item,
-  ItemType,
+  Task,
+  WorkType,
   Phase,
   PhaseNumber,
   Resource,
   RoadmapContent,
   WeeklyHours,
-  WorkItem,
+  Story,
 } from './types'
+import { isFormatV1, upgradeV1 } from './upgrade'
+
+/** The roadmap file's format: features, stories and tasks. An older file is upgraded on read. */
+export const SEED_FORMAT = 2
 
 /**
  * The seed carries content only. `state`, `completedAt`, `hoursDone` and the
  * projected dates are runtime state, so the file you hand-edit cannot overwrite
- * your progress.
+ * your progress. The phase is its story's, so a task does not carry one.
  */
-export type SeedItem = Omit<
-  Item,
-  'state' | 'completedAt' | 'hoursDone' | 'projectedStartDate' | 'projectedEndDate'
+export type SeedTask = Omit<
+  Task,
+  'state' | 'completedAt' | 'hoursDone' | 'projectedStartDate' | 'projectedEndDate' | 'phase'
 >
 
 /**
@@ -30,6 +35,7 @@ export type SeedItem = Omit<
  * open, the roadmap is not.
  */
 export type SeedFile = {
+  format: typeof SEED_FORMAT
   timeZone: string
   /** The anchor the plan starts on. Optional in the file; derived when absent. */
   startDate?: CivilDate
@@ -39,19 +45,27 @@ export type SeedFile = {
   blackouts: Blackout[]
   dimensions: Dimension[]
   skills: Record<string, Dimension>
-  /** The units items are split from. Optional; an item names its own with `workItemId`. */
-  workItems: WorkItem[]
-  items: SeedItem[]
+  /** Goals wider than a phase. Optional; a story names its own with `featureId`. */
+  features: Feature[]
+  stories: Story[]
+  tasks: SeedTask[]
 }
 
 /**
  * Checks a parsed seed's shape and types, field by field, and throws naming the
  * first field that is wrong. Whether the content makes a sound plan is a
  * separate question, answered by `validate`.
+ *
+ * A file in the first format — items and work items — is upgraded first, so an
+ * old export, a version kept in the history and a draft started before the
+ * change all read as what they always meant.
  */
 export function parseSeed(raw: unknown): SeedFile {
   if (typeof raw !== 'object' || raw === null) throw new Error('The seed is not an object')
-  const file = raw as Record<string, unknown>
+  const file = isFormatV1(raw) ? upgradeV1(raw) : (raw as Record<string, unknown>)
+  if (file.format !== undefined && file.format !== SEED_FORMAT) {
+    throw new Error(`format must be ${SEED_FORMAT}, got ${String(file.format)}`)
+  }
 
   const dimensions = requireStringArray(file.dimensions, 'dimensions')
   const skills = requireStringRecord(file.skills, 'skills')
@@ -61,13 +75,14 @@ export function parseSeed(raw: unknown): SeedFile {
     }
   }
 
-  // A roadmap may hold no items and no pauses yet: a new one starts that way, and
+  // A roadmap may hold no tasks and no pauses yet: a new one starts that way, and
   // its drafts and its history go through this same parser.
-  const items = requireArray(file.items, 'items', true).map((entry, index) =>
-    parseSeedItem(entry, `items[${index}]`),
+  const tasks = requireArray(file.tasks, 'tasks', true).map((entry, index) =>
+    parseSeedTask(entry, `tasks[${index}]`),
   )
 
   return {
+    format: SEED_FORMAT,
     timeZone: requireString(file.timeZone, 'timeZone'),
     startDate:
       file.startDate === undefined ? undefined : requireCivilDate(file.startDate, 'startDate'),
@@ -78,19 +93,28 @@ export function parseSeed(raw: unknown): SeedFile {
     ),
     dimensions,
     skills,
-    workItems: (file.workItems === undefined ? [] : requireArray(file.workItems, 'workItems', true)).map(
-      (entry, index) => parseWorkItem(entry, `workItems[${index}]`),
+    features: (file.features === undefined ? [] : requireArray(file.features, 'features', true)).map(
+      (entry, index) => parseFeature(entry, `features[${index}]`),
     ),
-    items,
+    stories: (file.stories === undefined ? [] : requireArray(file.stories, 'stories', true)).map(
+      (entry, index) => parseStory(entry, `stories[${index}]`),
+    ),
+    tasks,
   }
 }
 
-/** Fills in the runtime fields the seed deliberately omits. */
-export function asItems(seed: SeedFile): Item[] {
-  return seed.items.map((item) => ({
-    ...item,
-    projectedStartDate: item.baselineStartDate,
-    projectedEndDate: item.baselineEndDate,
+/**
+ * Fills in the runtime fields the seed deliberately omits, and each task's
+ * phase from its story. A task whose story is missing gets the first phase; the
+ * validator names the missing story.
+ */
+export function asTasks(seed: Pick<SeedFile, 'stories' | 'tasks'>): Task[] {
+  const phaseOf = new Map(seed.stories.map((story) => [story.id, story.phase]))
+  return seed.tasks.map((task) => ({
+    ...task,
+    phase: phaseOf.get(task.storyId) ?? PHASE_NUMBERS[0]!,
+    projectedStartDate: task.baselineStartDate,
+    projectedEndDate: task.baselineEndDate,
     state: 'pending',
     completedAt: null,
     hoursDone: 0,
@@ -103,9 +127,9 @@ export function asItems(seed: SeedFile): Item[] {
  * an absent capacity is zero, which reads downstream as "not declared".
  */
 export function seedContent(seed: SeedFile): RoadmapContent {
-  const items = asItems(seed)
-  const earliest = items.reduce<CivilDate | ''>(
-    (min, item) => (min === '' || item.baselineStartDate < min ? item.baselineStartDate : min),
+  const tasks = asTasks(seed)
+  const earliest = tasks.reduce<CivilDate | ''>(
+    (min, task) => (min === '' || task.baselineStartDate < min ? task.baselineStartDate : min),
     '',
   )
   return {
@@ -118,8 +142,9 @@ export function seedContent(seed: SeedFile): RoadmapContent {
       dimensions: seed.dimensions,
       skillDimension: seed.skills,
     },
-    workItems: seed.workItems,
-    items,
+    features: seed.features,
+    stories: seed.stories,
+    tasks,
   }
 }
 
@@ -138,6 +163,7 @@ export function toSeedFile(content: RoadmapContent): SeedFile {
   )
 
   return {
+    format: SEED_FORMAT,
     timeZone: roadmap.timeZone,
     ...(roadmap.startDate === '' ? {} : { startDate: roadmap.startDate }),
     ...(roadmap.weeklyHours.normal > 0 ? { weeklyHours: roadmap.weeklyHours } : {}),
@@ -145,24 +171,22 @@ export function toSeedFile(content: RoadmapContent): SeedFile {
     blackouts: roadmap.blackouts,
     dimensions: roadmap.dimensions,
     skills: Object.fromEntries(skills.map((skill) => [skill, roadmap.skillDimension[skill]!])),
-    workItems: content.workItems,
-    items: content.items.map((item) => ({
-      id: item.id,
-      name: item.name,
-      type: item.type,
-      phase: item.phase,
-      workItemId: item.workItemId,
-      skills: item.skills,
-      baselineStartDate: item.baselineStartDate,
-      baselineEndDate: item.baselineEndDate,
-      dependsOn: item.dependsOn,
-      price: item.price,
-      link: item.link,
-      resources: item.resources,
-      duration: item.duration,
-      notes: item.notes,
-      doneWhen: item.doneWhen,
-      sortOrder: item.sortOrder,
+    features: content.features,
+    stories: content.stories,
+    tasks: content.tasks.map((task) => ({
+      id: task.id,
+      name: task.name,
+      storyId: task.storyId,
+      skills: task.skills,
+      baselineStartDate: task.baselineStartDate,
+      baselineEndDate: task.baselineEndDate,
+      dependsOn: task.dependsOn,
+      link: task.link,
+      resources: task.resources,
+      duration: task.duration,
+      notes: task.notes,
+      doneWhen: task.doneWhen,
+      sortOrder: task.sortOrder,
     })),
   }
 }
@@ -216,29 +240,68 @@ function parsePhase(entry: unknown, index: number): Phase {
   }
 }
 
-/** One work item's shape and types. `at` names it in the error, as for items. */
-export function parseWorkItem(entry: unknown, at: string): WorkItem {
+/** One story's shape and types. `at` names it in the error, as for tasks. */
+export function parseStory(entry: unknown, at: string): Story {
   const value = requireObject(entry, at)
   const id = requireString(value.id, `${at}.id`)
   const where = `${at} (${id})`
 
-  const type = requireString(value.type, `${where}.type`)
-  if (!ITEM_TYPES.includes(type as ItemType)) throw new Error(`${where}.type is not valid: ${type}`)
-
-  const link = value.link ?? null
-  if (link !== null && typeof link !== 'string') {
-    throw new Error(`${where}.link must be a string or null`)
+  const phase = value.phase
+  if (typeof phase !== 'number' || !PHASE_NUMBERS.includes(phase as PhaseNumber)) {
+    throw new Error(`${where}.phase must be 1-6`)
   }
-  if (link === '') throw new Error(`${where}.link is an empty string — use null`)
+
+  const featureId = value.featureId ?? null
+  if (featureId !== null && typeof featureId !== 'string') {
+    throw new Error(`${where}.featureId must be a string or null`)
+  }
 
   return {
     id,
     name: requireString(value.name, `${where}.name`),
-    type: type as ItemType,
-    link,
+    type: optionalType(value.type, where),
+    phase: phase as PhaseNumber,
+    featureId,
+    link: optionalLink(value.link, where),
     resources: parseResources(value.resources, `${where}.resources`),
+    price: requireString(value.price ?? '', `${where}.price`, true),
+    notes: requireString(value.notes ?? '', `${where}.notes`, true),
+    doneWhen: requireString(value.doneWhen ?? '', `${where}.doneWhen`, true),
+  }
+}
+
+/** One feature's shape and types. `at` names it in the error. */
+export function parseFeature(entry: unknown, at: string): Feature {
+  const value = requireObject(entry, at)
+  const id = requireString(value.id, `${at}.id`)
+  const where = `${at} (${id})`
+  return {
+    id,
+    name: requireString(value.name, `${where}.name`),
+    type: optionalType(value.type, where),
+    link: optionalLink(value.link, where),
     notes: requireString(value.notes ?? '', `${where}.notes`, true),
   }
+}
+
+/** One of the listed types, or null. Absent reads as null: the label is optional. */
+function optionalType(value: unknown, where: string): WorkType | null {
+  const type = value ?? null
+  if (type === null) return null
+  if (typeof type !== 'string' || !WORK_TYPES.includes(type as WorkType)) {
+    throw new Error(`${where}.type is not valid: ${String(type)}`)
+  }
+  return type as WorkType
+}
+
+/** A link or null. An empty string is refused, so "no link" has one spelling. */
+function optionalLink(value: unknown, where: string): string | null {
+  const link = value ?? null
+  if (link !== null && typeof link !== 'string') {
+    throw new Error(`${where}.link must be a string or null`)
+  }
+  if (link === '') throw new Error(`${where}.link is an empty string — use null`)
+  return link
 }
 
 /** One pause's shape and types. `at` names it in the error. */
@@ -251,51 +314,29 @@ export function parseBlackout(entry: unknown, at: string): Blackout {
 }
 
 /**
- * One item's shape and types, as the seed file requires them. Exported so an
- * item edited in the app is held to exactly the rules a file is. `at` names it
- * in the error: `items[3]` in a file, the edit it came from in the app.
+ * One task's shape and types, as the seed file requires them. Exported so an
+ * task edited in the app is held to exactly the rules a file is. `at` names it
+ * in the error: `tasks[3]` in a file, the edit it came from in the app.
  */
-export function parseSeedItem(entry: unknown, at: string): SeedItem {
+export function parseSeedTask(entry: unknown, at: string): SeedTask {
   const value = requireObject(entry, at)
   const id = requireString(value.id, `${at}.id`)
   const where = `${at} (${id})`
-
-  const type = requireString(value.type, `${where}.type`)
-  if (!ITEM_TYPES.includes(type as ItemType)) throw new Error(`${where}.type is not valid: ${type}`)
-
-  const phase = value.phase
-  if (typeof phase !== 'number' || !PHASE_NUMBERS.includes(phase as PhaseNumber)) {
-    throw new Error(`${where}.phase must be 1-6`)
-  }
 
   const sortOrder = value.sortOrder
   if (typeof sortOrder !== 'number' || !Number.isInteger(sortOrder)) {
     throw new Error(`${where}.sortOrder must be an integer`)
   }
 
-  const link = value.link
-  if (link !== null && typeof link !== 'string') {
-    throw new Error(`${where}.link must be a string or null`)
-  }
-  if (link === '') throw new Error(`${where}.link is an empty string — use null`)
-
-  const workItemId = value.workItemId ?? null
-  if (workItemId !== null && typeof workItemId !== 'string') {
-    throw new Error(`${where}.workItemId must be a string or null`)
-  }
-
   return {
     id,
     name: requireString(value.name, `${where}.name`),
-    type: type as ItemType,
-    phase: phase as PhaseNumber,
-    workItemId,
+    storyId: requireString(value.storyId, `${where}.storyId`),
     skills: requireStringArray(value.skills, `${where}.skills`),
     baselineStartDate: requireCivilDate(value.baselineStartDate, `${where}.baselineStartDate`),
     baselineEndDate: requireCivilDate(value.baselineEndDate, `${where}.baselineEndDate`),
     dependsOn: requireStringArray(value.dependsOn, `${where}.dependsOn`, true),
-    price: requireString(value.price, `${where}.price`, true),
-    link: link ?? null,
+    link: optionalLink(value.link, where),
     resources: parseResources(value.resources, `${where}.resources`),
     duration: requireString(value.duration ?? '', `${where}.duration`, true),
     notes: requireString(value.notes, `${where}.notes`, true),

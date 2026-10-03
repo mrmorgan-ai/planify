@@ -11,22 +11,21 @@ import {
   weekOf,
   withoutEstimate,
 } from './hours'
-import type { Item, WeeklyHours } from './types'
+import type { Task, WeeklyHours } from './types'
 
-function item(id: string, overrides: Partial<Item> = {}): Item {
+function task(id: string, overrides: Partial<Task> = {}): Task {
   return {
     id,
     name: id,
-    type: 'Course',
     phase: 1,
     skills: [],
-    workItemId: null,
+    // A story of its own, as a task on its own was before every task had one.
+    storyId: `${id}-story`,
     baselineStartDate: '2030-02-04',
     baselineEndDate: '2030-02-10',
     projectedStartDate: '2030-02-04',
     projectedEndDate: '2030-02-10',
     dependsOn: [],
-    price: '',
     link: null,
     resources: [],
     duration: '',
@@ -44,33 +43,33 @@ const CAPACITY: WeeklyHours = { normal: 15 }
 
 describe('estimatedHours', () => {
   it('reads plain hours', () => {
-    expect(estimatedHours(item('a', { duration: '~10h' }))).toBe(10)
+    expect(estimatedHours(task('a', { duration: '~10h' }))).toBe(10)
   })
 
   it('reads a decimal', () => {
-    expect(estimatedHours(item('a', { duration: '~1.5h' }))).toBe(1.5)
+    expect(estimatedHours(task('a', { duration: '~1.5h' }))).toBe(1.5)
   })
 
   it('reads a range as its midpoint', () => {
-    expect(estimatedHours(item('a', { duration: '~2.5-3h' }))).toBe(2.75)
+    expect(estimatedHours(task('a', { duration: '~2.5-3h' }))).toBe(2.75)
   })
 
   it('converts minutes', () => {
-    expect(estimatedHours(item('a', { duration: '~45 min' }))).toBe(0.75)
+    expect(estimatedHours(task('a', { duration: '~45 min' }))).toBe(0.75)
   })
 
   it('ignores what follows the hours', () => {
-    expect(estimatedHours(item('a', { duration: '~25h, 7 videos' }))).toBe(25)
+    expect(estimatedHours(task('a', { duration: '~25h, 7 videos' }))).toBe(25)
   })
 
   it('is null when the text carries no hours', () => {
-    expect(estimatedHours(item('a', { duration: '7 videos' }))).toBeNull()
-    expect(estimatedHours(item('a', { duration: 'complete' }))).toBeNull()
-    expect(estimatedHours(item('a', { duration: '' }))).toBeNull()
+    expect(estimatedHours(task('a', { duration: '7 videos' }))).toBeNull()
+    expect(estimatedHours(task('a', { duration: 'complete' }))).toBeNull()
+    expect(estimatedHours(task('a', { duration: '' }))).toBeNull()
   })
 
   it('is null and not zero, so a missing estimate is distinguishable', () => {
-    const missing = item('a')
+    const missing = task('a')
 
     expect(estimatedHours(missing)).not.toBe(0)
     expect(estimatedHours(missing)).toBeNull()
@@ -78,19 +77,19 @@ describe('estimatedHours', () => {
 })
 
 describe('sumHours and withoutEstimate', () => {
-  const items = [
-    item('a', { duration: '~10h' }),
-    item('b', { duration: '~30 min' }),
-    item('c'),
-    item('d', { duration: 'complete' }),
+  const tasks = [
+    task('a', { duration: '~10h' }),
+    task('b', { duration: '~30 min' }),
+    task('c'),
+    task('d', { duration: 'complete' }),
   ]
 
   it('adds what is estimated', () => {
-    expect(sumHours(items)).toBe(10.5)
+    expect(sumHours(tasks)).toBe(10.5)
   })
 
   it('counts what the sum leaves out', () => {
-    expect(withoutEstimate(items)).toBe(2)
+    expect(withoutEstimate(tasks)).toBe(2)
   })
 
   it('is zero on an empty list', () => {
@@ -115,8 +114,8 @@ describe('weekOf', () => {
 describe('inWeek', () => {
   const week = weekOf('2030-02-06', CAPACITY)
 
-  it('includes an item that merely overlaps the week', () => {
-    const spanning = item('long', {
+  it('includes a task that merely overlaps the week', () => {
+    const spanning = task('long', {
       projectedStartDate: '2030-01-28',
       projectedEndDate: '2030-02-20',
     })
@@ -124,8 +123,8 @@ describe('inWeek', () => {
     expect(inWeek([spanning], week).map((entry) => entry.id)).toEqual(['long'])
   })
 
-  it('excludes an item that ends before the week starts', () => {
-    const before = item('before', {
+  it('excludes a task that ends before the week starts', () => {
+    const before = task('before', {
       projectedStartDate: '2030-01-21',
       projectedEndDate: '2030-02-03',
     })
@@ -133,8 +132,8 @@ describe('inWeek', () => {
     expect(inWeek([before], week)).toEqual([])
   })
 
-  it('excludes an item that starts after the week ends', () => {
-    const after = item('after', {
+  it('excludes a task that starts after the week ends', () => {
+    const after = task('after', {
       projectedStartDate: '2030-02-11',
       projectedEndDate: '2030-02-15',
     })
@@ -166,9 +165,9 @@ describe('daysLeftInWeek', () => {
 describe('hoursInWeek', () => {
   const week = weekOf('2030-02-06', CAPACITY)
 
-  it('counts only the share of a multi-week item that falls in the week', () => {
+  it('counts only the share of a multi-week task that falls in the week', () => {
     // 2030-01-28 to 2030-02-24 is 28 days, and 7 of them are this week.
-    const long = item('long', {
+    const long = task('long', {
       duration: '~28h',
       projectedStartDate: '2030-01-28',
       projectedEndDate: '2030-02-24',
@@ -177,8 +176,8 @@ describe('hoursInWeek', () => {
     expect(hoursInWeek([long], week, [])).toBeCloseTo(7)
   })
 
-  it('counts all of an item that fits inside the week', () => {
-    const inside = item('inside', {
+  it('counts all of a task that fits inside the week', () => {
+    const inside = task('inside', {
       duration: '~6h',
       projectedStartDate: '2030-02-05',
       projectedEndDate: '2030-02-08',
@@ -187,8 +186,8 @@ describe('hoursInWeek', () => {
     expect(hoursInWeek([inside], week, [])).toBeCloseTo(6)
   })
 
-  it('ignores an item outside the week', () => {
-    const outside = item('outside', {
+  it('ignores a task outside the week', () => {
+    const outside = task('outside', {
       duration: '~10h',
       projectedStartDate: '2030-02-11',
       projectedEndDate: '2030-02-15',
@@ -197,8 +196,8 @@ describe('hoursInWeek', () => {
     expect(hoursInWeek([outside], week, [])).toBe(0)
   })
 
-  it('ignores an item with no estimate', () => {
-    const vague = item('vague', {
+  it('ignores a task with no estimate', () => {
+    const vague = task('vague', {
       projectedStartDate: '2030-02-05',
       projectedEndDate: '2030-02-08',
     })
@@ -207,9 +206,9 @@ describe('hoursInWeek', () => {
   })
 
   it('skips the non-study days inside the week', () => {
-    // The whole of this week is a blackout, so none of the item lands in it.
+    // The whole of this week is a blackout, so none of the task lands in it.
     const blackouts = [{ from: '2030-02-04', to: '2030-02-10', reason: 'Break' }]
-    const spanning = item('spanning', {
+    const spanning = task('spanning', {
       duration: '~10h',
       projectedStartDate: '2030-02-01',
       projectedEndDate: '2030-02-15',
@@ -218,8 +217,8 @@ describe('hoursInWeek', () => {
     expect(hoursInWeek([spanning], week, blackouts)).toBe(0)
   })
 
-  it('never counts more than the item estimates', () => {
-    const exact = item('exact', {
+  it('never counts more than the task estimates', () => {
+    const exact = task('exact', {
       duration: '~9h',
       projectedStartDate: '2030-02-04',
       projectedEndDate: '2030-02-10',
@@ -230,9 +229,9 @@ describe('hoursInWeek', () => {
 })
 
 describe('hoursByWeek', () => {
-  it('spreads an item over the weeks it touches, keyed by Monday', () => {
+  it('spreads a task over the weeks it touches, keyed by Monday', () => {
     // Thursday to the next Wednesday: 4 days in the first week, 3 in the second.
-    const across = item('across', {
+    const across = task('across', {
       duration: '~7h',
       projectedStartDate: '2030-02-07',
       projectedEndDate: '2030-02-13',
@@ -247,71 +246,71 @@ describe('hoursByWeek', () => {
   it('agrees with hoursInWeek for every week', () => {
     const blackouts = [{ from: '2030-02-12', to: '2030-02-18', reason: 'Break' }]
     const spanning = (id: string, duration: string, from: string, to: string) =>
-      item(id, { duration, projectedStartDate: from, projectedEndDate: to })
-    const items = [
+      task(id, { duration, projectedStartDate: from, projectedEndDate: to })
+    const tasks = [
       spanning('long', '~28h', '2030-01-28', '2030-02-24'),
       spanning('short', '~2.5-3h', '2030-02-05', '2030-02-06'),
       spanning('paused', '~10h', '2030-02-08', '2030-02-21'),
       spanning('vague', '', '2030-02-05', '2030-02-08'),
     ]
-    const byWeek = hoursByWeek(items, blackouts)
+    const byWeek = hoursByWeek(tasks, blackouts)
 
     for (const monday of ['2030-01-28', '2030-02-04', '2030-02-11', '2030-02-18', '2030-02-25']) {
-      expect(byWeek.get(monday) ?? 0).toBe(hoursInWeek(items, weekOf(monday, CAPACITY), blackouts))
+      expect(byWeek.get(monday) ?? 0).toBe(hoursInWeek(tasks, weekOf(monday, CAPACITY), blackouts))
     }
   })
 })
 
 describe('progressHours', () => {
-  it('counts the hours declared on an unfinished item', () => {
-    expect(progressHours(item('a', { duration: '~4h', hoursDone: 1.5 }))).toBe(1.5)
+  it('counts the hours declared on an unfinished task', () => {
+    expect(progressHours(task('a', { duration: '~4h', hoursDone: 1.5 }))).toBe(1.5)
   })
 
-  it('counts a finished item in full, whatever was declared along the way', () => {
-    expect(progressHours(item('a', { duration: '~4h', hoursDone: 1, state: 'done' }))).toBe(4)
+  it('counts a finished task in full, whatever was declared along the way', () => {
+    expect(progressHours(task('a', { duration: '~4h', hoursDone: 1, state: 'done' }))).toBe(4)
   })
 
   it('never counts more than the estimate', () => {
-    expect(progressHours(item('a', { duration: '~4h', hoursDone: 9 }))).toBe(4)
+    expect(progressHours(task('a', { duration: '~4h', hoursDone: 9 }))).toBe(4)
   })
 
   it('counts nothing without an estimate — there is nothing to be part of', () => {
-    expect(progressHours(item('a', { duration: '', hoursDone: 3 }))).toBe(0)
-    expect(progressHours(item('a', { duration: '', hoursDone: 3, state: 'done' }))).toBe(0)
+    expect(progressHours(task('a', { duration: '', hoursDone: 3 }))).toBe(0)
+    expect(progressHours(task('a', { duration: '', hoursDone: 3, state: 'done' }))).toBe(0)
   })
 })
 
 describe('planProgress', () => {
-  const items = [
-    item('read', { phase: 1, duration: '~2h', baselineEndDate: '2030-02-10', state: 'done' }),
-    item('build', { phase: 1, duration: '~4h', baselineEndDate: '2030-02-17' }),
-    item('exam', { phase: 2, duration: '~2h', baselineEndDate: '2030-02-24' }),
-    item('guess', { phase: 2, duration: '' }),
+  const tasks = [
+    task('read', { phase: 1, duration: '~2h', baselineEndDate: '2030-02-10', state: 'done' }),
+    task('build', { phase: 1, duration: '~4h', baselineEndDate: '2030-02-17' }),
+    task('exam', { phase: 2, duration: '~2h', baselineEndDate: '2030-02-24' }),
+    task('guess', { phase: 2, duration: '' }),
   ]
 
   it('counts done hours, total hours, and the hours planned to be finished before today', () => {
-    const progress = planProgress(items, [1, 2], '2030-02-18')
+    const progress = planProgress(tasks, [1, 2], '2030-02-18')
     expect(progress.done).toBe(2)
     expect(progress.total).toBe(8)
     expect(progress.expected).toBe(6)
   })
 
-  it('does not expect an item on the day it is planned to end', () => {
-    expect(planProgress(items, [1, 2], '2030-02-17').expected).toBe(2)
+  it('does not expect a task on the day it is planned to end', () => {
+    expect(planProgress(tasks, [1, 2], '2030-02-17').expected).toBe(2)
   })
 
   it('counts hours declared on what is still in hand', () => {
     const declared = [
-      items[0]!,
-      item('build', { phase: 1, duration: '~4h', hoursDone: 3, state: 'in_progress' }),
-      items[2]!,
-      items[3]!,
+      tasks[0]!,
+      task('build', { phase: 1, duration: '~4h', hoursDone: 3, state: 'in_progress' }),
+      tasks[2]!,
+      tasks[3]!,
     ]
     expect(planProgress(declared, [1, 2], '2030-02-18').done).toBe(5)
   })
 
   it('splits the total and the done hours by phase, in phase order', () => {
-    expect(planProgress(items, [1, 2], '2030-02-18').phases).toEqual([
+    expect(planProgress(tasks, [1, 2], '2030-02-18').phases).toEqual([
       { phase: 1, hours: 6, done: 2 },
       { phase: 2, hours: 2, done: 0 },
     ])

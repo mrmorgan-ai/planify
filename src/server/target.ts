@@ -1,5 +1,5 @@
 import { previewOf, type ImportPreview } from '../core/importing'
-import type { AppState, Item, RoadmapContent } from '../core/types'
+import type { AppState, Task, RoadmapContent } from '../core/types'
 import { loadDraftState, mutateDraft } from './drafts'
 import { StaleRevisionError, loadAppState, mutateContent, type WriteOptions } from './repository'
 import type { Space } from './space'
@@ -33,19 +33,24 @@ export function mutateTarget(
     : mutateContent(space, expectedRevision, transform, options)
 }
 
-/** `mutate` on the target: a write that only moves items. */
-export function mutateItemsIn(
+/** `mutate` on the target: a write that only moves tasks. */
+export function mutateTasksIn(
   space: Space,
   target: Target,
   expectedRevision: number | null,
-  transform: (state: AppState) => Item[],
+  transform: (state: AppState) => Task[],
   options: WriteOptions = {},
 ): Promise<AppState> {
   return mutateTarget(
     space,
     target,
     expectedRevision,
-    (state) => ({ roadmap: state.roadmap, workItems: state.workItems, items: transform(state) }),
+    (state) => ({
+      roadmap: state.roadmap,
+      features: state.features,
+      stories: state.stories,
+      tasks: transform(state),
+    }),
     options,
   )
 }

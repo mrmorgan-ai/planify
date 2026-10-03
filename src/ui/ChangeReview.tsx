@@ -17,7 +17,7 @@ export type ReviewWords = {
 
 /**
  * What bringing a whole plan in would change, read before it is applied: the
- * items and settings it changes, the progress it loses, the rules it breaks and
+ * tasks and settings it changes, the progress it loses, the rules it breaks and
  * the warnings it leaves. Nothing is written until the person confirms, and a
  * plan that brings in an error cannot be confirmed at all.
  */
@@ -34,7 +34,7 @@ export function ChangeReview({
 }: {
   state: AppState
   title: string
-  /** The plan being brought in, as a roadmap file: where new items get their names. */
+  /** The plan being brought in, as a roadmap file: where new tasks get their names. */
   source: unknown
   note?: ReactNode
   preview: ImportPreview
@@ -45,8 +45,8 @@ export function ChangeReview({
 }) {
   const { changes, introduced, issues } = preview
   const warnings = issues.filter((issue) => issue.severity === 'warning')
-  const lost = changes.items.removed.filter(
-    (item) => item.state !== 'pending' || item.hoursDone > 0,
+  const lost = changes.tasks.removed.filter(
+    (task) => task.state !== 'pending' || task.hoursDone > 0,
   )
   const nothing = isEmpty(changes)
   const nameOf = namer(state, source)
@@ -63,15 +63,23 @@ export function ChangeReview({
       ) : (
         <ul className="import-summary">
           <li>
-            Items: {changes.items.added.length} added · {changes.items.removed.length} removed ·{' '}
-            {changes.items.changed.length} edited
+            Tasks: {changes.tasks.added.length} added · {changes.tasks.removed.length} removed ·{' '}
+            {changes.tasks.changed.length} edited
           </li>
-          {(changes.workItems.added.length > 0 ||
-            changes.workItems.removed.length > 0 ||
-            changes.workItems.changed.length > 0) && (
+          {(changes.stories.added.length > 0 ||
+            changes.stories.removed.length > 0 ||
+            changes.stories.changed.length > 0) && (
             <li>
-              Work items: {changes.workItems.added.length} added ·{' '}
-              {changes.workItems.removed.length} removed · {changes.workItems.changed.length} edited
+              Stories: {changes.stories.added.length} added ·{' '}
+              {changes.stories.removed.length} removed · {changes.stories.changed.length} edited
+            </li>
+          )}
+          {(changes.features.added.length > 0 ||
+            changes.features.removed.length > 0 ||
+            changes.features.changed.length > 0) && (
+            <li>
+              Features: {changes.features.added.length} added ·{' '}
+              {changes.features.removed.length} removed · {changes.features.changed.length} edited
             </li>
           )}
           {changes.settings.length > 0 && (
@@ -84,12 +92,12 @@ export function ChangeReview({
 
       {lost.length > 0 && (
         <div className="notice bad-notice">
-          Progress on {lost.length === 1 ? 'this item' : `these ${lost.length} items`} is lost:
+          Progress on {lost.length === 1 ? 'this task' : `these ${lost.length} tasks`} is lost:
           <ul>
-            {lost.map((item) => (
-              <li key={item.id}>
-                {item.name} — {item.state === 'done' ? 'done' : 'in progress'}
-                {item.hoursDone > 0 ? `, ${item.hoursDone}h logged` : ''}
+            {lost.map((task) => (
+              <li key={task.id}>
+                {task.name} — {task.state === 'done' ? 'done' : 'in progress'}
+                {task.hoursDone > 0 ? `, ${task.hoursDone}h logged` : ''}
               </li>
             ))}
           </ul>
@@ -111,17 +119,20 @@ export function ChangeReview({
       {!nothing && (
         <details className="import-details">
           <summary>See every change</summary>
-          <ChangeList title="Added" lines={changes.items.added.map(nameOf)} />
-          <ChangeList title="Removed" lines={changes.items.removed.map((item) => item.name)} />
+          <ChangeList title="Added" lines={changes.tasks.added.map(nameOf)} />
+          <ChangeList title="Removed" lines={changes.tasks.removed.map((task) => task.name)} />
           <ChangeList
             title="Edited"
-            lines={changes.items.changed.map(
+            lines={changes.tasks.changed.map(
               ({ id, fields }) => `${nameOf(id)}: ${fields.join(', ')}`,
             )}
           />
-          <ChangeList title="Work items added" lines={changes.workItems.added} />
-          <ChangeList title="Work items removed" lines={changes.workItems.removed} />
-          <ChangeList title="Work items edited" lines={changes.workItems.changed} />
+          <ChangeList title="Stories added" lines={changes.stories.added} />
+          <ChangeList title="Stories removed" lines={changes.stories.removed} />
+          <ChangeList title="Stories edited" lines={changes.stories.changed} />
+          <ChangeList title="Features added" lines={changes.features.added} />
+          <ChangeList title="Features removed" lines={changes.features.removed} />
+          <ChangeList title="Features edited" lines={changes.features.changed} />
         </details>
       )}
 
@@ -167,25 +178,28 @@ function ChangeList({ title, lines }: { title: string; lines: string[] }) {
   )
 }
 
-/** An item's name from the roadmap, or from the plan coming in for one it adds. */
+/** A task's name from the roadmap, or from the plan coming in for one it adds. */
 function namer(state: AppState, source: unknown): (id: string) => string {
-  const names = new Map(state.items.map((item) => [item.id, item.name]))
+  const names = new Map(state.tasks.map((task) => [task.id, task.name]))
   const incoming =
-    (source as { items?: Array<{ id?: unknown; name?: unknown }> } | null)?.items ?? []
-  for (const item of incoming) {
-    if (typeof item.id === 'string' && typeof item.name === 'string') names.set(item.id, item.name)
+    (source as { tasks?: Array<{ id?: unknown; name?: unknown }> } | null)?.tasks ?? []
+  for (const task of incoming) {
+    if (typeof task.id === 'string' && typeof task.name === 'string') names.set(task.id, task.name)
   }
   return (id) => names.get(id) ?? id
 }
 
 function isEmpty(changes: ImportChanges): boolean {
   return (
-    changes.items.added.length === 0 &&
-    changes.items.removed.length === 0 &&
-    changes.items.changed.length === 0 &&
-    changes.workItems.added.length === 0 &&
-    changes.workItems.removed.length === 0 &&
-    changes.workItems.changed.length === 0 &&
+    changes.tasks.added.length === 0 &&
+    changes.tasks.removed.length === 0 &&
+    changes.tasks.changed.length === 0 &&
+    changes.stories.added.length === 0 &&
+    changes.stories.removed.length === 0 &&
+    changes.stories.changed.length === 0 &&
+    changes.features.added.length === 0 &&
+    changes.features.removed.length === 0 &&
+    changes.features.changed.length === 0 &&
     changes.settings.length === 0
   )
 }

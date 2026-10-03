@@ -1,15 +1,15 @@
 import { Link as RouterLink } from 'react-router-dom'
-import type { PartLabel } from '../core/workItems'
+import type { TaskLabel } from '../core/stories'
 
 /**
- * "Part 3 of 9 · Phase 2 project" under the name: the row is one piece of a
- * larger unit, and the link opens that unit with all its parts.
+ * "Task 3 of 9 · Phase 2 project" under the name: the row is one step of a
+ * story, and the link opens that story with all its tasks.
  */
-export function PartOf({ part }: { part: PartLabel }) {
+export function PartOf({ part }: { part: TaskLabel }) {
   return (
     <div className="part-of">
-      <RouterLink to={`/work-items?unit=${encodeURIComponent(part.workItem.id)}`}>
-        Part {part.index} of {part.total} · {part.workItem.name}
+      <RouterLink to={`/stories?story=${encodeURIComponent(part.story.id)}`}>
+        Task {part.index} of {part.total} · {part.story.name}
       </RouterLink>
     </div>
   )

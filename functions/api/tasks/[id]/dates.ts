@@ -6,7 +6,7 @@ import { previewIn, targetOf } from '../../../../src/server/target'
 import { spaceOf } from '../../../../src/server/space'
 
 /**
- * Moves one item's baseline dates, pushing what depends on it forward by the
+ * Moves one task's baseline dates, pushing what depends on it forward by the
  * same study days — see `moveDates`. With `draft: true` the move lands in the
  * draft; with `dryRun: true` nothing is written, and the answer says what it
  * would change.
@@ -14,7 +14,7 @@ import { spaceOf } from '../../../../src/server/space'
 export const onRequest = only<Env>('PATCH', async ({ env, data, params, request }) => {
   const space = spaceOf(env, data)
   const id = Array.isArray(params.id) ? params.id[0] : params.id
-  if (!id) return Response.json({ error: 'Missing item id' }, { status: 400 })
+  if (!id) return Response.json({ error: 'Missing task id' }, { status: 400 })
 
   let body: unknown
   try {
@@ -43,7 +43,7 @@ export const onRequest = only<Env>('PATCH', async ({ env, data, params, request 
       return Response.json(
         await previewIn(space, targetOf(body), revision, (state) => ({
           ...state,
-          items: moved(state),
+          tasks: moved(state),
         })),
       )
     }
@@ -53,7 +53,7 @@ export const onRequest = only<Env>('PATCH', async ({ env, data, params, request 
     if (refused) return refused
     const message = error instanceof Error ? error.message : 'Unknown error'
     const status =
-      error instanceof DatesError ? 400 : message.startsWith('No item with id') ? 404 : 500
+      error instanceof DatesError ? 400 : message.startsWith('No task with id') ? 404 : 500
     return Response.json({ error: message }, { status })
   }
 })

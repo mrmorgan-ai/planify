@@ -107,7 +107,7 @@ switch (command) {
     const rows = query(LIST_SQL)
     for (const row of rows) {
       console.log(
-        `${row.id}  ${row.name}  ·  ${row.items} items  ·  ${row.members ?? 'no members'}  ·  since ${row.created_at.slice(0, 10)}`,
+        `${row.id}  ${row.name}  ·  ${row.tasks} tasks  ·  ${row.members ?? 'no members'}  ·  since ${row.created_at.slice(0, 10)}`,
       )
     }
     const delegates = query('SELECT principal FROM delegates ORDER BY principal')
