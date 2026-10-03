@@ -62,7 +62,7 @@ export function firstStudyDayFrom(date: CivilDate, blackouts: readonly Blackout[
 
 /**
  * The next study day strictly after `date`. This is the dependency handoff: an
- * item starts the day after the one it depends on ends, never the same day.
+ * task starts the day after the one it depends on ends, never the same day.
  */
 export function studyDayAfter(date: CivilDate, blackouts: readonly Blackout[]): CivilDate {
   return firstStudyDayFrom(addDays(date, 1), blackouts)

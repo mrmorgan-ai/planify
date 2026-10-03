@@ -9,7 +9,7 @@ import { spaceOf } from '../../src/server/space'
  * Adds a course, a certification, a project or practice blocks, placed in the
  * hours the plan leaves free: `{ revision, generator }`.
  *
- * With `dryRun: true` nothing is written, and the answer is the items with the
+ * With `dryRun: true` nothing is written, and the answer is the tasks with the
  * dates they would get, what they change and which rules the result breaks.
  * Without it, the answer is the new world, like every other write. With
  * `draft: true` both work on the draft instead. A request

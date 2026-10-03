@@ -4,7 +4,7 @@ import type { PlanProgress } from '../core/hours'
  * A bullet graph: the bar is the hours done, the tick is where the plan expected
  * you to be by today, and the track is cut at each phase boundary so the bar
  * also says which stage you are in. One measure against one target — the reading
- * the old items-done meter could not give, because 20 of 138 is neither good nor
+ * the old tasks-done meter could not give, because 20 of 138 is neither good nor
  * bad without knowing what today should look like.
  */
 export function PlanBullet({ progress }: { progress: PlanProgress }) {

@@ -10,38 +10,38 @@ import {
   toCivilDate,
 } from './dates'
 import { estimatedHours } from './hours'
-import type { CivilDate, IsoDateTime, Item, ScheduleOptions, State } from './types'
+import type { CivilDate, IsoDateTime, Task, ScheduleOptions, State } from './types'
 
 /**
  * Dependency order, with ties broken by phase, then curated order, then id, so
  * the output is stable — a test comparing two runs compares the same order.
  */
-export function topologicalOrder(items: readonly Item[]): Item[] {
-  const byId = new Map(items.map((item) => [item.id, item]))
+export function topologicalOrder(tasks: readonly Task[]): Task[] {
+  const byId = new Map(tasks.map((task) => [task.id, task]))
 
-  for (const item of items) {
-    for (const dependency of item.dependsOn) {
+  for (const task of tasks) {
+    for (const dependency of task.dependsOn) {
       if (!byId.has(dependency)) {
-        throw new Error(`${item.id} depends on ${dependency}, which does not exist`)
+        throw new Error(`${task.id} depends on ${dependency}, which does not exist`)
       }
     }
   }
 
   const pending = new Map<string, number>(
-    items.map((item) => [item.id, new Set(item.dependsOn).size]),
+    tasks.map((task) => [task.id, new Set(task.dependsOn).size]),
   )
-  const dependents = new Map<string, string[]>(items.map((item) => [item.id, []]))
-  for (const item of items) {
-    for (const dependency of new Set(item.dependsOn)) {
-      dependents.get(dependency)?.push(item.id)
+  const dependents = new Map<string, string[]>(tasks.map((task) => [task.id, []]))
+  for (const task of tasks) {
+    for (const dependency of new Set(task.dependsOn)) {
+      dependents.get(dependency)?.push(task.id)
     }
   }
 
-  const ready = items
-    .filter((item) => pending.get(item.id) === 0)
+  const ready = tasks
+    .filter((task) => pending.get(task.id) === 0)
     .sort((a, b) => compareRank(rank(a), rank(b)))
 
-  const ordered: Item[] = []
+  const ordered: Task[] = []
   while (ready.length > 0) {
     const next = ready.shift()
     if (!next) break
@@ -57,10 +57,10 @@ export function topologicalOrder(items: readonly Item[]): Item[] {
     }
   }
 
-  if (ordered.length !== items.length) {
-    const stuck = items
-      .filter((item) => !ordered.includes(item))
-      .map((item) => item.id)
+  if (ordered.length !== tasks.length) {
+    const stuck = tasks
+      .filter((task) => !ordered.includes(task))
+      .map((task) => task.id)
       .join(', ')
     throw new Error(`The dependency graph has a cycle involving: ${stuck}`)
   }
@@ -69,57 +69,57 @@ export function topologicalOrder(items: readonly Item[]): Item[] {
 }
 
 /**
- * Recomputes `projectedStartDate`/`projectedEndDate` for every item from the
+ * Recomputes `projectedStartDate`/`projectedEndDate` for every task from the
  * baselines, the dependency graph and whatever is already done.
  *
  * Deliberately a full recompute rather than propagation from the changed node:
  * with a roadmap this size it costs nothing, it is idempotent so projections
- * cannot drift, and it handles un-completing an item — which propagation does
+ * cannot drift, and it handles un-completing a task — which propagation does
  * not.
  */
-export function recomputeProjections(items: readonly Item[], options: ScheduleOptions): Item[] {
+export function recomputeProjections(tasks: readonly Task[], options: ScheduleOptions): Task[] {
   const { blackouts, timeZone } = options
   const projected = new Map<string, { start: CivilDate; end: CivilDate }>()
 
-  for (const item of topologicalOrder(items)) {
-    const duration = studyDaysBetween(item.baselineStartDate, item.baselineEndDate, blackouts)
+  for (const task of topologicalOrder(tasks)) {
+    const duration = studyDaysBetween(task.baselineStartDate, task.baselineEndDate, blackouts)
     if (duration < 1) {
       throw new Error(
-        `${item.id} has a baseline span with no study days: ${item.baselineStartDate}..${item.baselineEndDate}`,
+        `${task.id} has a baseline span with no study days: ${task.baselineStartDate}..${task.baselineEndDate}`,
       )
     }
 
-    const latestDependencyEnd = item.dependsOn.reduce<CivilDate | null>((latest, id) => {
+    const latestDependencyEnd = task.dependsOn.reduce<CivilDate | null>((latest, id) => {
       const resolved = projected.get(id)
-      if (!resolved) throw new Error(`${item.id} was projected before its dependency ${id}`)
+      if (!resolved) throw new Error(`${task.id} was projected before its dependency ${id}`)
       return latest === null || resolved.end > latest ? resolved.end : latest
     }, null)
 
     // The baseline is a floor: finishing early never pulls the rest forward.
     const earliest =
       latestDependencyEnd === null
-        ? item.baselineStartDate
-        : maxDate(item.baselineStartDate, studyDayAfter(latestDependencyEnd, blackouts))
+        ? task.baselineStartDate
+        : maxDate(task.baselineStartDate, studyDayAfter(latestDependencyEnd, blackouts))
 
     let start = firstStudyDayFrom(earliest, blackouts)
     let end: CivilDate
 
-    if (item.state === 'done' && item.completedAt) {
-      // A completed item freezes on its real date, whatever its dependencies do.
-      end = toCivilDate(item.completedAt, timeZone)
+    if (task.state === 'done' && task.completedAt) {
+      // A completed task freezes on its real date, whatever its dependencies do.
+      end = toCivilDate(task.completedAt, timeZone)
       start = minDate(start, end)
     } else {
       end = addStudyDays(start, duration, blackouts)
     }
 
-    projected.set(item.id, { start, end })
+    projected.set(task.id, { start, end })
   }
 
-  return items.map((item) => {
-    const resolved = projected.get(item.id)
-    if (!resolved) throw new Error(`${item.id} was not projected`)
+  return tasks.map((task) => {
+    const resolved = projected.get(task.id)
+    if (!resolved) throw new Error(`${task.id} was not projected`)
     return {
-      ...item,
+      ...task,
       projectedStartDate: resolved.start,
       projectedEndDate: resolved.end,
     }
@@ -129,43 +129,43 @@ export function recomputeProjections(items: readonly Item[], options: ScheduleOp
 /**
  * `recomputeProjections` for a plan that may be broken. The engine cannot place
  * a missing dependency, a cycle or a span with no study day, and says so by
- * throwing; the items then keep the projections they came with, and the
+ * throwing; the tasks then keep the projections they came with, and the
  * validator is what names the problem — as an error, which refuses the write.
  */
-export function projectWherePossible(items: readonly Item[], options: ScheduleOptions): Item[] {
+export function projectWherePossible(tasks: readonly Task[], options: ScheduleOptions): Task[] {
   try {
-    return recomputeProjections(items, options)
+    return recomputeProjections(tasks, options)
   } catch {
-    return [...items]
+    return [...tasks]
   }
 }
 
 /**
- * Moves one item to a new state and reprojects everything. Keeps the invariant
+ * Moves one task to a new state and reprojects everything. Keeps the invariant
  * the schema enforces: `done` carries a `completedAt`, anything else does not.
- * Re-marking an item done keeps its original date.
+ * Re-marking a task done keeps its original date.
  *
- * Finishing an item also fills in its hours, so nobody has to declare the last
+ * Finishing a task also fills in its hours, so nobody has to declare the last
  * hour of something they just finished. Moving it back out of `done` leaves them
  * where they are: the work was really done, and the state says the rest.
  */
 export function applyStateChange(
-  items: readonly Item[],
+  tasks: readonly Task[],
   id: string,
   next: State,
   now: IsoDateTime,
   options: ScheduleOptions,
-): Item[] {
-  if (!items.some((item) => item.id === id)) throw new Error(`No item with id ${id}`)
+): Task[] {
+  if (!tasks.some((task) => task.id === id)) throw new Error(`No task with id ${id}`)
 
-  const updated = items.map((item) => {
-    if (item.id !== id) return item
-    const estimate = estimatedHours(item)
+  const updated = tasks.map((task) => {
+    if (task.id !== id) return task
+    const estimate = estimatedHours(task)
     return {
-      ...item,
+      ...task,
       state: next,
-      completedAt: next === 'done' ? (item.completedAt ?? now) : null,
-      hoursDone: next === 'done' && estimate !== null ? estimate : item.hoursDone,
+      completedAt: next === 'done' ? (task.completedAt ?? now) : null,
+      hoursDone: next === 'done' && estimate !== null ? estimate : task.hoursDone,
     }
   })
 
@@ -173,9 +173,9 @@ export function applyStateChange(
 }
 
 /**
- * Declares how many hours of an item are already spent.
+ * Declares how many hours of a task are already spent.
  *
- * Progress is information, not a decision: declaring hours never moves the item
+ * Progress is information, not a decision: declaring hours never moves the task
  * to another state, the same way a dependency never blocks one. It is clamped to
  * the estimate, because "6 of 4 hours" is a typo rather than an achievement, and
  * refused outright when there is no estimate to be part of — an exam has hours
@@ -185,120 +185,120 @@ export function applyStateChange(
  * write path, one guarantee about what comes back.
  */
 export function applyHoursDone(
-  items: readonly Item[],
+  tasks: readonly Task[],
   id: string,
   hours: number,
   options: ScheduleOptions,
-): Item[] {
-  const target = items.find((item) => item.id === id)
-  if (!target) throw new Error(`No item with id ${id}`)
+): Task[] {
+  const target = tasks.find((task) => task.id === id)
+  if (!target) throw new Error(`No task with id ${id}`)
 
   const estimate = estimatedHours(target)
   if (estimate === null) throw new Error(`${id} has no hours estimate to declare against`)
   if (!Number.isFinite(hours) || hours < 0) throw new Error(`Hours must be zero or more`)
 
   const declared = Math.min(hours, estimate)
-  const updated = items.map((item) => (item.id === id ? { ...item, hoursDone: declared } : item))
+  const updated = tasks.map((task) => (task.id === id ? { ...task, hoursDone: declared } : task))
 
   return recomputeProjections(updated, options)
 }
 
 /**
- * Moves one item's baseline, pushes what follows it, and recomputes every
+ * Moves one task's baseline, pushes what follows it, and recomputes every
  * projection.
  *
- * When the item now ends N study days later than it did, everything that depends
+ * When the task now ends N study days later than it did, everything that depends
  * on it — directly or down the chain — moves N study days later too, as a block:
  * the gaps the plan left between them are kept. Their baselines move, not only
- * their projections, because a push is a change of plan; moving the item back
+ * their projections, because a push is a change of plan; moving the task back
  * later does not pull them with it.
  *
- * Pushing only goes forward. An item moved earlier or shortened leaves what
- * follows it where it was. Done items are not pushed and the push does not pass
+ * Pushing only goes forward. A task moved earlier or shortened leaves what
+ * follows it where it was. Done tasks are not pushed and the push does not pass
  * through them: they ended when they ended.
  *
- * An item that depends on nothing keeps its own dates, because nothing about its
- * plan changed — unless it is the next part of the same work item and the move
+ * A task that depends on nothing keeps its own dates, because nothing about its
+ * plan changed — unless it is the next part of the same story and the move
  * now overlaps it, in which case it is set apart (see `separateParts`).
  */
 export function applyBaselineDates(
-  items: readonly Item[],
+  tasks: readonly Task[],
   id: string,
   start: CivilDate,
   end: CivilDate,
   options: ScheduleOptions,
-): Item[] {
-  if (!items.some((item) => item.id === id)) throw new Error(`No item with id ${id}`)
+): Task[] {
+  if (!tasks.some((task) => task.id === id)) throw new Error(`No task with id ${id}`)
   if (end < start) throw new Error(`End ${end} is before start ${start}`)
 
-  const before = recomputeProjections(items, options)
+  const before = recomputeProjections(tasks, options)
   const moved = recomputeProjections(
-    items.map((item) =>
-      item.id === id ? { ...item, baselineStartDate: start, baselineEndDate: end } : item,
+    tasks.map((task) =>
+      task.id === id ? { ...task, baselineStartDate: start, baselineEndDate: end } : task,
     ),
     options,
   )
 
   const push = pushedBy(before, moved, id, options)
   const followers = push === 0 ? new Set<string>() : followersOf(moved, id)
-  const pushed = moved.map((item) =>
-    followers.has(item.id) ? shiftBaseline(item, push, options) : item,
+  const pushed = moved.map((task) =>
+    followers.has(task.id) ? shiftBaseline(task, push, options) : task,
   )
-  return recomputeProjections(separateParts(items, pushed, options), options)
+  return recomputeProjections(separateParts(tasks, pushed, options), options)
 }
 
 /**
- * The parts of a work item that a move made overlap, set apart again.
+ * The parts of a story that a move made overlap, set apart again.
  *
  * The parts of a book or a practice block are rarely chained by dependencies,
  * so a push along dependencies leaves the part after a moved one where it was —
  * now inside it. That next part moves to the study day after the moved one
  * ends, taking what depends on it along by the same amount, and so on down the
- * work item. Only as far as needed: a part with room before it stays, so a
+ * story. Only as far as needed: a part with room before it stays, so a
  * slipped first chapter does not drag chapters planned months later.
  *
  * Only overlaps behind a part this change moved are resolved; one the plan
  * already had is left for the validator to report.
  */
 function separateParts(
-  original: readonly Item[],
-  planned: Item[],
+  original: readonly Task[],
+  planned: Task[],
   options: ScheduleOptions,
-): Item[] {
-  const was = new Map(original.map((item) => [item.id, item]))
-  const hasMoved = (item: Item) => {
-    const old = was.get(item.id)
+): Task[] {
+  const was = new Map(original.map((task) => [task.id, task]))
+  const hasMoved = (task: Task) => {
+    const old = was.get(task.id)
     return (
       old !== undefined &&
-      (old.baselineStartDate !== item.baselineStartDate ||
-        old.baselineEndDate !== item.baselineEndDate)
+      (old.baselineStartDate !== task.baselineStartDate ||
+        old.baselineEndDate !== task.baselineEndDate)
     )
   }
 
-  let items = planned
+  let tasks = planned
   // Each round moves at least one part later, and there are finitely many.
-  for (let round = 0; round < items.length; round++) {
-    const overlap = firstOverlap(items, hasMoved, options)
+  for (let round = 0; round < tasks.length; round++) {
+    const overlap = firstOverlap(tasks, hasMoved, options)
     if (!overlap) break
-    const moving = followersOf(items, overlap.part.id).add(overlap.part.id)
-    items = items.map((item) =>
-      moving.has(item.id) ? shiftBaseline(item, overlap.by, options) : item,
+    const moving = followersOf(tasks, overlap.part.id).add(overlap.part.id)
+    tasks = tasks.map((task) =>
+      moving.has(task.id) ? shiftBaseline(task, overlap.by, options) : task,
     )
   }
-  return items
+  return tasks
 }
 
 /** The first unfinished part that starts before the moved part ahead of it ends. */
 function firstOverlap(
-  items: readonly Item[],
-  hasMoved: (item: Item) => boolean,
+  tasks: readonly Task[],
+  hasMoved: (task: Task) => boolean,
   options: ScheduleOptions,
-): { part: Item; by: number } | null {
-  const workItems = new Set(items.filter(hasMoved).map((item) => item.workItemId))
-  for (const workItemId of workItems) {
-    if (workItemId === null) continue
-    const parts = items
-      .filter((item) => item.workItemId === workItemId)
+): { part: Task; by: number } | null {
+  const stories = new Set(tasks.filter(hasMoved).map((task) => task.storyId))
+  for (const storyId of stories) {
+    if (storyId === null) continue
+    const parts = tasks
+      .filter((task) => task.storyId === storyId)
       .sort((a, b) => a.phase - b.phase || a.sortOrder - b.sortOrder)
     for (let index = 1; index < parts.length; index++) {
       const previous = parts[index - 1]!
@@ -316,37 +316,37 @@ function firstOverlap(
   return null
 }
 
-function shiftBaseline(item: Item, days: number, options: ScheduleOptions): Item {
+function shiftBaseline(task: Task, days: number, options: ScheduleOptions): Task {
   return {
-    ...item,
-    baselineStartDate: shiftStudyDays(item.baselineStartDate, days, options.blackouts),
-    baselineEndDate: shiftStudyDays(item.baselineEndDate, days, options.blackouts),
+    ...task,
+    baselineStartDate: shiftStudyDays(task.baselineStartDate, days, options.blackouts),
+    baselineEndDate: shiftStudyDays(task.baselineEndDate, days, options.blackouts),
   }
 }
 
-/** Study days the item's projected end moved later by. Zero when it did not. */
+/** Study days the task's projected end moved later by. Zero when it did not. */
 function pushedBy(
-  before: readonly Item[],
-  after: readonly Item[],
+  before: readonly Task[],
+  after: readonly Task[],
   id: string,
   options: ScheduleOptions,
 ): number {
-  const oldEnd = before.find((item) => item.id === id)?.projectedEndDate
-  const newEnd = after.find((item) => item.id === id)?.projectedEndDate
+  const oldEnd = before.find((task) => task.id === id)?.projectedEndDate
+  const newEnd = after.find((task) => task.id === id)?.projectedEndDate
   if (!oldEnd || !newEnd || newEnd <= oldEnd) return 0
   return studyDaysBetween(addDays(oldEnd, 1), newEnd, options.blackouts)
 }
 
 /**
- * Every unfinished item that depends on `id`, directly or through other
- * unfinished items. Each appears once, however many paths lead to it.
+ * Every unfinished task that depends on `id`, directly or through other
+ * unfinished tasks. Each appears once, however many paths lead to it.
  */
-function followersOf(items: readonly Item[], id: string): Set<string> {
-  const dependents = new Map<string, Item[]>()
-  for (const item of items) {
-    for (const dependency of new Set(item.dependsOn)) {
+function followersOf(tasks: readonly Task[], id: string): Set<string> {
+  const dependents = new Map<string, Task[]>()
+  for (const task of tasks) {
+    for (const dependency of new Set(task.dependsOn)) {
       const list = dependents.get(dependency) ?? []
-      list.push(item)
+      list.push(task)
       dependents.set(dependency, list)
     }
   }
@@ -366,17 +366,17 @@ function followersOf(items: readonly Item[], id: string): Set<string> {
 
 type Rank = readonly [number, number, string]
 
-function rank(item: Item): Rank {
-  return [item.phase, item.sortOrder, item.id]
+function rank(task: Task): Rank {
+  return [task.phase, task.sortOrder, task.id]
 }
 
 function compareRank(a: Rank, b: Rank): number {
   return a[0] - b[0] || a[1] - b[1] || (a[2] < b[2] ? -1 : a[2] > b[2] ? 1 : 0)
 }
 
-function insertByRank(queue: Item[], item: Item): void {
-  const target = rank(item)
+function insertByRank(queue: Task[], task: Task): void {
+  const target = rank(task)
   const at = queue.findIndex((queued) => compareRank(rank(queued), target) > 0)
-  if (at === -1) queue.push(item)
-  else queue.splice(at, 0, item)
+  if (at === -1) queue.push(task)
+  else queue.splice(at, 0, task)
 }

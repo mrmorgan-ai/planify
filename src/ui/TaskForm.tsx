@@ -1,92 +1,83 @@
 import { useId, useState, type ReactNode } from 'react'
-import { ITEM_TYPES } from '../core/constants'
-import type { Edit, ItemFields } from '../core/edits'
-import type { AppState, Item, ItemType, Resource, Roadmap } from '../core/types'
+import type { Edit, TaskFields } from '../core/edits'
+import type { AppState, Task, Resource, Roadmap } from '../core/types'
 
 /** What the form holds while it is being edited: every field as its input shows it. */
 export type Draft = {
   name: string
-  type: ItemType
   duration: string
   notes: string
   doneWhen: string
-  price: string
   /** Empty for none. */
   link: string
   resources: Resource[]
-  /** Empty for none. */
-  workItemId: string
+  /** Empty until one is chosen: every task needs a story. */
+  storyId: string
   skills: string[]
   dependsOn: string[]
 }
 
-export function draftOf(item: Item): Draft {
+export function draftOf(task: Task): Draft {
   return {
-    name: item.name,
-    type: item.type,
-    duration: item.duration,
-    notes: item.notes,
-    doneWhen: item.doneWhen,
-    price: item.price,
-    link: item.link ?? '',
-    resources: item.resources,
-    workItemId: item.workItemId ?? '',
-    skills: item.skills,
-    dependsOn: item.dependsOn,
+    name: task.name,
+    duration: task.duration,
+    notes: task.notes,
+    doneWhen: task.doneWhen,
+    link: task.link ?? '',
+    resources: task.resources,
+    storyId: task.storyId,
+    skills: task.skills,
+    dependsOn: task.dependsOn,
   }
 }
 
-/** An empty form, for an item that does not exist yet. */
-export function blankDraft(): Draft {
+/** An empty form, for a task that does not exist yet, in the story it starts in. */
+export function blankDraft(storyId = ''): Draft {
   return {
     name: '',
-    type: 'Course',
     duration: '',
     notes: '',
     doneWhen: '',
-    price: '',
     link: '',
     resources: [],
-    workItemId: '',
+    storyId,
     skills: [],
     dependsOn: [],
   }
 }
 
-/** The draft as the item's fields: empty inputs back to null, blank link rows dropped. */
-export function fieldsOf(draft: Draft): Required<ItemFields> {
+/** The draft as the task's fields: empty inputs back to null, blank link rows dropped. */
+export function fieldsOf(draft: Draft): Required<TaskFields> {
   return {
     name: draft.name.trim(),
-    type: draft.type,
     duration: draft.duration.trim(),
     notes: draft.notes.trim(),
     doneWhen: draft.doneWhen.trim(),
-    price: draft.price.trim(),
     link: draft.link.trim() === '' ? null : draft.link.trim(),
     resources: draft.resources
       .map((resource) => ({ label: resource.label.trim(), url: resource.url.trim() }))
       .filter((resource) => resource.label !== '' || resource.url !== ''),
-    workItemId: draft.workItemId === '' ? null : draft.workItemId,
+    storyId: draft.storyId,
     skills: draft.skills,
   }
 }
 
 /**
- * The edits that turn an item into the draft: only the fields that changed, and
+ * The edits that turn a task into the draft: only the fields that changed, and
  * the dependencies only when they did. Nothing changed means no edits at all.
  */
-export function editsFor(item: Item, draft: Draft): Edit[] {
+export function editsFor(task: Task, draft: Draft): Edit[] {
   const fields = fieldsOf(draft)
   const changed = Object.fromEntries(
     Object.entries(fields).filter(
-      ([field, value]) => JSON.stringify(item[field as keyof ItemFields]) !== JSON.stringify(value),
+      ([field, value]) => JSON.stringify(task[field as keyof TaskFields]) !== JSON.stringify(value),
     ),
-  ) as ItemFields
+  ) as TaskFields
   const edits: Edit[] = []
   if (Object.keys(changed).length > 0)
-    edits.push({ op: 'updateItem', id: item.id, fields: changed })
-  if (JSON.stringify(item.dependsOn) !== JSON.stringify(draft.dependsOn)) {
-    edits.push({ op: 'setDependencies', id: item.id, dependsOn: draft.dependsOn })
+    edits.push({ op: 'updateTask', id: task.id, fields: changed })
+  if (JSON.stringify(task.dependsOn) !== JSON.stringify(draft.dependsOn)) {
+    edits.push({ op: 'setDependencies', id: task.id, dependsOn: draft.dependsOn })
   }
   return edits
 }
@@ -100,6 +91,7 @@ export function problemsOf(draft: Draft): string[] {
   const fields = fieldsOf(draft)
   const problems: string[] = []
   if (fields.name === '') problems.push('It needs a name.')
+  if (fields.storyId === '') problems.push('It needs a story.')
   if (fields.skills.length === 0) problems.push('It needs at least one skill.')
   if (fields.link !== null && !fields.link.startsWith('https://')) {
     problems.push('The link must start with https://.')
@@ -115,11 +107,12 @@ export function problemsOf(draft: Draft): string[] {
 }
 
 /**
- * An item's fields as a form: what it is, what finishing it means, where it
- * lives, which skills it feeds and what it waits on. The dates are edited on the
- * row and the phase stays where it is: both move other items too.
+ * A task's fields as a form: what it is, what finishing it means, which story
+ * it is a step of, which skills it feeds and what it waits on. The dates are
+ * edited on the row, because they move other tasks too; the phase is the
+ * story's, so a task changes phase by changing story.
  */
-export function ItemForm({
+export function TaskForm({
   state,
   self,
   initial,
@@ -132,7 +125,7 @@ export function ItemForm({
   onCancel,
 }: {
   state: AppState
-  /** The item being edited, so it is left out of its own dependency list. */
+  /** The task being edited, so it is left out of its own dependency list. */
   self: string | null
   initial: Draft
   busy: boolean
@@ -141,7 +134,7 @@ export function ItemForm({
   submitLabel: string
   /** Fields that only one use of the form has, placed after the name. */
   extra?: ReactNode
-  /** What goes at the far end of the buttons: deleting, for an item that exists. */
+  /** What goes at the far end of the buttons: deleting, for a task that exists. */
   danger?: ReactNode
   onSubmit: (draft: Draft) => void
   onCancel: () => void
@@ -152,12 +145,12 @@ export function ItemForm({
     setDraft((current) => ({ ...current, [key]: value }))
 
   const problems = problemsOf(draft)
-  const names = new Map(state.items.map((item) => [item.id, item.name]))
+  const names = new Map(state.tasks.map((task) => [task.id, task.name]))
   const { roadmap } = state
 
   return (
     <form
-      className="item-form"
+      className="task-form"
       onSubmit={(event) => {
         event.preventDefault()
         if (problems.length === 0) onSubmit(draft)
@@ -173,19 +166,6 @@ export function ItemForm({
       </Field>
 
       {extra}
-
-      <Field label="Type" htmlFor={`${id}-type`}>
-        <select
-          id={`${id}-type`}
-          value={draft.type}
-          disabled={busy}
-          onChange={(event) => set('type', event.target.value as ItemType)}
-        >
-          {ITEM_TYPES.map((type) => (
-            <option key={type}>{type}</option>
-          ))}
-        </select>
-      </Field>
 
       <Field label="Duration" htmlFor={`${id}-duration`}>
         <input
@@ -285,21 +265,26 @@ export function ItemForm({
         </div>
       </Field>
 
-      <Field label="Part of" htmlFor={`${id}-work-item`}>
+      <Field label="Story" htmlFor={`${id}-story`}>
         <select
-          id={`${id}-work-item`}
-          value={draft.workItemId}
+          id={`${id}-story`}
+          value={draft.storyId}
           disabled={busy}
-          onChange={(event) => set('workItemId', event.target.value)}
+          onChange={(event) => set('storyId', event.target.value)}
         >
-          <option value="">Nothing — it stands on its own</option>
-          {[...state.workItems]
-            .sort((a, b) => a.name.localeCompare(b.name))
-            .map((workItem) => (
-              <option key={workItem.id} value={workItem.id}>
-                {workItem.name}
-              </option>
-            ))}
+          {draft.storyId === '' && <option value="">Choose the story it is a step of…</option>}
+          {roadmap.phases.map((phase) => (
+            <optgroup key={phase.number} label={`Phase ${phase.number} · ${phase.name}`}>
+              {state.stories
+                .filter((story) => story.phase === phase.number)
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((story) => (
+                  <option key={story.id} value={story.id}>
+                    {story.name}
+                  </option>
+                ))}
+            </optgroup>
+          ))}
         </select>
       </Field>
 
@@ -309,16 +294,6 @@ export function ItemForm({
           skills={draft.skills}
           disabled={busy}
           onChange={(skills) => set('skills', skills)}
-        />
-      </Field>
-
-      <Field label="Price" htmlFor={`${id}-price`}>
-        <input
-          id={`${id}-price`}
-          value={draft.price}
-          placeholder="Free"
-          disabled={busy}
-          onChange={(event) => set('price', event.target.value)}
         />
       </Field>
 
@@ -344,17 +319,17 @@ export function ItemForm({
             <option value="">Add something it waits on…</option>
             {roadmap.phases.map((phase) => (
               <optgroup key={phase.number} label={`Phase ${phase.number} · ${phase.name}`}>
-                {state.items
+                {state.tasks
                   .filter(
-                    (item) =>
-                      item.phase === phase.number &&
-                      item.id !== self &&
-                      !draft.dependsOn.includes(item.id),
+                    (task) =>
+                      task.phase === phase.number &&
+                      task.id !== self &&
+                      !draft.dependsOn.includes(task.id),
                   )
                   .sort((a, b) => a.sortOrder - b.sortOrder)
-                  .map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
+                  .map((task) => (
+                    <option key={task.id} value={task.id}>
+                      {task.name}
                     </option>
                   ))}
               </optgroup>

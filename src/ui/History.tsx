@@ -80,7 +80,7 @@ export function History({
           return previewRestore(version.id, cause.state.revision)
         }
       }
-      // The plan too, for the names of items it brings back that the roadmap no longer has.
+      // The plan too, for the names of tasks it brings back that the roadmap no longer has.
       const [preview, plan] = await Promise.all([comparing(), fetchVersionPlan(version.id)])
       setReview({ kind: 'ready', version, preview, plan })
     } catch (cause: unknown) {
@@ -173,7 +173,7 @@ export function History({
                     source={review.plan}
                     note={
                       <p className="muted">
-                        Compared with the roadmap as it is now. Progress on the items it keeps
+                        Compared with the roadmap as it is now. Progress on the tasks it keeps
                         stays, and the plan it replaces is kept here in turn.
                       </p>
                     }

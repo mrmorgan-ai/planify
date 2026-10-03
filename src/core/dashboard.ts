@@ -1,12 +1,12 @@
 import { addDays, blackoutAt, startOfWeek, toCivilDate, toEpochDay } from './dates'
 import { isOverdue } from './selectors'
-import type { Blackout, CivilDate, Dimension, Item, Phase, Roadmap } from './types'
+import type { Blackout, CivilDate, Dimension, Task, Phase, Roadmap } from './types'
 
-// The numbers behind the dashboard. Pure functions over the item list, so every
+// The numbers behind the dashboard. Pure functions over the task list, so every
 // block is a computation the tests can pin, not something the view improvises.
 
 /**
- * Consecutive weeks with at least one item completed, counting back from the
+ * Consecutive weeks with at least one task completed, counting back from the
  * current week. Only completing counts — starting something does not.
  *
  * The week in progress never breaks the streak: with nothing done yet this
@@ -14,14 +14,14 @@ import type { Blackout, CivilDate, Dimension, Item, Phase, Roadmap } from './typ
  * would punish a week that has not had its chance.
  */
 export function currentStreakWeeks(
-  items: readonly Item[],
+  tasks: readonly Task[],
   today: CivilDate,
   timeZone: string,
 ): number {
   const weeks = new Set(
-    items
-      .filter((item) => item.state === 'done' && item.completedAt !== null)
-      .map((item) => startOfWeek(toCivilDate(item.completedAt as string, timeZone))),
+    tasks
+      .filter((task) => task.state === 'done' && task.completedAt !== null)
+      .map((task) => startOfWeek(toCivilDate(task.completedAt as string, timeZone))),
   )
 
   const thisWeek = startOfWeek(today)
@@ -35,14 +35,14 @@ export function currentStreakWeeks(
 }
 
 /** Past due and not done, soonest first — the block is a to-do list, not a count. */
-export function overdueItems(items: readonly Item[], today: CivilDate): Item[] {
-  return items
-    .filter((item) => isOverdue(item, today))
+export function overdueTasks(tasks: readonly Task[], today: CivilDate): Task[] {
+  return tasks
+    .filter((task) => isOverdue(task, today))
     .sort((a, b) => a.projectedEndDate.localeCompare(b.projectedEndDate))
 }
 
 export type MilestoneStatus = {
-  item: Item
+  task: Task
   /** Days from today to the projected end. Negative means it is already past. */
   daysAway: number
   /** Projected end minus baseline end. Positive is behind plan. */
@@ -55,18 +55,18 @@ export type MilestoneStatus = {
  * certification, so filtering by type would silently skip it.
  */
 export function nextMilestone(
-  items: readonly Item[],
+  tasks: readonly Task[],
   phases: readonly Phase[],
   today: CivilDate,
 ): MilestoneStatus | null {
   const ids = new Set(phases.map((phase) => phase.closingMilestoneId).filter(Boolean))
-  const next = items
-    .filter((item) => ids.has(item.id) && item.state !== 'done')
+  const next = tasks
+    .filter((task) => ids.has(task.id) && task.state !== 'done')
     .sort((a, b) => a.projectedEndDate.localeCompare(b.projectedEndDate))[0]
 
   if (!next) return null
   return {
-    item: next,
+    task: next,
     daysAway: toEpochDay(next.projectedEndDate) - toEpochDay(today),
     paceDays: toEpochDay(next.projectedEndDate) - toEpochDay(next.baselineEndDate),
   }
@@ -81,24 +81,24 @@ export type Context =
 export function activeContext(
   today: CivilDate,
   roadmap: Roadmap,
-  items: readonly Item[],
+  tasks: readonly Task[],
 ): Context {
   const blackout = blackoutAt(today, roadmap.blackouts)
   if (blackout) return { kind: 'blackout', blackout }
 
   const phase = roadmap.phases.find((candidate) => {
-    const range = phaseRange(items, candidate)
+    const range = phaseRange(tasks, candidate)
     return range !== null && range.start <= today && today <= range.end
   })
   return phase ? { kind: 'phase', phase } : { kind: 'outside' }
 }
 
-/** A phase spans its items: earliest projected start to latest projected end. */
+/** A phase spans its tasks: earliest projected start to latest projected end. */
 export function phaseRange(
-  items: readonly Item[],
+  tasks: readonly Task[],
   phase: Phase,
 ): { start: CivilDate; end: CivilDate } | null {
-  const inPhase = items.filter((item) => item.phase === phase.number)
+  const inPhase = tasks.filter((task) => task.phase === phase.number)
   if (inPhase.length === 0) return null
   return {
     start: inPhase.reduce((a, b) => (a < b.projectedStartDate ? a : b.projectedStartDate), inPhase[0]!.projectedStartDate),
@@ -107,33 +107,33 @@ export function phaseRange(
 }
 
 /** What is in progress right now, soonest due first. The board's middle column. */
-export function inProgress(items: readonly Item[]): Item[] {
-  return items
-    .filter((item) => item.state === 'in_progress')
+export function inProgress(tasks: readonly Task[]): Task[] {
+  return tasks
+    .filter((task) => task.state === 'in_progress')
     .sort((a, b) => a.projectedEndDate.localeCompare(b.projectedEndDate))
 }
 
 /**
- * Pending items with the nearest projected start. Shown when nothing is in
+ * Pending tasks with the nearest projected start. Shown when nothing is in
  * progress, as a suggestion of what to pick up — never as a restriction.
  */
-export function suggestedNext(items: readonly Item[], limit = 3): Item[] {
-  return items
-    .filter((item) => item.state === 'pending')
+export function suggestedNext(tasks: readonly Task[], limit = 3): Task[] {
+  return tasks
+    .filter((task) => task.state === 'pending')
     .sort((a, b) => a.projectedStartDate.localeCompare(b.projectedStartDate))
     .slice(0, limit)
 }
 
-/** Skills of every done item. Completing the item is the whole signal — no levels. */
-export function coveredSkills(items: readonly Item[]): string[] {
-  return unique(items.filter((item) => item.state === 'done').flatMap((item) => item.skills))
+/** Skills of every done task. Completing the task is the whole signal — no levels. */
+export function coveredSkills(tasks: readonly Task[]): string[] {
+  return unique(tasks.filter((task) => task.state === 'done').flatMap((task) => task.skills))
 }
 
-/** Skills still only reachable through unfinished items. */
-export function pendingSkills(items: readonly Item[]): string[] {
-  const covered = new Set(coveredSkills(items))
+/** Skills still only reachable through unfinished tasks. */
+export function pendingSkills(tasks: readonly Task[]): string[] {
+  const covered = new Set(coveredSkills(tasks))
   return unique(
-    items.filter((item) => item.state !== 'done').flatMap((item) => item.skills),
+    tasks.filter((task) => task.state !== 'done').flatMap((task) => task.skills),
   ).filter((skill) => !covered.has(skill))
 }
 
@@ -155,8 +155,8 @@ export type DimensionSkills = DimensionCoverage & {
  * heap of seventy-four names. Each axis carries its own count and its own
  * skills, so a group answers "how far along this axis am I" on its own.
  */
-export function skillsByDimension(items: readonly Item[], roadmap: Roadmap): DimensionSkills[] {
-  const covered = new Set(coveredSkills(items))
+export function skillsByDimension(tasks: readonly Task[], roadmap: Roadmap): DimensionSkills[] {
+  const covered = new Set(coveredSkills(tasks))
   const groups = new Map<Dimension, { name: string; covered: boolean }[]>(
     roadmap.dimensions.map((dimension) => [dimension, []]),
   )
@@ -184,8 +184,8 @@ export function skillsByDimension(items: readonly Item[], roadmap: Roadmap): Dim
  * The radar, as numbers. The same counts as the groups above with the names
  * dropped — one computation, so the chart and the list can never disagree.
  */
-export function dimensionCoverage(items: readonly Item[], roadmap: Roadmap): DimensionCoverage[] {
-  return skillsByDimension(items, roadmap).map(({ dimension, covered, total, ratio }) => ({
+export function dimensionCoverage(tasks: readonly Task[], roadmap: Roadmap): DimensionCoverage[] {
+  return skillsByDimension(tasks, roadmap).map(({ dimension, covered, total, ratio }) => ({
     dimension,
     covered,
     total,

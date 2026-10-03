@@ -23,7 +23,7 @@ const STARTER = JSON.parse(
 ) as unknown
 
 describe('the starter template', () => {
-  it('is a roadmap file that breaks no rule, so a new user can add items at once', () => {
+  it('is a roadmap file that breaks no rule, so a new user can add tasks at once', () => {
     const issues = validate(seedContent(parseSeed(STARTER)))
     expect(issues.filter((issue) => issue.severity === 'error')).toEqual([])
   })
@@ -41,22 +41,22 @@ describe('a new roadmap', () => {
     const { second } = created()
     const state = await loadAppState(second)
     expect(state.revision).toBe(0)
-    expect(state.items).toEqual([])
+    expect(state.tasks).toEqual([])
     expect(state.roadmap.phases).toEqual([{ number: 1, name: 'Phase 1', closingMilestoneId: null }])
     expect(state.roadmap.dimensions).toEqual(['Foundations', 'Tools', 'Building', 'Communication'])
     expect(state.roadmap.timeZone).toBe('UTC')
   })
 
-  it('takes its first item, since the template maps skills', async () => {
+  it('takes its first story and task, since the template maps skills', async () => {
     const { second } = created()
     const after = await mutateContent(second, 0, (state) =>
       applyEdits(state, [
+        { op: 'createStory', story: { id: 'getting-started', name: 'Getting started', type: 'Course', phase: 1 } },
         {
-          op: 'createItem',
-          item: {
+          op: 'createTask',
+          task: {
             name: 'The first thing',
-            type: 'Course',
-            phase: 1,
+            storyId: 'getting-started',
             baselineStartDate: '2030-01-07',
             baselineEndDate: '2030-01-09',
             skills: ['Core concepts'],
@@ -66,7 +66,7 @@ describe('a new roadmap', () => {
       ]),
     )
     expect(after.revision).toBe(1)
-    expect(after.items.map((item) => item.name)).toEqual(['The first thing'])
+    expect(after.tasks.map((task) => task.name)).toEqual(['The first thing'])
   })
 
   it('makes its member the only one who reaches it', async () => {
@@ -100,11 +100,18 @@ describe('a new roadmap', () => {
   })
 
   it('refuses a roadmap file whose numbers are not numbers', () => {
-    const hostile = structuredClone(readSeedFile(EXAMPLE_SEED)) as unknown as {
-      items: Array<{ phase: unknown }>
-    }
-    hostile.items[0]!.phase = "1); INSERT INTO delegates VALUES ('me'); --"
-    expect(() => seedSql(hostile, { roadmapId: 2, version: 'x' })).toThrow(/whole number/)
+    const hostile = () =>
+      structuredClone(readSeedFile(EXAMPLE_SEED)) as unknown as {
+        stories: Array<{ phase: unknown }>
+        tasks: Array<{ sortOrder: unknown }>
+      }
+    const injected = "1); INSERT INTO delegates VALUES ('me'); --"
+    const byPhase = hostile()
+    byPhase.stories[0]!.phase = injected
+    expect(() => seedSql(byPhase, { roadmapId: 2, version: 'x' })).toThrow(/whole number/)
+    const byOrder = hostile()
+    byOrder.tasks[0]!.sortOrder = injected
+    expect(() => seedSql(byOrder, { roadmapId: 2, version: 'x' })).toThrow(/whole number/)
   })
 
   it('refuses a name that is only spaces', () => {
@@ -121,11 +128,11 @@ describe('loading a seed into one roadmap', () => {
     await mutateContent(space, 0, () => seedContent(example))
 
     sqlite.exec(seedSql(example, { roadmapId: 2, withDates: true, version: 'x' }).join('\n'))
-    const smaller = { ...example, items: example.items.filter((i) => i.id !== 'the-optional-thing') }
+    const smaller = { ...example, tasks: example.tasks.filter((i) => i.id !== 'the-optional-thing') }
     sqlite.exec(seedSql(smaller, { roadmapId: 2, version: 'y' }).join('\n'))
 
-    const ids = async (where: typeof space) => (await loadAppState(where)).items.map((i) => i.id)
-    expect(await ids(second)).toHaveLength(example.items.length - 1)
-    expect(await ids(space)).toHaveLength(example.items.length)
+    const ids = async (where: typeof space) => (await loadAppState(where)).tasks.map((i) => i.id)
+    expect(await ids(second)).toHaveLength(example.tasks.length - 1)
+    expect(await ids(space)).toHaveLength(example.tasks.length)
   })
 })

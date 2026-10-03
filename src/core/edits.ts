@@ -1,7 +1,8 @@
 import { projectWherePossible } from './schedule'
-import { parseSeedItem, type SeedItem } from './seed'
-import type { Item, RoadmapContent } from './types'
-import { EditError, newItemId, takenIds } from './editing'
+import { parseSeedTask, type SeedTask } from './seed'
+import { placedInStories } from './stories'
+import type { Task, RoadmapContent } from './types'
+import { EditError, newId, takenIds } from './editing'
 import {
   applyStructureEdit,
   isStructureOp,
@@ -9,19 +10,18 @@ import {
   type StructureEdit,
 } from './structure'
 
-export { EditError, newItemId, slugOf } from './editing'
+export { EditError, newId, slugOf } from './editing'
 
 /**
- * The fields of an item that can be edited in place. The id never changes —
- * progress is keyed to it — and the dates, the phase and the order each have
- * their own path, because moving any of them moves other items too.
+ * The fields of a task that can be edited in place. The id never changes —
+ * progress is keyed to it — and the dates and the order each have their own
+ * path, because moving either moves other tasks too. The phase is the story's:
+ * moving a task to a story in another phase moves it there, last.
  */
 export const EDITABLE_FIELDS = [
   'name',
-  'type',
-  'workItemId',
+  'storyId',
   'skills',
-  'price',
   'link',
   'resources',
   'duration',
@@ -30,11 +30,14 @@ export const EDITABLE_FIELDS = [
 ] as const
 
 export type EditableField = (typeof EDITABLE_FIELDS)[number]
-export type ItemFields = Partial<Pick<SeedItem, EditableField>>
+export type TaskFields = Partial<Pick<SeedTask, EditableField>>
 
-/** A new item: what it is and when. The id and the order are the server's to pick. */
-export type NewItem = ItemFields &
-  Pick<SeedItem, 'name' | 'type' | 'phase' | 'baselineStartDate' | 'baselineEndDate' | 'skills'> & {
+/**
+ * A new task: what it is, which story it is a step of, and when. The id and the
+ * order are the server's to pick; the phase is the story's.
+ */
+export type NewTask = TaskFields &
+  Pick<SeedTask, 'name' | 'storyId' | 'baselineStartDate' | 'baselineEndDate' | 'skills'> & {
     /** Asked for, rather than derived from the name. Refused if it is taken. */
     id?: string
     dependsOn?: string[]
@@ -42,29 +45,27 @@ export type NewItem = ItemFields &
 
 /**
  * One change to the roadmap's content. Edits travel as a list and land as one
- * batch, so a change that takes several steps — create an item, then make
- * another wait on it — is all or nothing. Items are edited here; what they hang
- * off — work items, phases, pauses, settings, skills — in structure.ts.
+ * batch, so a change that takes several steps — create a task, then make
+ * another wait on it — is all or nothing. Tasks are edited here; what they hang
+ * off — stories, phases, pauses, settings, skills — in structure.ts.
  */
-export type Edit = ItemEdit | StructureEdit
+export type Edit = TaskEdit | StructureEdit
 
-export type ItemEdit =
-  | { op: 'updateItem'; id: string; fields: ItemFields }
+export type TaskEdit =
+  | { op: 'updateTask'; id: string; fields: TaskFields }
   | { op: 'setDependencies'; id: string; dependsOn: string[] }
-  | { op: 'createItem'; item: NewItem }
+  | { op: 'createTask'; task: NewTask }
   | {
       /**
-       * Puts an item in a phase, before another item of that phase or last.
-       * The same edit reorders within a phase. Both phases are renumbered, so
-       * the order stays 1..n.
+       * Puts a task before another task of its phase, or last. The phase is
+       * renumbered, so the order stays 1..n.
        */
-      op: 'moveItem'
+      op: 'moveTask'
       id: string
-      phase: number
       before?: string | null
     }
   | {
-      op: 'deleteItem'
+      op: 'deleteTask'
       id: string
       /** Connect whatever depended on it to what it depended on, instead of refusing. */
       rewire?: boolean
@@ -82,7 +83,7 @@ export function parseEdits(raw: unknown): Edit[] {
     if (typeof entry !== 'object' || entry === null) throw new EditError(`${at} must be an object`)
     const edit = entry as Record<string, unknown>
     switch (edit.op) {
-      case 'updateItem': {
+      case 'updateTask': {
         const fields = edit.fields
         if (typeof fields !== 'object' || fields === null || Array.isArray(fields)) {
           throw new EditError(`${at}.fields must be an object`)
@@ -92,7 +93,7 @@ export function parseEdits(raw: unknown): Edit[] {
             throw new EditError(`${at}.fields.${field} cannot be edited this way`)
           }
         }
-        return { op: 'updateItem', id: idOf(edit, at), fields: fields as ItemFields }
+        return { op: 'updateTask', id: idOf(edit, at), fields: fields as TaskFields }
       }
       case 'setDependencies':
         return {
@@ -100,27 +101,23 @@ export function parseEdits(raw: unknown): Edit[] {
           id: idOf(edit, at),
           dependsOn: strings(edit.dependsOn, `${at}.dependsOn`),
         }
-      case 'createItem': {
-        const item = edit.item
-        if (typeof item !== 'object' || item === null || Array.isArray(item)) {
-          throw new EditError(`${at}.item must be an object`)
+      case 'createTask': {
+        const task = edit.task
+        if (typeof task !== 'object' || task === null || Array.isArray(task)) {
+          throw new EditError(`${at}.task must be an object`)
         }
-        return { op: 'createItem', item: item as NewItem }
+        return { op: 'createTask', task: task as NewTask }
       }
-      case 'moveItem': {
-        const phase = edit.phase
-        if (typeof phase !== 'number' || !Number.isInteger(phase)) {
-          throw new EditError(`${at}.phase must be a phase number`)
-        }
+      case 'moveTask': {
         const before = edit.before ?? null
         if (before !== null && typeof before !== 'string') {
-          throw new EditError(`${at}.before must be an item id or null`)
+          throw new EditError(`${at}.before must be a task id or null`)
         }
-        return { op: 'moveItem', id: idOf(edit, at), phase, before }
+        return { op: 'moveTask', id: idOf(edit, at), before }
       }
-      case 'deleteItem':
+      case 'deleteTask':
         return {
-          op: 'deleteItem',
+          op: 'deleteTask',
           id: idOf(edit, at),
           rewire: edit.rewire === true,
           discardProgress: edit.discardProgress === true,
@@ -134,8 +131,8 @@ export function parseEdits(raw: unknown): Edit[] {
 
 /**
  * Applies edits in order to a copy of the roadmap and recomputes every
- * projection once at the end. Each edited item is parsed again with the seed
- * file's own rules, so an item edited in the app obeys exactly what a file
+ * projection once at the end. Each edited task is parsed again with the seed
+ * file's own rules, so a task edited in the app obeys exactly what a file
  * would. Whether the result is a sound plan is the validator's question,
  * answered by the write that stores it.
  */
@@ -144,75 +141,77 @@ export function applyEdits(content: RoadmapContent, edits: readonly Edit[]): Roa
 
   edits.forEach((edit, index) => {
     const at = `edits[${index}]`
-    const items = next.items
+    const tasks = next.tasks
     switch (edit.op) {
-      case 'updateItem': {
-        const target = find(items, edit.id)
-        const parsed = parse({ ...seedItemOf(target), ...edit.fields }, at)
+      case 'updateTask': {
+        const target = find(tasks, edit.id)
+        if (edit.fields.storyId !== undefined) storyOf(next, edit.fields.storyId)
+        const parsed = parse({ ...seedTaskOf(target), ...edit.fields }, at)
         next = {
           ...next,
-          items: items.map((item) => (item.id === target.id ? { ...item, ...pick(parsed) } : item)),
+          tasks: tasks.map((task) => (task.id === target.id ? { ...task, ...pick(parsed) } : task)),
         }
         break
       }
       case 'setDependencies': {
-        const target = find(items, edit.id)
+        const target = find(tasks, edit.id)
         next = {
           ...next,
-          items: items.map((item) =>
-            item.id === target.id ? { ...item, dependsOn: [...edit.dependsOn] } : item,
+          tasks: tasks.map((task) =>
+            task.id === target.id ? { ...task, dependsOn: [...edit.dependsOn] } : task,
           ),
         }
         break
       }
-      case 'createItem':
-        next = { ...next, items: [...items, created(next, edit.item, at)] }
+      case 'createTask':
+        next = { ...next, tasks: [...tasks, created(next, edit.task, at)] }
         break
-      case 'moveItem':
-        next = { ...next, items: moved(next, edit) }
+      case 'moveTask':
+        next = { ...next, tasks: moved(next, edit) }
         break
-      case 'deleteItem':
-        next = { ...next, items: deleted(next, edit) }
+      case 'deleteTask':
+        next = { ...next, tasks: deleted(next, edit) }
         break
       default:
         next = applyStructureEdit(next, edit, at)
     }
   })
 
+  // A task that changed story, or whose story changed phase, takes its phase now.
+  next = placedInStories(next)
   const options = { blackouts: next.roadmap.blackouts, timeZone: next.roadmap.timeZone }
-  return { ...next, items: projectWherePossible(next.items, options) }
+  return { ...next, tasks: projectWherePossible(next.tasks, options) }
 }
 
-/** Who waits on an item: what a delete has to deal with. */
-export function dependentsOf(items: readonly Item[], id: string): Item[] {
-  return items.filter((item) => item.dependsOn.includes(id))
+/** Who waits on a task: what a delete has to deal with. */
+export function dependentsOf(tasks: readonly Task[], id: string): Task[] {
+  return tasks.filter((task) => task.dependsOn.includes(id))
 }
 
-/** Whether an item has anything to lose: a state past pending, or hours logged. */
-export function hasProgress(item: Item): boolean {
-  return item.state !== 'pending' || item.hoursDone > 0
+/** Whether a task has anything to lose: a state past pending, or hours logged. */
+export function hasProgress(task: Task): boolean {
+  return task.state !== 'pending' || task.hoursDone > 0
 }
 
-function created(content: RoadmapContent, item: NewItem, at: string): Item {
-  if (item.id !== undefined && takenIds(content).has(item.id)) {
-    throw new EditError(`${at}: the id ${item.id} is already taken`)
+function created(content: RoadmapContent, task: NewTask, at: string): Task {
+  if (task.id !== undefined && takenIds(content).has(task.id)) {
+    throw new EditError(`${at}: the id ${task.id} is already taken`)
   }
-  const id = item.id ?? newItemId(String(item.name ?? ''), content)
-  const last = content.items
-    .filter((each) => each.phase === item.phase)
+  const id = task.id ?? newId(String(task.name ?? ''), content)
+  const story = storyOf(content, String(task.storyId ?? ''))
+  const last = content.tasks
+    .filter((each) => each.phase === story.phase)
     .reduce((max, each) => Math.max(max, each.sortOrder), 0)
 
   const seed = parse(
     {
-      workItemId: null,
       dependsOn: [],
-      price: '',
       link: null,
       resources: [],
       duration: '',
       notes: '',
       doneWhen: '',
-      ...item,
+      ...task,
       id,
       sortOrder: last + 1,
     },
@@ -220,6 +219,7 @@ function created(content: RoadmapContent, item: NewItem, at: string): Item {
   )
   return {
     ...seed,
+    phase: story.phase,
     projectedStartDate: seed.baselineStartDate,
     projectedEndDate: seed.baselineEndDate,
     state: 'pending',
@@ -228,42 +228,28 @@ function created(content: RoadmapContent, item: NewItem, at: string): Item {
   }
 }
 
-function moved(content: RoadmapContent, edit: Extract<Edit, { op: 'moveItem' }>): Item[] {
-  const target = find(content.items, edit.id)
-  const phase = content.roadmap.phases.find((each) => each.number === edit.phase)
-  if (!phase) throw new EditError(`No phase ${edit.phase}`)
-  if (edit.before === target.id) return content.items
+function moved(content: RoadmapContent, edit: Extract<Edit, { op: 'moveTask' }>): Task[] {
+  const target = find(content.tasks, edit.id)
+  if (edit.before === target.id) return content.tasks
 
-  const inOrder = (number: number) =>
-    content.items
-      .filter((item) => item.phase === number && item.id !== target.id)
-      .sort((a, b) => a.sortOrder - b.sortOrder)
-  const destination = inOrder(phase.number)
+  const order = content.tasks
+    .filter((task) => task.phase === target.phase && task.id !== target.id)
+    .sort((a, b) => a.sortOrder - b.sortOrder)
   const at =
-    edit.before == null
-      ? destination.length
-      : destination.findIndex((item) => item.id === edit.before)
-  if (at < 0) throw new EditError(`${edit.before} is not in phase ${phase.number}`)
-  destination.splice(at, 0, { ...target, phase: phase.number })
+    edit.before == null ? order.length : order.findIndex((task) => task.id === edit.before)
+  if (at < 0) throw new EditError(`${edit.before} is not in phase ${target.phase}`)
+  order.splice(at, 0, target)
 
-  const order = new Map<string, { phase: Item['phase']; sortOrder: number }>()
-  destination.forEach((item, index) =>
-    order.set(item.id, { phase: phase.number, sortOrder: index + 1 }),
-  )
-  if (target.phase !== phase.number) {
-    inOrder(target.phase).forEach((item, index) =>
-      order.set(item.id, { phase: target.phase, sortOrder: index + 1 }),
-    )
-  }
-  return content.items.map((item) => {
-    const place = order.get(item.id)
-    return place ? { ...item, ...place } : item
+  const place = new Map(order.map((task, index) => [task.id, index + 1]))
+  return content.tasks.map((task) => {
+    const sortOrder = place.get(task.id)
+    return sortOrder === undefined ? task : { ...task, sortOrder }
   })
 }
 
-function deleted(content: RoadmapContent, edit: Extract<Edit, { op: 'deleteItem' }>): Item[] {
-  const { items } = content
-  const target = find(items, edit.id)
+function deleted(content: RoadmapContent, edit: Extract<Edit, { op: 'deleteTask' }>): Task[] {
+  const { tasks } = content
+  const target = find(tasks, edit.id)
 
   const closes = content.roadmap.phases.find((phase) => phase.closingMilestoneId === target.id)
   if (closes) {
@@ -275,57 +261,64 @@ function deleted(content: RoadmapContent, edit: Extract<Edit, { op: 'deleteItem'
     throw new EditError(`${target.name} has progress, which would be lost with it`)
   }
 
-  const dependents = dependentsOf(items, target.id)
+  const dependents = dependentsOf(tasks, target.id)
   if (dependents.length > 0 && !edit.rewire) {
     throw new EditError(
-      `${target.name} is needed by ${dependents.map((item) => item.name).join(', ')}`,
+      `${target.name} is needed by ${dependents.map((task) => task.name).join(', ')}`,
     )
   }
 
-  return items
-    .filter((item) => item.id !== target.id)
-    .map((item) =>
-      item.dependsOn.includes(target.id)
+  return tasks
+    .filter((task) => task.id !== target.id)
+    .map((task) =>
+      task.dependsOn.includes(target.id)
         ? {
-            ...item,
-            // What it waited on through the deleted item, it now waits on directly.
+            ...task,
+            // What it waited on through the deleted task, it now waits on directly.
             dependsOn: [
               ...new Set(
-                item.dependsOn.flatMap((id) => (id === target.id ? target.dependsOn : [id])),
+                task.dependsOn.flatMap((id) => (id === target.id ? target.dependsOn : [id])),
               ),
-            ].filter((id) => id !== item.id),
+            ].filter((id) => id !== task.id),
           }
-        : item,
+        : task,
     )
 }
 
-function parse(value: object, at: string): SeedItem {
+function parse(value: object, at: string): SeedTask {
   try {
-    return parseSeedItem(value, at)
+    return parseSeedTask(value, at)
   } catch (error) {
     throw new EditError(error instanceof Error ? error.message : String(error))
   }
 }
 
-function seedItemOf(item: Item): SeedItem {
+function seedTaskOf(task: Task): SeedTask {
   const {
+    phase: _phase,
     state: _state,
     completedAt: _completedAt,
     hoursDone: _hoursDone,
     projectedStartDate: _start,
     projectedEndDate: _end,
     ...seed
-  } = item
+  } = task
   return seed
 }
 
-function pick(seed: SeedItem): ItemFields {
-  return Object.fromEntries(EDITABLE_FIELDS.map((field) => [field, seed[field]])) as ItemFields
+function pick(seed: SeedTask): TaskFields {
+  return Object.fromEntries(EDITABLE_FIELDS.map((field) => [field, seed[field]])) as TaskFields
 }
 
-function find(items: readonly Item[], id: string): Item {
-  const found = items.find((item) => item.id === id)
-  if (!found) throw new EditError(`No item with id ${id}`)
+function storyOf(content: RoadmapContent, id: string) {
+  const found = content.stories.find((story) => story.id === id)
+  if (!found) throw new EditError(`No story with id ${id}`)
+  return found
+}
+
+function find(tasks: readonly Task[], id: string): Task {
+  const found = tasks.find((task) => task.id === id)
+  if (!found) throw new EditError(`No task with id ${id}`)
   return found
 }
 

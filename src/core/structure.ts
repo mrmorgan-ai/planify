@@ -1,16 +1,39 @@
 import { PHASE_NUMBERS } from './constants'
 import { addStudyDays, isCivilDate, shiftStudyDays, studyDaysBetween } from './dates'
-import { EditError, newItemId, takenIds } from './editing'
-import { parseBlackout, parseWorkItem } from './seed'
-import type { Blackout, CivilDate, Item, PhaseNumber, RoadmapContent, WorkItem } from './types'
+import { EditError, newId, takenIds } from './editing'
+import { parseBlackout, parseFeature, parseStory } from './seed'
+import { placedInStories } from './stories'
+import type {
+  Blackout,
+  CivilDate,
+  Feature,
+  PhaseNumber,
+  RoadmapContent,
+  Story,
+  Task,
+} from './types'
 
-// Edits to what the items hang off: work items, phases, pauses, the plan's
-// settings and the skill map. Each returns the whole roadmap it produces; the
-// caller recomputes projections and the validator judges the result.
+// Edits to what the tasks hang off: stories, features, phases, pauses, the
+// plan's settings and the skill map. Each returns the whole roadmap it produces;
+// the caller recomputes projections and the validator judges the result.
 
-export const WORK_ITEM_FIELDS = ['name', 'type', 'link', 'resources', 'notes'] as const
-export type WorkItemFields = Partial<Pick<WorkItem, (typeof WORK_ITEM_FIELDS)[number]>>
-export type NewWorkItem = WorkItemFields & Pick<WorkItem, 'name' | 'type'> & { id?: string }
+export const STORY_FIELDS = [
+  'name',
+  'type',
+  'phase',
+  'featureId',
+  'link',
+  'resources',
+  'price',
+  'notes',
+  'doneWhen',
+] as const
+export type StoryFields = Partial<Pick<Story, (typeof STORY_FIELDS)[number]>>
+export type NewStory = StoryFields & Pick<Story, 'name' | 'phase'> & { id?: string }
+
+export const FEATURE_FIELDS = ['name', 'type', 'link', 'notes'] as const
+export type FeatureFields = Partial<Pick<Feature, (typeof FEATURE_FIELDS)[number]>>
+export type NewFeature = FeatureFields & Pick<Feature, 'name'> & { id?: string }
 
 export type SettingsFields = {
   timeZone?: string
@@ -21,10 +44,15 @@ export type SettingsFields = {
 }
 
 export type StructureEdit =
-  | { op: 'createWorkItem'; workItem: NewWorkItem }
-  | { op: 'updateWorkItem'; id: string; fields: WorkItemFields }
-  /** Its parts stay, on their own. */
-  | { op: 'deleteWorkItem'; id: string }
+  | { op: 'createStory'; story: NewStory }
+  /** A new phase moves every one of its tasks with it, to the end of that phase. */
+  | { op: 'updateStory'; id: string; fields: StoryFields }
+  /** Only once it has no tasks: every task needs a story. */
+  | { op: 'deleteStory'; id: string }
+  | { op: 'createFeature'; feature: NewFeature }
+  | { op: 'updateFeature'; id: string; fields: FeatureFields }
+  /** Its stories stay, serving no feature. */
+  | { op: 'deleteFeature'; id: string }
   | { op: 'addPhase'; name: string }
   | {
       op: 'updatePhase'
@@ -37,7 +65,7 @@ export type StructureEdit =
       op: 'setBlackouts'
       blackouts: Blackout[]
       /**
-       * Keep every unfinished item on the same study day of the plan, so a new
+       * Keep every unfinished task on the same study day of the plan, so a new
        * pause pushes what comes after it and a removed one pulls it back.
        */
       keepStudyDays?: boolean
@@ -47,14 +75,17 @@ export type StructureEdit =
       op: 'setSkillMap'
       dimensions: string[]
       skills: Record<string, string>
-      /** Skills given a new name: every item using the old one follows. */
+      /** Skills given a new name: every task using the old one follows. */
       renamed?: Record<string, string>
     }
 
 const OPS = [
-  'createWorkItem',
-  'updateWorkItem',
-  'deleteWorkItem',
+  'createStory',
+  'updateStory',
+  'deleteStory',
+  'createFeature',
+  'updateFeature',
+  'deleteFeature',
   'addPhase',
   'updatePhase',
   'removePhase',
@@ -70,26 +101,46 @@ export function isStructureOp(op: unknown): op is StructureEdit['op'] {
 /** Checks the shape of one structure edit. Its values are checked when applied. */
 export function parseStructureEdit(edit: Record<string, unknown>, at: string): StructureEdit {
   switch (edit.op) {
-    case 'createWorkItem':
+    case 'createStory':
       return {
-        op: 'createWorkItem',
-        workItem: object(edit.workItem, `${at}.workItem`) as NewWorkItem,
+        op: 'createStory',
+        story: object(edit.story, `${at}.story`) as NewStory,
       }
-    case 'updateWorkItem': {
+    case 'updateStory': {
       const fields = object(edit.fields, `${at}.fields`)
       for (const field of Object.keys(fields)) {
-        if (!(WORK_ITEM_FIELDS as readonly string[]).includes(field)) {
+        if (!(STORY_FIELDS as readonly string[]).includes(field)) {
           throw new EditError(`${at}.fields.${field} cannot be edited this way`)
         }
       }
       return {
-        op: 'updateWorkItem',
+        op: 'updateStory',
         id: text(edit.id, `${at}.id`),
-        fields: fields as WorkItemFields,
+        fields: fields as StoryFields,
       }
     }
-    case 'deleteWorkItem':
-      return { op: 'deleteWorkItem', id: text(edit.id, `${at}.id`) }
+    case 'deleteStory':
+      return { op: 'deleteStory', id: text(edit.id, `${at}.id`) }
+    case 'createFeature':
+      return {
+        op: 'createFeature',
+        feature: object(edit.feature, `${at}.feature`) as NewFeature,
+      }
+    case 'updateFeature': {
+      const fields = object(edit.fields, `${at}.fields`)
+      for (const field of Object.keys(fields)) {
+        if (!(FEATURE_FIELDS as readonly string[]).includes(field)) {
+          throw new EditError(`${at}.fields.${field} cannot be edited this way`)
+        }
+      }
+      return {
+        op: 'updateFeature',
+        id: text(edit.id, `${at}.id`),
+        fields: fields as FeatureFields,
+      }
+    }
+    case 'deleteFeature':
+      return { op: 'deleteFeature', id: text(edit.id, `${at}.id`) }
     case 'addPhase':
       return { op: 'addPhase', name: text(edit.name, `${at}.name`) }
     case 'updatePhase': {
@@ -99,7 +150,7 @@ export function parseStructureEdit(edit: Record<string, unknown>, at: string): S
       if ('closingMilestoneId' in fields) {
         const milestone = fields.closingMilestoneId
         if (milestone !== null && typeof milestone !== 'string') {
-          throw new EditError(`${at}.fields.closingMilestoneId must be an item id or null`)
+          throw new EditError(`${at}.fields.closingMilestoneId must be a task id or null`)
         }
         next.closingMilestoneId = milestone
       }
@@ -171,32 +222,77 @@ export function applyStructureEdit(
 ): RoadmapContent {
   const { roadmap } = content
   switch (edit.op) {
-    case 'createWorkItem': {
-      const { workItem } = edit
-      if (workItem.id !== undefined && takenIds(content).has(workItem.id)) {
-        throw new EditError(`${at}: the id ${workItem.id} is already taken`)
+    case 'createStory': {
+      const { story } = edit
+      if (story.id !== undefined && takenIds(content).has(story.id)) {
+        throw new EditError(`${at}: the id ${story.id} is already taken`)
       }
-      const id = workItem.id ?? newItemId(String(workItem.name ?? ''), content)
+      const id = story.id ?? newId(String(story.name ?? ''), content)
       const created = wrap(() =>
-        parseWorkItem({ link: null, resources: [], notes: '', ...workItem, id }, at),
+        parseStory(
+          {
+            type: null,
+            featureId: null,
+            link: null,
+            resources: [],
+            price: '',
+            notes: '',
+            doneWhen: '',
+            ...story,
+            id,
+          },
+          at,
+        ),
       )
-      return { ...content, workItems: [...content.workItems, created] }
+      checkFeature(content, created.featureId)
+      return { ...content, stories: [...content.stories, created] }
     }
-    case 'updateWorkItem': {
-      const target = findWorkItem(content, edit.id)
-      const updated = wrap(() => parseWorkItem({ ...target, ...edit.fields, id: target.id }, at))
+    case 'updateStory': {
+      const target = findStory(content, edit.id)
+      const updated = wrap(() => parseStory({ ...target, ...edit.fields, id: target.id }, at))
+      checkFeature(content, updated.featureId)
+      // Placed at once, so a later edit in the same batch sees the tasks where they now are.
+      return placedInStories({
+        ...content,
+        stories: content.stories.map((each) => (each.id === target.id ? updated : each)),
+      })
+    }
+    case 'deleteStory': {
+      const target = findStory(content, edit.id)
+      const tasks = content.tasks.filter((task) => task.storyId === target.id).length
+      if (tasks > 0) {
+        throw new EditError(
+          `${target.name} still has ${tasks} ${tasks === 1 ? 'task' : 'tasks'}; move or delete ${tasks === 1 ? 'it' : 'them'} first`,
+        )
+      }
+      return { ...content, stories: content.stories.filter((each) => each.id !== target.id) }
+    }
+    case 'createFeature': {
+      const { feature } = edit
+      if (feature.id !== undefined && takenIds(content).has(feature.id)) {
+        throw new EditError(`${at}: the id ${feature.id} is already taken`)
+      }
+      const id = feature.id ?? newId(String(feature.name ?? ''), content)
+      const created = wrap(() =>
+        parseFeature({ type: null, link: null, notes: '', ...feature, id }, at),
+      )
+      return { ...content, features: [...content.features, created] }
+    }
+    case 'updateFeature': {
+      const target = findFeature(content, edit.id)
+      const updated = wrap(() => parseFeature({ ...target, ...edit.fields, id: target.id }, at))
       return {
         ...content,
-        workItems: content.workItems.map((each) => (each.id === target.id ? updated : each)),
+        features: content.features.map((each) => (each.id === target.id ? updated : each)),
       }
     }
-    case 'deleteWorkItem': {
-      const target = findWorkItem(content, edit.id)
+    case 'deleteFeature': {
+      const target = findFeature(content, edit.id)
       return {
         ...content,
-        workItems: content.workItems.filter((each) => each.id !== target.id),
-        items: content.items.map((item) =>
-          item.workItemId === target.id ? { ...item, workItemId: null } : item,
+        features: content.features.filter((each) => each.id !== target.id),
+        stories: content.stories.map((story) =>
+          story.featureId === target.id ? { ...story, featureId: null } : story,
         ),
       }
     }
@@ -227,10 +323,10 @@ export function applyStructureEdit(
       if (phase.number !== last) {
         throw new EditError(`Only the last phase can be removed; phase ${last} comes after it`)
       }
-      const inIt = content.items.filter((item) => item.phase === phase.number).length
+      const inIt = content.stories.filter((story) => story.phase === phase.number).length
       if (inIt > 0) {
         throw new EditError(
-          `Phase ${phase.number} still has ${inIt} items; move or delete them first`,
+          `Phase ${phase.number} still has ${inIt} ${inIt === 1 ? 'story' : 'stories'}; move or delete ${inIt === 1 ? 'it' : 'them'} first`,
         )
       }
       return {
@@ -239,10 +335,10 @@ export function applyStructureEdit(
       }
     }
     case 'setBlackouts': {
-      const items = edit.keepStudyDays
+      const tasks = edit.keepStudyDays
         ? keepStudyDays(content, roadmap.blackouts, edit.blackouts)
-        : content.items
-      return { ...content, items, roadmap: { ...roadmap, blackouts: edit.blackouts } }
+        : content.tasks
+      return { ...content, tasks, roadmap: { ...roadmap, blackouts: edit.blackouts } }
     }
     case 'updateSettings': {
       const { weeklyHours, ...rest } = edit.fields
@@ -261,10 +357,10 @@ export function applyStructureEdit(
       return {
         ...content,
         roadmap: { ...roadmap, dimensions: edit.dimensions, skillDimension: edit.skills },
-        items: content.items.map((item) =>
-          item.skills.some((skill) => skill in renames)
-            ? { ...item, skills: [...new Set(item.skills.map(renamed))] }
-            : item,
+        tasks: content.tasks.map((task) =>
+          task.skills.some((skill) => skill in renames)
+            ? { ...task, skills: [...new Set(task.skills.map(renamed))] }
+            : task,
         ),
       }
     }
@@ -272,40 +368,51 @@ export function applyStructureEdit(
 }
 
 /**
- * Every unfinished item moved so it sits on the same study day of the plan
+ * Every unfinished task moved so it sits on the same study day of the plan
  * under the new pauses as it did under the old ones, with the same number of
  * study days. Counted from the plan's start, so what comes before a change
- * stays put. Finished items keep their dates: they happened when they happened.
+ * stays put. Finished tasks keep their dates: they happened when they happened.
  */
 export function keepStudyDays(
   content: RoadmapContent,
   before: readonly Blackout[],
   after: readonly Blackout[],
-): Item[] {
+): Task[] {
   const anchor =
     content.roadmap.startDate ||
-    content.items.reduce<CivilDate>(
-      (min, item) => (min === '' || item.baselineStartDate < min ? item.baselineStartDate : min),
+    content.tasks.reduce<CivilDate>(
+      (min, task) => (min === '' || task.baselineStartDate < min ? task.baselineStartDate : min),
       '',
     )
-  return content.items.map((item) => {
-    if (item.state === 'done' || anchor === '' || item.baselineStartDate < anchor) return item
-    const position = studyDaysBetween(anchor, item.baselineStartDate, before)
-    const length = studyDaysBetween(item.baselineStartDate, item.baselineEndDate, before)
-    if (position < 1 || length < 1) return item
+  return content.tasks.map((task) => {
+    if (task.state === 'done' || anchor === '' || task.baselineStartDate < anchor) return task
+    const position = studyDaysBetween(anchor, task.baselineStartDate, before)
+    const length = studyDaysBetween(task.baselineStartDate, task.baselineEndDate, before)
+    if (position < 1 || length < 1) return task
     const start = shiftStudyDays(anchor, position - 1, after)
     return {
-      ...item,
+      ...task,
       baselineStartDate: start,
       baselineEndDate: addStudyDays(start, length, after),
     }
   })
 }
 
-function findWorkItem(content: RoadmapContent, id: string): WorkItem {
-  const found = content.workItems.find((each) => each.id === id)
-  if (!found) throw new EditError(`No work item with id ${id}`)
+function findStory(content: RoadmapContent, id: string): Story {
+  const found = content.stories.find((each) => each.id === id)
+  if (!found) throw new EditError(`No story with id ${id}`)
   return found
+}
+
+function findFeature(content: RoadmapContent, id: string): Feature {
+  const found = content.features.find((each) => each.id === id)
+  if (!found) throw new EditError(`No feature with id ${id}`)
+  return found
+}
+
+/** A story may serve no feature, or one that exists. */
+function checkFeature(content: RoadmapContent, featureId: string | null): void {
+  if (featureId !== null) findFeature(content, featureId)
 }
 
 function findPhase(content: RoadmapContent, number: number) {

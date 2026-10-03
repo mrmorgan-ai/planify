@@ -5,13 +5,13 @@ import {
   dimensionCoverage,
   inProgress,
   nextMilestone,
-  overdueItems,
+  overdueTasks,
   skillsByDimension,
   suggestedNext,
   type Context,
 } from '../core/dashboard'
 import { planProgress } from '../core/hours'
-import type { AppState, CivilDate, Item } from '../core/types'
+import type { AppState, CivilDate, Task, WorkType } from '../core/types'
 import { PlanBullet } from './PlanBullet'
 import { Radar } from './Radar'
 
@@ -27,14 +27,16 @@ const SHOWN_IN_PROGRESS = 5
  * true. The radar answers a different question, coverage by skill area.
  */
 export function Dashboard({ state }: { state: AppState }) {
-  const { items, today, roadmap } = state
-  const context = activeContext(today, roadmap, items)
-  const streak = currentStreakWeeks(items, today, roadmap.timeZone)
-  const late = overdueItems(items, today)
-  const milestone = nextMilestone(items, roadmap.phases, today)
-  const running = inProgress(items)
-  const progress = planProgress(items, roadmap.phases.map((phase) => phase.number), today)
-  const groups = skillsByDimension(items, roadmap)
+  const { tasks, today, roadmap } = state
+  const context = activeContext(today, roadmap, tasks)
+  const streak = currentStreakWeeks(tasks, today, roadmap.timeZone)
+  const late = overdueTasks(tasks, today)
+  const milestone = nextMilestone(tasks, roadmap.phases, today)
+  const running = inProgress(tasks)
+  const progress = planProgress(tasks, roadmap.phases.map((phase) => phase.number), today)
+  const groups = skillsByDimension(tasks, roadmap)
+  const storyTypes = new Map(state.stories.map((story) => [story.id, story.type]))
+  const typeOf = (task: Task) => storyTypes.get(task.storyId) ?? null
 
   return (
     <div className="dashboard">
@@ -56,8 +58,8 @@ export function Dashboard({ state }: { state: AppState }) {
               In progress <span className="count">{running.length}</span>
             </h3>
             <ul className="task-list">
-              {running.slice(0, SHOWN_IN_PROGRESS).map((item) => (
-                <Task key={item.id} item={item} today={today} />
+              {running.slice(0, SHOWN_IN_PROGRESS).map((task) => (
+                <Task key={task.id} task={task} type={typeOf(task)} today={today} />
               ))}
             </ul>
             {running.length > SHOWN_IN_PROGRESS && (
@@ -72,8 +74,8 @@ export function Dashboard({ state }: { state: AppState }) {
               Nothing in progress <span className="count">nearest by start date</span>
             </h3>
             <ul className="task-list">
-              {suggestedNext(items).map((item) => (
-                <Task key={item.id} item={item} today={today} suggested />
+              {suggestedNext(tasks).map((task) => (
+                <Task key={task.id} task={task} type={typeOf(task)} today={today} suggested />
               ))}
             </ul>
             <Link className="see-all" to="/backlog">
@@ -98,7 +100,7 @@ export function Dashboard({ state }: { state: AppState }) {
             bad={milestone !== null && milestone.daysAway < 0}
           >
             {milestone
-              ? `${milestone.item.name} · ${milestone.item.projectedEndDate}`
+              ? `${milestone.task.name} · ${milestone.task.projectedEndDate}`
               : 'all closed'}
           </Stat>
 
@@ -116,7 +118,7 @@ export function Dashboard({ state }: { state: AppState }) {
       <section className="block">
         <h2>Profile</h2>
         <div className="profile">
-          <Radar coverage={dimensionCoverage(items, roadmap)} />
+          <Radar coverage={dimensionCoverage(tasks, roadmap)} />
 
           <div className="axis-groups">
             {groups.map((group) => (
@@ -178,14 +180,25 @@ function Stat({
   )
 }
 
-function Task({ item, today, suggested }: { item: Item; today: string; suggested?: boolean }) {
-  const late = !suggested && item.projectedEndDate < today
+function Task({
+  task,
+  type,
+  today,
+  suggested,
+}: {
+  task: Task
+  /** Its story's type, when the story has one. */
+  type: WorkType | null
+  today: string
+  suggested?: boolean
+}) {
+  const late = !suggested && task.projectedEndDate < today
   return (
     <li>
-      <span className="type-tag">{item.type}</span>
-      <span className="task-name">{item.name}</span>
+      {type && <span className="type-tag">{type}</span>}
+      <span className="task-name">{task.name}</span>
       <span className={late ? 'task-date bad' : 'task-date'}>
-        {suggested ? `starts ${item.projectedStartDate}` : `due ${item.projectedEndDate}`}
+        {suggested ? `starts ${task.projectedStartDate}` : `due ${task.projectedEndDate}`}
       </span>
     </li>
   )

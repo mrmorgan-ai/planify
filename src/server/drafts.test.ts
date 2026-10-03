@@ -33,16 +33,16 @@ async function loaded() {
   return space
 }
 
-const rename = (id: string, name: string): Edit => ({ op: 'updateItem', id, fields: { name } })
+const rename = (id: string, name: string): Edit => ({ op: 'updateTask', id, fields: { name } })
 const inDraft = (space: Space, revision: number, edits: Edit[]) =>
   mutateDraft(space, revision, (state) => applyEdits(state, edits), { now: NOW })
-const nameOf = (state: AppState, id: string) => state.items.find((item) => item.id === id)?.name
+const nameOf = (state: AppState, id: string) => state.tasks.find((task) => task.id === id)?.name
 const finish = (space: Space, revision: number, id: string) =>
   mutate(space, revision, (state) =>
-    state.items.map((item) =>
-      item.id === id
-        ? { ...item, state: 'done' as const, completedAt: '2030-01-09T10:00:00Z', hoursDone: 2 }
-        : item,
+    state.tasks.map((task) =>
+      task.id === id
+        ? { ...task, state: 'done' as const, completedAt: '2030-01-09T10:00:00Z', hoursDone: 2 }
+        : task,
     ),
   )
 
@@ -88,7 +88,7 @@ describe('a draft', () => {
     await finish(space, 1, 'read-the-thing')
 
     expect(
-      (await loadDraftState(space)).items.find((item) => item.id === 'read-the-thing'),
+      (await loadDraftState(space)).tasks.find((task) => task.id === 'read-the-thing'),
     ).toMatchObject({
       state: 'done',
       hoursDone: 2,
@@ -118,7 +118,7 @@ describe('a draft', () => {
       mutateContent(space, 1, (state) => applyEdits(state, [cycle])),
     ).rejects.toBeInstanceOf(InvalidWriteError)
     const drafted = await inDraft(space, 1, [cycle])
-    expect(drafted.items.find((item) => item.id === 'read-the-thing')?.dependsOn).toEqual([
+    expect(drafted.tasks.find((task) => task.id === 'read-the-thing')?.dependsOn).toEqual([
       'the-next-thing',
     ])
   })
@@ -144,13 +144,13 @@ describe('a draft', () => {
 })
 
 describe('publishing a draft', () => {
-  /** A draft that renames one item and deletes another, over a live roadmap at revision 1. */
+  /** A draft that renames one task and deletes another, over a live roadmap at revision 1. */
   async function drafted() {
     const space = await loaded()
     await startDraft(space, NOW)
     await inDraft(space, 1, [
       rename('read-the-thing', 'Drafted'),
-      { op: 'deleteItem', id: 'the-optional-thing' },
+      { op: 'deleteTask', id: 'the-optional-thing' },
     ])
     return space
   }
@@ -160,8 +160,8 @@ describe('publishing a draft', () => {
     const preview = await previewPublish(space, 2)
 
     expect(preview.revision).toBe(1)
-    expect(preview.changes.items.removed.map((item) => item.id)).toEqual(['the-optional-thing'])
-    expect(preview.changes.items.changed).toEqual([{ id: 'read-the-thing', fields: ['name'] }])
+    expect(preview.changes.tasks.removed.map((task) => task.id)).toEqual(['the-optional-thing'])
+    expect(preview.changes.tasks.changed).toEqual([{ id: 'read-the-thing', fields: ['name'] }])
     expect(preview.introduced).toEqual([])
     expect(preview.liveChanged).toBe(false)
     expect((await loadAppState(space)).revision).toBe(1)
@@ -175,8 +175,8 @@ describe('publishing a draft', () => {
     expect(live.revision).toBe(3)
     expect(live.draft).toBeNull()
     expect(nameOf(live, 'read-the-thing')).toBe('Drafted')
-    expect(live.items.some((item) => item.id === 'the-optional-thing')).toBe(false)
-    expect(live.items.find((item) => item.id === 'the-next-thing')?.state).toBe('done')
+    expect(live.tasks.some((task) => task.id === 'the-optional-thing')).toBe(false)
+    expect(live.tasks.find((task) => task.id === 'the-next-thing')?.state).toBe('done')
 
     expect((await loadAppState(space)).draft).toBeNull()
     await expect(loadDraftState(space)).rejects.toBeInstanceOf(NoDraftError)
@@ -198,7 +198,7 @@ describe('publishing a draft', () => {
     const preview = await previewPublish(space, 2)
     expect(preview.liveChanged).toBe(true)
     // The draft never had the live rename: publishing it puts the old name back.
-    expect(preview.changes.items.changed).toContainEqual({
+    expect(preview.changes.tasks.changed).toContainEqual({
       id: 'the-next-thing',
       fields: ['name'],
     })

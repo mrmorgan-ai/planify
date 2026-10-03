@@ -12,7 +12,7 @@ import { StaleStateError, previewGenerate, type GeneratePreview } from './api'
 import { ChangeReview, type ReviewWords } from './ChangeReview'
 import { DatePicker } from './DatePicker'
 import { dateRange } from './format'
-import { Field, SkillPicker } from './ItemForm'
+import { Field, SkillPicker } from './TaskForm'
 
 const KIND_LABEL: Record<GeneratorKind, string> = {
   course: 'Course',
@@ -23,9 +23,9 @@ const KIND_LABEL: Record<GeneratorKind, string> = {
 
 const KIND_HELP: Record<GeneratorKind, string> = {
   course:
-    'A part a week, each holding what your capacity leaves free that week, up to the pace you set.',
+    'A task a week, each holding what your capacity leaves free that week, up to the pace you set.',
   certification:
-    'The prep a part a week, like a course, then the exam on the first day with room or on the day you pick.',
+    'The prep a task a week, like a course, then the exam on the first day with room or on the day you pick.',
   project: 'Tasks one after another, each in the first week with room for its hours.',
   practice: 'One block a week, at the end of the week, in the next weeks with room.',
 }
@@ -70,7 +70,7 @@ type Review =
 /**
  * Adds a whole course, certification, project or run of practice blocks at
  * once, placed by the server in the hours the plan leaves free. What it would add
- * is previewed first — the items with their dates, and what they change — and
+ * is previewed first — the tasks with their dates, and what they change — and
  * nothing is written until the person confirms.
  */
 export function GeneratePanel({
@@ -177,7 +177,7 @@ export function GeneratePanel({
   )
 
   return (
-    <div className="new-item generate">
+    <div className="new-task generate">
       <h3>Generate</h3>
       <div className="filters" role="group" aria-label="What to generate">
         {GENERATOR_KINDS.map((candidate) => (
@@ -199,7 +199,7 @@ export function GeneratePanel({
       <p className="muted generate-help">{KIND_HELP[kind]}</p>
 
       <form
-        className="item-form"
+        className="task-form"
         onSubmit={(event) => {
           event.preventDefault()
           if (request) void check(request)
@@ -326,12 +326,12 @@ export function GeneratePanel({
             <option value="">Nothing — the first week with room</option>
             {roadmap.phases.map((each) => (
               <optgroup key={each.number} label={`Phase ${each.number} · ${each.name}`}>
-                {state.items
-                  .filter((item) => item.phase === each.number)
+                {state.tasks
+                  .filter((task) => task.phase === each.number)
                   .sort((a, b) => a.sortOrder - b.sortOrder)
-                  .map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
+                  .map((task) => (
+                    <option key={task.id} value={task.id}>
+                      {task.name}
                     </option>
                   ))}
               </optgroup>
@@ -345,7 +345,7 @@ export function GeneratePanel({
               value={answers.from}
               min={state.today}
               disabled={busy}
-              label="Earliest day the new items can start"
+              label="Earliest day the new tasks can start"
               onChange={(day) => set('from', day)}
             />
           </div>
@@ -388,8 +388,8 @@ export function GeneratePanel({
       {review?.kind === 'ready' && (
         <ChangeReview
           state={state}
-          title={`${review.preview.placed.length} ${review.preview.placed.length === 1 ? 'item' : 'items'} to add`}
-          source={{ items: review.preview.placed }}
+          title={`${review.preview.placed.length} ${review.preview.placed.length === 1 ? 'task' : 'tasks'} to add`}
+          source={{ tasks: review.preview.placed }}
           note={<PlacedList placed={review.preview.placed} />}
           preview={review.preview}
           busy={busy}
@@ -444,13 +444,13 @@ function blankAnswers(state: AppState, phase: PhaseNumber): Answers {
   }
 }
 
-/** The phase's item that ends last: where new items most often go after. */
+/** The phase's task that ends last: where new tasks most often go after. */
 function lastOf(state: AppState, phase: PhaseNumber): string {
-  const last = state.items
-    .filter((item) => item.phase === phase)
-    .reduce<AppState['items'][number] | null>(
-      (latest, item) =>
-        latest === null || item.baselineEndDate > latest.baselineEndDate ? item : latest,
+  const last = state.tasks
+    .filter((task) => task.phase === phase)
+    .reduce<AppState['tasks'][number] | null>(
+      (latest, task) =>
+        latest === null || task.baselineEndDate > latest.baselineEndDate ? task : latest,
       null,
     )
   return last?.id ?? ''

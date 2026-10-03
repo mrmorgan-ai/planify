@@ -55,7 +55,7 @@ export class UnknownVersionError extends Error {
 
 /**
  * Brings a version of the plan back, the way an import brings a file in: the
- * plan becomes the version's, and progress on the items it keeps stays. The plan
+ * plan becomes the version's, and progress on the tasks it keeps stays. The plan
  * it replaces is kept in turn, so a restore can itself be undone.
  */
 export async function applyRestore(

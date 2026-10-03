@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { phaseProgress } from '../core/selectors'
-import type { Item, Phase, PhaseNumber } from '../core/types'
+import type { Task, Phase, PhaseNumber } from '../core/types'
 
 /** `null` is the entry that ignores phases — the one place a view spans the whole roadmap. */
 export type PhaseSelection = PhaseNumber | null
@@ -11,7 +11,7 @@ const NARROW = '(max-width: 1024px)'
 /**
  * Open on a wide screen, closed on a narrow one, and after that whatever the
  * reader last chose. On a phone the list is six rows of furniture between the
- * header and the items, so it starts out of the way.
+ * header and the tasks, so it starts out of the way.
  */
 function initiallyOpen(): boolean {
   const stored = localStorage.getItem(STORAGE_KEY)
@@ -27,17 +27,17 @@ function initiallyOpen(): boolean {
  */
 export function PhaseSidebar({
   phases,
-  items,
+  tasks,
   selected,
   onSelect,
 }: {
   phases: readonly Phase[]
-  items: readonly Item[]
+  tasks: readonly Task[]
   selected: PhaseSelection
   onSelect: (phase: PhaseSelection) => void
 }) {
   const [open, setOpen] = useState(initiallyOpen)
-  const done = items.filter((item) => item.state === 'done').length
+  const done = tasks.filter((task) => task.state === 'done').length
 
   const current = phases.find((phase) => phase.number === selected)
   const summary = current ? `Phase ${current.number} · ${current.name}` : 'All phases'
@@ -70,7 +70,7 @@ export function PhaseSidebar({
       {open && (
         <div className="phase-list">
           {phases.map((phase) => {
-            const progress = phaseProgress(items, phase)
+            const progress = phaseProgress(tasks, phase)
             return (
               <button
                 key={phase.number}
@@ -97,7 +97,7 @@ export function PhaseSidebar({
             <span className="phase-index">·</span>
             <span className="phase-name">All phases</span>
             <span className="phase-progress">
-              {done}/{items.length}
+              {done}/{tasks.length}
             </span>
           </button>
         </div>

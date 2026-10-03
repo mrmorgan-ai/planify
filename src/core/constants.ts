@@ -1,4 +1,4 @@
-import type { ItemType, PhaseNumber, State } from './types'
+import type { WorkType, PhaseNumber, State } from './types'
 
 // Application structure only. Everything that describes a particular roadmap —
 // phase names, non-study periods, radar axes, the skill map, the timezone — is
@@ -8,7 +8,7 @@ export const PHASE_NUMBERS: readonly PhaseNumber[] = [1, 2, 3, 4, 5, 6] as const
 
 export const STATES: readonly State[] = ['pending', 'in_progress', 'done'] as const
 
-export const ITEM_TYPES: readonly ItemType[] = [
+export const WORK_TYPES: readonly WorkType[] = [
   'Certification',
   'Course',
   'Book',

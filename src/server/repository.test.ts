@@ -15,15 +15,16 @@ import { sqliteD1 } from './testing/sqliteD1'
 const example = seedContent(readSeedFile(EXAMPLE_SEED))
 
 /** What the database holds, in the order it reads it back. */
-function content({ roadmap, workItems, items }: RoadmapContent): RoadmapContent {
+function content({ roadmap, features, stories, tasks }: RoadmapContent): RoadmapContent {
   return {
     roadmap: {
       ...roadmap,
       phases: [...roadmap.phases].sort((a, b) => a.number - b.number),
       blackouts: [...roadmap.blackouts].sort((a, b) => a.from.localeCompare(b.from)),
     },
-    workItems: [...workItems].sort((a, b) => a.id.localeCompare(b.id)),
-    items: [...items].sort((a, b) => a.phase - b.phase || a.sortOrder - b.sortOrder),
+    features: [...features].sort((a, b) => a.id.localeCompare(b.id)),
+    stories: [...stories].sort((a, b) => a.id.localeCompare(b.id)),
+    tasks: [...tasks].sort((a, b) => a.phase - b.phase || a.sortOrder - b.sortOrder),
   }
 }
 
@@ -35,20 +36,24 @@ async function loaded(roadmap: RoadmapContent = example) {
 
 /**
  * The example after a round of editing that touches every foreign key: the
- * closing milestone moves to a new item and the old one goes, a work item goes
- * while its parts stay, an axis goes while its skill moves to a new one, the
- * axes change order, and the pause moves.
+ * closing milestone moves to a new task and the old one goes, a story goes
+ * while its tasks move to another, a feature comes in with a story serving it,
+ * an axis goes while its skill moves to a new one, the axes change order, and
+ * the pause moves.
  */
 function edited(): RoadmapContent {
   const next = structuredClone(example)
   const renamed = (id: string) => (id === 'phase-1-exam' ? 'phase-1-final' : id)
-  next.items = next.items.map((item) => ({
-    ...item,
-    id: renamed(item.id),
-    dependsOn: item.dependsOn.map(renamed),
-    workItemId: item.workItemId === 'practice-phase-1' ? null : item.workItemId,
+  next.tasks = next.tasks.map((task) => ({
+    ...task,
+    id: renamed(task.id),
+    dependsOn: task.dependsOn.map(renamed),
+    storyId: task.storyId === 'practice-phase-1' ? 'the-course' : task.storyId,
   }))
-  next.workItems = next.workItems.filter((workItem) => workItem.id !== 'practice-phase-1')
+  next.stories = next.stories
+    .filter((story) => story.id !== 'practice-phase-1')
+    .map((story) => (story.id === 'the-exam' ? { ...story, featureId: 'a-goal' } : story))
+  next.features = [{ id: 'a-goal', name: 'A goal', type: 'Certification', link: null, notes: '' }]
   next.roadmap.phases[0]!.closingMilestoneId = 'phase-1-final'
   next.roadmap.dimensions = ['Third axis', 'First axis']
   next.roadmap.skillDimension = { 'Something measurable': 'First axis', 'Something else': 'Third axis' }
@@ -75,13 +80,13 @@ describe('mutateContent', () => {
     expect(contentWrites(example, structuredClone(example), 1)).toEqual([])
   })
 
-  it('sends the same number of statements for ten items or a thousand', () => {
+  it('sends the same number of statements for ten tasks or a thousand', () => {
     // D1 counts each statement of a batch against a per-request query limit.
-    const empty = { ...example, workItems: [], items: [] }
+    const empty = { ...example, stories: [], tasks: [] }
     const many = {
       ...example,
-      items: Array.from({ length: 100 }, (_, copy) =>
-        example.items.map((item) => ({ ...item, id: `${item.id}-${copy}` })),
+      tasks: Array.from({ length: 100 }, (_, copy) =>
+        example.tasks.map((task) => ({ ...task, id: `${task.id}-${copy}` })),
       ).flat(),
     }
     const few = contentWrites(empty, example, 1).length
@@ -92,7 +97,7 @@ describe('mutateContent', () => {
   it('refuses a change that would break a rule, and writes nothing', async () => {
     const { space } = await loaded()
     const intoPause = structuredClone(example)
-    intoPause.items.find((item) => item.id === 'build-part-2')!.baselineStartDate = '2030-02-03'
+    intoPause.tasks.find((task) => task.id === 'build-part-2')!.baselineStartDate = '2030-02-03'
 
     await expect(mutateContent(space, 1, () => intoPause)).rejects.toBeInstanceOf(InvalidWriteError)
     const after = await loadAppState(space)
@@ -103,10 +108,10 @@ describe('mutateContent', () => {
 
 describe('the revision check', () => {
   const finish = (state: AppState) =>
-    state.items.map((item) =>
-      item.id === 'read-the-thing'
-        ? { ...item, state: 'done' as const, completedAt: '2030-01-08T10:00:00Z' }
-        : item,
+    state.tasks.map((task) =>
+      task.id === 'read-the-thing'
+        ? { ...task, state: 'done' as const, completedAt: '2030-01-08T10:00:00Z' }
+        : task,
     )
 
   it('refuses a write made from a revision another write already moved past', async () => {
@@ -130,6 +135,6 @@ describe('the revision check', () => {
     await expect(racing).rejects.toBeInstanceOf(StaleRevisionError)
     const after = await loadAppState(space)
     expect(after.revision).toBe(2)
-    expect(after.items.find((item) => item.id === 'read-the-thing')?.state).toBe('pending')
+    expect(after.tasks.find((task) => task.id === 'read-the-thing')?.state).toBe('pending')
   })
 })

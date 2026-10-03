@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { addDays, maxDate, startOfWeek } from '../core/dates'
 import { lateness, needsReschedule, reschedulePlan, type Lateness } from '../core/reschedule'
-import type { AppState, CivilDate, Item } from '../core/types'
+import type { AppState, CivilDate, Task } from '../core/types'
 import { DatePicker } from './DatePicker'
 import { shortDate } from './format'
 
@@ -29,8 +29,8 @@ export type LateAlert = {
  */
 export function useLateAlert(state: AppState | null): LateAlert {
   const [dialogOpen, setDialogOpen] = useState(false)
-  const behind = state ? lateness(state.items, state.today) : null
-  const recommended = state !== null && needsReschedule(state.items, state.today)
+  const behind = state ? lateness(state.tasks, state.today) : null
+  const recommended = state !== null && needsReschedule(state.tasks, state.today)
   const week = state ? startOfWeek(state.today) : null
 
   useEffect(() => {
@@ -49,11 +49,11 @@ export function useLateAlert(state: AppState | null): LateAlert {
 /** The line across every view while the plan is a week or more behind. */
 export function LateBanner({ alert }: { alert: LateAlert }) {
   if (!alert.recommended || !alert.behind) return null
-  const { days, items } = alert.behind
+  const { days, tasks } = alert.behind
   return (
     <div className="late-banner" role="status">
       <span>
-        ⚠ {days} days behind · {items.length} {items.length === 1 ? 'item' : 'items'} past their end
+        ⚠ {days} days behind · {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'} past their end
       </span>
       <button type="button" className="late-banner-action" onClick={alert.openDialog}>
         Reschedule…
@@ -95,14 +95,14 @@ export function RescheduleDialog({
 
   const preview = useMemo(() => {
     try {
-      return reschedulePlan(state.items, restart, {
+      return reschedulePlan(state.tasks, restart, {
         blackouts: roadmap.blackouts,
         timeZone: roadmap.timeZone,
       })
     } catch {
       return null
     }
-  }, [state.items, restart, roadmap.blackouts, roadmap.timeZone])
+  }, [state.tasks, restart, roadmap.blackouts, roadmap.timeZone])
 
   // The plan moves by whole weeks, so a choice names a week. This week is
   // picked by today's date, since the server refuses a date already past.
@@ -131,11 +131,11 @@ export function RescheduleDialog({
 
       {behind ? (
         <p className="muted">
-          {behind.items.length} unfinished {behind.items.length === 1 ? 'item is' : 'items are'} past
+          {behind.tasks.length} unfinished {behind.tasks.length === 1 ? 'task is' : 'tasks are'} past
           their end date; the oldest ended {shortDate(behind.since)}.
         </p>
       ) : (
-        <p className="muted">Nothing is late. Rescheduling moves every unfinished item later.</p>
+        <p className="muted">Nothing is late. Rescheduling moves every unfinished task later.</p>
       )}
 
       <div className="reschedule-field">
@@ -163,14 +163,14 @@ export function RescheduleDialog({
         {preview && (
           <p className="reschedule-note">
             {sameWeek(preview.restart, restart)
-              ? `The plan restarts in the week of ${shortDate(preview.restart)}. Every item keeps its weekday.`
+              ? `The plan restarts in the week of ${shortDate(preview.restart)}. Every task keeps its weekday.`
               : `The week of ${shortDate(startOfWeek(restart))} is a pause; the plan restarts on ${shortDate(preview.restart)}.`}
           </p>
         )}
       </div>
 
       {preview && !nothing ? (
-        <Preview state={state} after={preview.items} moved={preview.moved} shift={preview.shift} />
+        <Preview state={state} after={preview.tasks} moved={preview.moved} shift={preview.shift} />
       ) : (
         <p className="notice">
           Nothing to move: the plan is not behind the week of {shortDate(startOfWeek(restart))}.
@@ -204,12 +204,12 @@ function Preview({
   shift,
 }: {
   state: AppState
-  after: Item[]
+  after: Task[]
   moved: string[]
   shift: number
 }) {
-  const before = new Map(state.items.map((item) => [item.id, item]))
-  const now = new Map(after.map((item) => [item.id, item]))
+  const before = new Map(state.tasks.map((task) => [task.id, task]))
+  const now = new Map(after.map((task) => [task.id, task]))
 
   const milestones = state.roadmap.phases.flatMap((phase) => {
     const id = phase.closingMilestoneId
@@ -219,18 +219,18 @@ function Preview({
     return [{ phase, from: old.projectedEndDate, to: next.projectedEndDate }]
   })
 
-  const endOf = (items: Iterable<Item>) =>
-    [...items].reduce((last, item) => (item.projectedEndDate > last ? item.projectedEndDate : last), '')
+  const endOf = (tasks: Iterable<Task>) =>
+    [...tasks].reduce((last, task) => (task.projectedEndDate > last ? task.projectedEndDate : last), '')
   const planBefore = endOf(before.values())
   const planAfter = endOf(now.values())
 
-  const movedItems = after.filter((item) => moved.includes(item.id))
+  const movedTasks = after.filter((task) => moved.includes(task.id))
 
   return (
     <div className="reschedule-preview">
       <ul>
         <li>
-          {moved.length} unfinished {moved.length === 1 ? 'item moves' : 'items move'}{' '}
+          {moved.length} unfinished {moved.length === 1 ? 'task moves' : 'tasks move'}{' '}
           {weeksOf(shift)}
         </li>
         {milestones.map(({ phase, from, to }) => (
@@ -246,14 +246,14 @@ function Preview({
       </ul>
 
       <details>
-        <summary>See every item that moves</summary>
+        <summary>See every task that moves</summary>
         <table className="reschedule-list">
           <tbody>
-            {movedItems.map((item) => (
-              <tr key={item.id}>
-                <td>{item.name}</td>
+            {movedTasks.map((task) => (
+              <tr key={task.id}>
+                <td>{task.name}</td>
                 <td>
-                  <Change from={before.get(item.id)?.projectedStartDate ?? ''} to={item.projectedStartDate} />
+                  <Change from={before.get(task.id)?.projectedStartDate ?? ''} to={task.projectedStartDate} />
                 </td>
               </tr>
             ))}

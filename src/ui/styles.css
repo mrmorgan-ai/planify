@@ -181,7 +181,7 @@ span.footer-where:not(.footer-sep) {
 /* Phase sidebar */
 
 /* `auto` and not a fixed column: folding the list has to give the width back to
-   the items, which a fixed track cannot do. */
+   the tasks, which a fixed track cannot do. */
 .backlog {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -328,14 +328,14 @@ span.footer-where:not(.footer-sep) {
   font-variant-numeric: tabular-nums;
 }
 
-/* Item table */
+/* Task table */
 
-table.items {
+table.tasks {
   width: 100%;
   border-collapse: collapse;
 }
 
-table.items th {
+table.tasks th {
   text-align: left;
   padding: 0.4rem 0.6rem;
   border-bottom: 1px solid var(--line);
@@ -346,7 +346,7 @@ table.items th {
   letter-spacing: 0.04em;
 }
 
-table.items td {
+table.tasks td {
   padding: 0.45rem 0.6rem;
   border-bottom: 1px solid var(--line);
   vertical-align: top;
@@ -774,13 +774,13 @@ tr.detail td {
   color: var(--muted);
 }
 
-/* Editing an item: the detail's own label-and-value lines, with inputs. */
+/* Editing a task: the detail's own label-and-value lines, with inputs. */
 
 .detail-actions {
   margin-top: 0.7rem;
 }
 
-.item-form {
+.task-form {
   padding-top: 0.2rem;
 }
 
@@ -800,8 +800,8 @@ tr.detail td {
   max-width: 40rem;
 }
 
-.item-form input,
-.item-form textarea {
+.task-form input,
+.task-form textarea {
   width: 100%;
   padding: 0.3rem 0.45rem;
   background: var(--raised);
@@ -812,14 +812,14 @@ tr.detail td {
   font-size: 0.92rem;
 }
 
-.item-form textarea {
+.task-form textarea {
   resize: vertical;
   line-height: 1.45;
 }
 
-.item-form input:focus,
-.item-form textarea:focus,
-.item-form select:focus {
+.task-form input:focus,
+.task-form textarea:focus,
+.task-form select:focus {
   outline: none;
   border-color: var(--accent);
 }
@@ -946,7 +946,7 @@ tr.detail td {
   line-height: 1.5;
 }
 
-.new-item {
+.new-task {
   margin-bottom: 1rem;
   padding: 0.8rem 1rem 1rem;
   border: 1px solid var(--line);
@@ -954,7 +954,7 @@ tr.detail td {
   background: var(--panel);
 }
 
-.new-item h3 {
+.new-task h3 {
   margin: 0 0 0.3rem;
   font-size: 1rem;
 }
@@ -978,7 +978,7 @@ tr.detail td {
   white-space: nowrap;
 }
 
-.item-form .generate-toggle input {
+.task-form .generate-toggle input {
   width: auto;
 }
 
@@ -2185,24 +2185,24 @@ a.button {
 
 /* In a column this narrow the label cannot hold a sixth of the width, so the
    detail stacks instead of sitting in two columns as it does in the backlog. */
-.card .item-detail {
+.card .task-detail {
   margin-top: 0.4rem;
   padding-top: 0.4rem;
   border-top: 1px solid var(--line);
 }
 
-.card .item-detail .detail-line {
+.card .task-detail .detail-line {
   flex-direction: column;
   gap: 0.1rem;
   margin-top: 0.5rem;
 }
 
-.card .item-detail .detail-label {
+.card .task-detail .detail-label {
   flex: none;
   padding-top: 0;
 }
 
-.card .item-detail .skills {
+.card .task-detail .skills {
   margin-left: 0;
 }
 
@@ -2898,7 +2898,7 @@ a.button {
   background: var(--bad);
 }
 
-/* The piece after a pause keeps a flat left edge, so the cut reads as one item
+/* The piece after a pause keeps a flat left edge, so the cut reads as one task
    resuming rather than as a second, unrelated bar. */
 .gantt-bar.resumed {
   border-top-left-radius: 0;
@@ -2929,9 +2929,9 @@ a.button {
   font-size: 0.82rem;
 }
 
-/* Work items */
+/* Stories */
 
-.work-items {
+.stories {
   max-width: 72rem;
 }
 
@@ -3098,7 +3098,7 @@ tr.part .name {
     gap: 0.75rem;
   }
 
-  /* Above the items instead of beside them, and not stuck to the top: a sticky
+  /* Above the tasks instead of beside them, and not stuck to the top: a sticky
      list that spans the width would cover what it filters. */
   .phases,
   .phases.closed {
@@ -3217,20 +3217,20 @@ tr.part .name {
     align-items: flex-start;
   }
 
-  /* The item table becomes one card per item: same markup, same state, laid out
+  /* The task table becomes one card per task: same markup, same state, laid out
      as lines instead of columns. The header row has nothing left to label. */
-  table.items thead {
+  table.tasks thead {
     display: none;
   }
 
-  table.items,
-  table.items tbody,
-  table.items tr,
-  table.items td {
+  table.tasks,
+  table.tasks tbody,
+  table.tasks tr,
+  table.tasks td {
     display: block;
   }
 
-  table.items tr {
+  table.tasks tr {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -3241,7 +3241,7 @@ tr.part .name {
     border-radius: 8px;
   }
 
-  table.items td {
+  table.tasks td {
     width: auto;
     min-width: 0;
     padding: 0;
@@ -3263,7 +3263,7 @@ tr.part .name {
   }
 
   /* The planned start adds a date without adding a decision; what is asked on a
-     phone is when the item is due. The start is still in the detail. */
+     phone is when the task is due. The start is still in the detail. */
   .col-date:nth-of-type(4) {
     display: none;
   }
@@ -3300,7 +3300,7 @@ tr.part .name {
 
   /* The detail spans the card: in the backlog its first cell only exists to line
      up with the state and type columns, which are no longer columns. A work
-     item's detail is a single cell, so it keeps it. */
+     task's detail is a single cell, so it keeps it. */
   tr.detail {
     margin-top: -0.5rem;
     border-top: 0;
@@ -3308,11 +3308,11 @@ tr.part .name {
     border-top-right-radius: 0;
   }
 
-  table.items:not(.units) tr.detail td:first-child {
+  table.tasks:not(.units) tr.detail td:first-child {
     display: none;
   }
 
-  table.items tr.detail td {
+  table.tasks tr.detail td {
     flex: 1 0 100%;
   }
 

@@ -15,7 +15,7 @@ export const onRequest = only<Env>('GET', async ({ env, data }) => {
   const results = await db.batch([
     db
       .prepare(
-        `SELECT (SELECT COUNT(*) FROM items WHERE roadmap_id = ?1) AS items,
+        `SELECT (SELECT COUNT(*) FROM tasks WHERE roadmap_id = ?1) AS tasks,
                 (SELECT COUNT(*) FROM phases WHERE roadmap_id = ?1) AS phases`,
       )
       .bind(roadmapId),
@@ -24,14 +24,14 @@ export const onRequest = only<Env>('GET', async ({ env, data }) => {
       .bind(roadmapId),
   ])
 
-  const totals = results[0]?.results?.[0] as { items: number; phases: number } | undefined
+  const totals = results[0]?.results?.[0] as { tasks: number; phases: number } | undefined
   const configured = results[1]?.results?.[0] as { value: string } | undefined
   const zone = configured?.value ?? DEFAULT_TIME_ZONE
 
   return Response.json({
     ok: true,
     today: todayIn(zone),
-    items: totals?.items ?? 0,
+    tasks: totals?.tasks ?? 0,
     phases: totals?.phases ?? 0,
   })
 })

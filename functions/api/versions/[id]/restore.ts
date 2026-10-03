@@ -5,7 +5,7 @@ import type { Env } from '../../../../src/server/repository'
 import { spaceOf } from '../../../../src/server/space'
 
 /**
- * Brings a version of the plan back: `{ revision }`. Progress on the items it
+ * Brings a version of the plan back: `{ revision }`. Progress on the tasks it
  * keeps stays, and the plan it replaces goes into the history, so a restore can
  * be undone like any other change.
  *

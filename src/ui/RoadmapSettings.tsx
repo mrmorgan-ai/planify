@@ -151,8 +151,8 @@ export function PlanSettings({ state, saver }: { state: AppState; saver: Saver }
 }
 
 /**
- * Each phase's name and the item that closes it. Adding one puts it after the
- * last; only an empty last phase can be removed, so no item is ever left in a
+ * Each phase's name and the task that closes it. Adding one puts it after the
+ * last; only an empty last phase can be removed, so no task is ever left in a
  * phase that does not exist.
  */
 export function PhasesSettings({ state, saver }: { state: AppState; saver: Saver }) {
@@ -178,7 +178,7 @@ export function PhasesSettings({ state, saver }: { state: AppState; saver: Saver
     ? ['Every phase needs a name.']
     : []
   const last = roadmap.phases.at(-1)
-  const lastIsEmpty = last !== undefined && !state.items.some((item) => item.phase === last.number)
+  const lastIsEmpty = last !== undefined && !state.tasks.some((task) => task.phase === last.number)
 
   return (
     <Section
@@ -224,12 +224,12 @@ export function PhasesSettings({ state, saver }: { state: AppState; saver: Saver
               }
             >
               <option value="">Closes on nothing</option>
-              {state.items
-                .filter((item) => item.phase === phase.number)
+              {state.tasks
+                .filter((task) => task.phase === phase.number)
                 .sort((a, b) => a.sortOrder - b.sortOrder)
-                .map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
+                .map((task) => (
+                  <option key={task.id} value={task.id}>
+                    {task.name}
                   </option>
                 ))}
             </select>
@@ -238,7 +238,7 @@ export function PhasesSettings({ state, saver }: { state: AppState; saver: Saver
                 type="button"
                 className="chip-remove"
                 aria-label={`Remove phase ${phase.number}`}
-                title={lastIsEmpty ? 'Remove this phase' : 'Move or delete its items first'}
+                title={lastIsEmpty ? 'Remove this phase' : 'Move or delete its tasks first'}
                 disabled={saver.busy || !lastIsEmpty || edits.length > 0}
                 onClick={() => void saver.save([{ op: 'removePhase', number: phase.number }])}
               >
@@ -275,7 +275,7 @@ export function PhasesSettings({ state, saver }: { state: AppState; saver: Saver
 
 /**
  * The days nothing is studied. By default the plan keeps its study days around
- * a change: a new pause pushes every unfinished item after it by its length,
+ * a change: a new pause pushes every unfinished task after it by its length,
  * and the preview says how many move before anything is saved.
  */
 export function PausesSettings({ state, saver }: { state: AppState; saver: Saver }) {
@@ -301,7 +301,7 @@ export function PausesSettings({ state, saver }: { state: AppState; saver: Saver
   const moving =
     dirty && problems.length === 0 && keep
       ? keepStudyDays(state, roadmap.blackouts, sorted).filter(
-          (item, index) => item.baselineStartDate !== state.items[index]?.baselineStartDate,
+          (task, index) => task.baselineStartDate !== state.tasks[index]?.baselineStartDate,
         ).length
       : 0
 
@@ -390,14 +390,14 @@ export function PausesSettings({ state, saver }: { state: AppState; saver: Saver
             onChange={(event) => setKeep(event.target.checked)}
           />
           <span>
-            Keep the plan's study days: move unfinished items around the change
+            Keep the plan's study days: move unfinished tasks around the change
             {keep && problems.length === 0 && (
               <span className="muted">
                 {' '}
                 —{' '}
                 {moving === 0
                   ? 'nothing moves'
-                  : `${moving} ${moving === 1 ? 'item moves' : 'items move'}`}
+                  : `${moving} ${moving === 1 ? 'task moves' : 'tasks move'}`}
               </span>
             )}
           </span>

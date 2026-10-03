@@ -6,8 +6,8 @@ const HIGHLIGHT_MS = 2400
 const NOTICE_MS = 6000
 
 /**
- * A view reached through a link that names one of its rows: `?item=` on the
- * backlog, `?unit=` on the work items.
+ * A view reached through a link that names one of its rows: `?task=` on the
+ * backlog, `?unit=` on the stories.
  *
  * The parameter is read once and dropped, so a reload does not replay the jump.
  * A name that matches nothing is reported rather than swallowed — a link that

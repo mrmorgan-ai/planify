@@ -1,33 +1,33 @@
 import { projectWherePossible } from './schedule'
 import { seedContent, toSeedFile, type SeedFile } from './seed'
-import type { AppState, Item, RoadmapContent, State } from './types'
+import type { AppState, Task, RoadmapContent, State } from './types'
 import { introducedErrors, validate, type Issue } from './validate'
 
 /**
  * The roadmap a seed file turns the current one into. The file defines the
  * content, planned dates included: it names the revision it was exported from,
- * so it is the newest plan there is. Progress is the database's alone — an item
+ * so it is the newest plan there is. Progress is the database's alone — a task
  * the file keeps keeps its state and hours, a new one starts pending, and one
  * the file no longer has goes, progress and all. Projections are then computed
  * again from the new plan.
  */
 export function importedContent(current: RoadmapContent, seed: SeedFile): RoadmapContent {
   const next = seedContent(seed)
-  const progress = new Map(current.items.map((item) => [item.id, item]))
-  const items = next.items.map((item) => {
-    const kept = progress.get(item.id)
+  const progress = new Map(current.tasks.map((task) => [task.id, task]))
+  const tasks = next.tasks.map((task) => {
+    const kept = progress.get(task.id)
     return kept
-      ? { ...item, state: kept.state, completedAt: kept.completedAt, hoursDone: kept.hoursDone }
-      : item
+      ? { ...task, state: kept.state, completedAt: kept.completedAt, hoursDone: kept.hoursDone }
+      : task
   })
-  // A file the engine cannot place still previews: its items keep projections
+  // A file the engine cannot place still previews: its tasks keep projections
   // equal to their plan, and the validator names what is wrong.
   const options = { blackouts: next.roadmap.blackouts, timeZone: next.roadmap.timeZone }
-  return { ...next, items: projectWherePossible(items, options) }
+  return { ...next, tasks: projectWherePossible(tasks, options) }
 }
 
-/** An item an import removes, with what it had to show for itself. */
-export type RemovedItem = {
+/** A task an import removes, with what it had to show for itself. */
+export type RemovedTask = {
   id: string
   name: string
   state: State
@@ -36,14 +36,15 @@ export type RemovedItem = {
 
 /** What an import changes, for a person to read before it is applied. */
 export type ImportChanges = {
-  items: {
+  tasks: {
     added: string[]
     /** Progress on these goes with them. */
-    removed: RemovedItem[]
-    /** Each changed item with the fields of the file that differ. */
+    removed: RemovedTask[]
+    /** Each changed task with the fields of the file that differ. */
     changed: Array<{ id: string; fields: string[] }>
   }
-  workItems: { added: string[]; removed: string[]; changed: string[] }
+  stories: { added: string[]; removed: string[]; changed: string[] }
+  features: { added: string[]; removed: string[]; changed: string[] }
   /** The roadmap-wide sections that differ: phases, pauses, capacity, axes… */
   settings: string[]
 }
@@ -94,24 +95,35 @@ export function importChanges(before: RoadmapContent, after: RoadmapContent): Im
   const was = toSeedFile(before)
   const now = toSeedFile(after)
 
-  const items = compare(was.items, now.items)
-  const workItems = compare(was.workItems, now.workItems)
-  const progress = new Map(before.items.map((item) => [item.id, item]))
+  const tasks = compare(was.tasks, now.tasks)
+  const stories = compare(was.stories, now.stories)
+  const features = compare(was.features, now.features)
+  const progress = new Map(before.tasks.map((task) => [task.id, task]))
 
-  const { items: _items, workItems: _workItems, ...wasSettings } = was
-  const { items: _nowItems, workItems: _nowWorkItems, ...nowSettings } = now
+  const { tasks: _tasks, stories: _stories, features: _features, ...wasSettings } = was
+  const {
+    tasks: _nowTasks,
+    stories: _nowStories,
+    features: _nowFeatures,
+    ...nowSettings
+  } = now
   const sections = new Set([...Object.keys(wasSettings), ...Object.keys(nowSettings)])
 
   return {
-    items: {
-      added: items.added,
-      removed: items.removed.map((id) => removed(progress.get(id)!)),
-      changed: items.changed,
+    tasks: {
+      added: tasks.added,
+      removed: tasks.removed.map((id) => removed(progress.get(id)!)),
+      changed: tasks.changed,
     },
-    workItems: {
-      added: workItems.added,
-      removed: workItems.removed,
-      changed: workItems.changed.map((change) => change.id),
+    stories: {
+      added: stories.added,
+      removed: stories.removed,
+      changed: stories.changed.map((change) => change.id),
+    },
+    features: {
+      added: features.added,
+      removed: features.removed,
+      changed: features.changed.map((change) => change.id),
     },
     settings: [...sections].filter(
       (section) =>
@@ -121,8 +133,8 @@ export function importChanges(before: RoadmapContent, after: RoadmapContent): Im
   }
 }
 
-function removed(item: Item): RemovedItem {
-  return { id: item.id, name: item.name, state: item.state, hoursDone: item.hoursDone }
+function removed(task: Task): RemovedTask {
+  return { id: task.id, name: task.name, state: task.state, hoursDone: task.hoursDone }
 }
 
 function compare<T extends { id: string }>(before: T[], after: T[]) {

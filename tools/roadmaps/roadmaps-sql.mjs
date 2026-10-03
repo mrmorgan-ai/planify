@@ -80,6 +80,6 @@ export function removeDelegateSql(principal) {
 
 /** Every roadmap with its members and size, for `list`. */
 export const LIST_SQL = `SELECT r.id, r.name, r.created_at,
-  (SELECT COUNT(*) FROM items i WHERE i.roadmap_id = r.id) AS items,
+  (SELECT COUNT(*) FROM tasks i WHERE i.roadmap_id = r.id) AS tasks,
   (SELECT group_concat(principal, ', ') FROM roadmap_members m WHERE m.roadmap_id = r.id) AS members
 FROM roadmaps r ORDER BY r.id`

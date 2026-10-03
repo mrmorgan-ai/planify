@@ -5,7 +5,7 @@ import { mutate, scheduleOptions, type Env } from '../../src/server/repository'
 import { spaceOf } from '../../src/server/space'
 
 /**
- * Moves every unfinished item forward by whole weeks so the plan restarts in
+ * Moves every unfinished task forward by whole weeks so the plan restarts in
  * the given date's week, keeping its shape. The plan it replaces is kept in the
  * history, in the same batch.
  *
@@ -44,17 +44,17 @@ export const onRequest = only<Env>('POST', async ({ env, data, request }) => {
         if (floor !== '' && restartDate < floor) {
           throw new RefusedError(`The plan starts on ${floor}; ${restartDate} is before it`)
         }
-        const result = reschedulePlan(current.items, restartDate, scheduleOptions(current.roadmap))
+        const result = reschedulePlan(current.tasks, restartDate, scheduleOptions(current.roadmap))
         if (result.shift === 0) {
           throw new RefusedError(`Nothing to move: the plan is not behind ${restartDate}`)
         }
         moved = result.moved.length
-        return result.items
+        return result.tasks
       },
       {
         reason: 'reschedule',
         summary: () =>
-          `Restarted the plan in the week of ${startOfWeek(restartDate)}, moving ${moved} items`,
+          `Restarted the plan in the week of ${startOfWeek(restartDate)}, moving ${moved} tasks`,
       },
     )
     return Response.json(state)

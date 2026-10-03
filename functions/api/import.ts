@@ -7,10 +7,10 @@ import { spaceOf } from '../../src/server/space'
 /**
  * Replaces the roadmap's content with a seed file's: `{ revision, roadmap }`,
  * where `roadmap` is the file and `revision` the one it was exported from.
- * Progress on the items the file keeps stays.
+ * Progress on the tasks the file keeps stays.
  *
  * With `dryRun: true` nothing is written, and the answer says what would
- * change — items added, removed with their progress, and edited — and which
+ * change — tasks added, removed with their progress, and edited — and which
  * rules the result breaks. Without it, the answer is the new world, like every
  * other write. A file that is not a roadmap answers 400; one from an older
  * revision, 409; one that would bring in an error, 422.

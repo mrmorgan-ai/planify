@@ -7,8 +7,8 @@ import {
   studySegments,
   toEpochDay,
 } from '../core/dates'
-import type { AppState, Blackout, CivilDate, Item, PhaseNumber } from '../core/types'
-import { partLabel } from '../core/workItems'
+import type { AppState, Blackout, CivilDate, Task, PhaseNumber } from '../core/types'
+import { taskLabel } from '../core/stories'
 
 /**
  * A day column stretches to fill the track and only scrolls once it would get
@@ -70,17 +70,17 @@ export function Gantt({
   const frame = useRef<HTMLDivElement>(null)
   const { names, width: available } = useTrackWidth(frame)
 
-  const { items, today, roadmap } = state
+  const { tasks, today, roadmap } = state
   const shown = useMemo(
     () =>
-      items
-        .filter((item) => scope === null || item.phase === scope)
+      tasks
+        .filter((task) => scope === null || task.phase === scope)
         .sort((a, b) => a.phase - b.phase || a.sortOrder - b.sortOrder),
-    [items, scope],
+    [tasks, scope],
   )
 
   const span = useMemo(() => timelineSpan(shown), [shown])
-  const rowOf = new Map(shown.map((item, index) => [item.id, index]))
+  const rowOf = new Map(shown.map((task, index) => [task.id, index]))
 
   const day = dayWidth(available, span.days)
   const x = (date: CivilDate) => (toEpochDay(date) - span.from) * day
@@ -120,7 +120,7 @@ export function Gantt({
           onClick={() => setScope(null)}
         >
           All phases
-          <span className="count">{items.length}</span>
+          <span className="count">{tasks.length}</span>
         </button>
       </div>
 
@@ -142,31 +142,31 @@ export function Gantt({
 
           <div className="gantt-rows">
             <div className="gantt-names" style={{ height }}>
-              {shown.map((item) => {
-                const part = partLabel(item, state.workItems, items)
+              {shown.map((task) => {
+                const part = taskLabel(task, state.stories, tasks)
                 return (
                 <div
-                  key={item.id}
-                  className={focused === item.id ? 'gantt-name focused' : 'gantt-name'}
-                  onMouseOver={() => setFocused(item.id)}
+                  key={task.id}
+                  className={focused === task.id ? 'gantt-name focused' : 'gantt-name'}
+                  onMouseOver={() => setFocused(task.id)}
                   onMouseOut={() => setFocused(null)}
                 >
                   {part && (
                     <span
                       className="gantt-part"
-                      title={`Part ${part.index} of ${part.total} · ${part.workItem.name}`}
+                      title={`Task ${part.index} of ${part.total} · ${part.story.name}`}
                     >
                       {part.index}/{part.total}
                     </span>
                   )}
-                  <span className="gantt-name-text" title={item.name}>
-                    {item.name}
+                  <span className="gantt-name-text" title={task.name}>
+                    {task.name}
                   </span>
                   <RouterLink
                     className="icon-button"
-                    to={`/backlog?item=${encodeURIComponent(item.id)}`}
-                    title={`Open ${item.name} in the backlog`}
-                    aria-label={`Open ${item.name} in the backlog`}
+                    to={`/backlog?task=${encodeURIComponent(task.id)}`}
+                    title={`Open ${task.name} in the backlog`}
+                    aria-label={`Open ${task.name} in the backlog`}
                   >
                     ↗
                   </RouterLink>
@@ -193,17 +193,17 @@ export function Gantt({
                 <div className="gantt-today" style={{ left: x(today) }} title={`today ${today}`} />
               )}
 
-              {shown.map((item, index) => (
+              {shown.map((task, index) => (
                 <Bars
-                  key={item.id}
-                  item={item}
+                  key={task.id}
+                  task={task}
                   today={today}
                   top={index * ROW}
-                  focused={focused === item.id}
+                  focused={focused === task.id}
                   day={day}
                   blackouts={roadmap.blackouts}
                   x={x}
-                  onFocus={() => setFocused(item.id)}
+                  onFocus={() => setFocused(task.id)}
                   onBlur={() => setFocused(null)}
                 />
               ))}
@@ -220,7 +220,7 @@ export function Gantt({
         </div>
       </div>
 
-      {focused && <Missing id={focused} items={items} shown={shown} />}
+      {focused && <Missing id={focused} tasks={tasks} shown={shown} />}
     </section>
   )
 }
@@ -270,7 +270,7 @@ function Scale({ span, day }: { span: Span; day: number }) {
  * days the plan sets aside, and those days are exactly why the end date moved.
  */
 function Bars({
-  item,
+  task,
   today,
   top,
   focused,
@@ -280,7 +280,7 @@ function Bars({
   onFocus,
   onBlur,
 }: {
-  item: Item
+  task: Task
   today: CivilDate
   top: number
   focused: boolean
@@ -295,9 +295,9 @@ function Bars({
     width: (toEpochDay(to) - toEpochDay(from) + 1) * day,
   })
 
-  const tone = toneOf(item, today)
-  const planned = studySegments(item.baselineStartDate, item.baselineEndDate, blackouts)
-  const projected = studySegments(item.projectedStartDate, item.projectedEndDate, blackouts)
+  const tone = toneOf(task, today)
+  const planned = studySegments(task.baselineStartDate, task.baselineEndDate, blackouts)
+  const projected = studySegments(task.projectedStartDate, task.projectedEndDate, blackouts)
 
   return (
     <div
@@ -315,7 +315,7 @@ function Bars({
           key={segment.from}
           className={`gantt-bar ${tone}${index > 0 ? ' resumed' : ''}`}
           style={place(segment.from, segment.to)}
-          title={`${item.name}: ${item.projectedStartDate} → ${item.projectedEndDate}${
+          title={`${task.name}: ${task.projectedStartDate} → ${task.projectedEndDate}${
             projected.length > 1 ? ' (paused in between)' : ''
           }`}
         />
@@ -357,31 +357,31 @@ function Link({
  * Says out loud what the diagram cannot show: a dependency that lives in another
  * phase has no row here, so its line would go nowhere.
  */
-function Missing({ id, items, shown }: { id: string; items: readonly Item[]; shown: Item[] }) {
-  const item = items.find((entry) => entry.id === id)
-  if (!item) return null
+function Missing({ id, tasks, shown }: { id: string; tasks: readonly Task[]; shown: Task[] }) {
+  const task = tasks.find((entry) => entry.id === id)
+  if (!task) return null
 
   const visible = new Set(shown.map((entry) => entry.id))
-  const outside = item.dependsOn
-    .map((dependency) => items.find((entry) => entry.id === dependency))
+  const outside = task.dependsOn
+    .map((dependency) => tasks.find((entry) => entry.id === dependency))
     .filter(
-      (dependency): dependency is Item => dependency !== undefined && !visible.has(dependency.id),
+      (dependency): dependency is Task => dependency !== undefined && !visible.has(dependency.id),
     )
 
   if (outside.length === 0) return null
   return (
     <p className="gantt-outside">
-      {item.name} also waits on {outside.length} item{outside.length === 1 ? '' : 's'} outside this
+      {task.name} also waits on {outside.length} task{outside.length === 1 ? '' : 's'} outside this
       phase: {outside.map((entry) => entry.name).join(' · ')}
     </p>
   )
 }
 
-function linksFor(id: string, shown: Item[], rowOf: Map<string, number>): DependencyLink[] {
-  const byId = new Map(shown.map((item) => [item.id, item]))
+function linksFor(id: string, shown: Task[], rowOf: Map<string, number>): DependencyLink[] {
+  const byId = new Map(shown.map((task) => [task.id, task]))
   const links: DependencyLink[] = []
 
-  const push = (from: Item | undefined, to: Item | undefined) => {
+  const push = (from: Task | undefined, to: Task | undefined) => {
     if (!from || !to) return
     const fromRow = rowOf.get(from.id)
     const toRow = rowOf.get(to.id)
@@ -392,13 +392,13 @@ function linksFor(id: string, shown: Item[], rowOf: Map<string, number>): Depend
     })
   }
 
-  const item = byId.get(id)
-  if (!item) return links
+  const task = byId.get(id)
+  if (!task) return links
 
   // Both directions: what it waits on, and what waits on it.
-  for (const dependency of item.dependsOn) push(byId.get(dependency), item)
+  for (const dependency of task.dependsOn) push(byId.get(dependency), task)
   for (const other of shown) {
-    if (other.dependsOn.includes(id)) push(item, other)
+    if (other.dependsOn.includes(id)) push(task, other)
   }
   return links
 }
@@ -465,25 +465,25 @@ function dayWidth(available: number, days: number): number {
 
 type Span = { from: number; days: number }
 
-/** The shown items plus a few days of margin, so the first bar is not flush. */
-function timelineSpan(items: readonly Item[]): Span {
-  if (items.length === 0) return { from: toEpochDay('2026-01-01'), days: 30 }
-  const starts = items.flatMap((item) => [item.baselineStartDate, item.projectedStartDate])
-  const ends = items.flatMap((item) => [item.baselineEndDate, item.projectedEndDate])
+/** The shown tasks plus a few days of margin, so the first bar is not flush. */
+function timelineSpan(tasks: readonly Task[]): Span {
+  if (tasks.length === 0) return { from: toEpochDay('2026-01-01'), days: 30 }
+  const starts = tasks.flatMap((task) => [task.baselineStartDate, task.projectedStartDate])
+  const ends = tasks.flatMap((task) => [task.baselineEndDate, task.projectedEndDate])
   const from = toEpochDay(starts.reduce(min)) - PAD_DAYS
   const to = toEpochDay(ends.reduce(max)) + PAD_DAYS
   return { from, days: to - from + 1 }
 }
 
-function toneOf(item: Item, today: CivilDate): string {
-  if (item.state === 'done') return 'done'
-  if (item.projectedEndDate < today) return 'late'
-  return item.state === 'in_progress' ? 'running' : 'pending'
+function toneOf(task: Task, today: CivilDate): string {
+  if (task.state === 'done') return 'done'
+  if (task.projectedEndDate < today) return 'late'
+  return task.state === 'in_progress' ? 'running' : 'pending'
 }
 
 function activePhase(state: AppState): Scope {
   const open = state.roadmap.phases.find((phase) =>
-    state.items.some((item) => item.phase === phase.number && item.state !== 'done'),
+    state.tasks.some((task) => task.phase === phase.number && task.state !== 'done'),
   )
   return open?.number ?? state.roadmap.phases[0]?.number ?? null
 }

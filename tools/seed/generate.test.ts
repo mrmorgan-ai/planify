@@ -70,7 +70,7 @@ const run = (request: GenerateRequest, content: RoadmapContent = example) => {
   const generated = generate(content, TODAY, request)
   return { ...generated, after: applyEdits(content, generated.edits) }
 }
-const item = (content: RoadmapContent, id: string) => content.items.find((each) => each.id === id)!
+const task = (content: RoadmapContent, id: string) => content.tasks.find((each) => each.id === id)!
 const newIssues = (after: RoadmapContent) => {
   const before = new Set(validate(example).map((issue) => issue.message))
   return validate(after).filter((issue) => !before.has(issue.message))
@@ -87,15 +87,15 @@ describe('generate', () => {
       ['2030-02-11', '2030-02-17', 5],
       ['2030-02-18', '2030-02-24', 3],
     ])
-    expect(after.workItems).toContainEqual(
+    expect(after.stories).toContainEqual(
       expect.objectContaining({ id: 'a-course', name: 'A course', type: 'Course' }),
     )
-    const parts = placed.map((piece) => item(after, piece.id))
+    const parts = placed.map((piece) => task(after, piece.id))
     expect(parts.map((part) => part.name)).toEqual(
       [1, 2, 3, 4, 5].map((n) => `A course — part ${n}`),
     )
     expect(parts.map((part) => part.duration)).toEqual(['~4h', '~3h', '~5h', '~5h', '~3h'])
-    expect(parts.every((part) => part.workItemId === 'a-course')).toBe(true)
+    expect(parts.every((part) => part.storyId === 'a-course')).toBe(true)
     // A chain: each part waits on the one before.
     expect(parts.map((part) => part.dependsOn)).toEqual([
       [],
@@ -113,9 +113,9 @@ describe('generate', () => {
       'blackout-edge',
       'before-start',
       'late-dependency',
-      'overlapping-parts',
+      'overlapping-tasks',
       'project-chain',
-      'single-part',
+      'single-task',
       'no-estimate',
       'done-when',
     ]
@@ -135,24 +135,24 @@ describe('generate', () => {
       ['2030-02-18', '2030-02-24', 4],
       ['2030-02-25', '2030-02-25', 2],
     ])
-    expect(item(after, placed[0]!.id).dependsOn).toEqual(['phase-1-exam'])
-    const exam = item(after, placed[2]!.id)
+    expect(task(after, placed[0]!.id).dependsOn).toEqual(['phase-1-exam'])
+    const exam = task(after, placed[2]!.id)
     expect(exam).toMatchObject({
       name: 'An exam — exam',
-      type: 'Certification',
-      price: '$100',
       dependsOn: [placed[1]!.id],
-      workItemId: 'an-exam',
+      storyId: 'an-exam',
     })
-    expect(item(after, placed[0]!.id)).toMatchObject({
+    expect(task(after, placed[0]!.id)).toMatchObject({
       name: 'An exam — prep 1',
-      type: 'Exam prep',
       doneWhen: 'Scored 80% on a practice exam',
     })
-    // The link belongs to the unit, not to each part.
-    expect(after.workItems.find((each) => each.id === 'an-exam')?.link).toBe(
-      'https://example.com/exam',
-    )
+    // The link, the price and the type belong to the story, not to each task.
+    expect(after.stories.find((each) => each.id === 'an-exam')).toMatchObject({
+      link: 'https://example.com/exam',
+      price: '$100',
+      phase: 2,
+      type: 'Certification',
+    })
   })
 
   it('puts an exam on the day asked for, and refuses one before the prep ends or in a pause', () => {
@@ -166,7 +166,7 @@ describe('generate', () => {
     expect(() => run(paused)).toThrow('inside a pause')
   })
 
-  it('chains a project’s tasks after the item named, each where its hours fit', () => {
+  it('chains a project’s tasks after the task named, each where its hours fit', () => {
     const { placed, after } = run(project)
     expect(placed.map(({ id, start, end }) => [id, start, end])).toEqual([
       // read-the-thing ends on 01-10; 2h of the week's 4 free.
@@ -175,26 +175,26 @@ describe('generate', () => {
       ['a-project-build-it', '2030-02-04', '2030-02-05'],
       ['a-project-ship-it', '2030-02-06', '2030-02-07'],
     ])
-    expect(item(after, 'a-project-set-it-up')).toMatchObject({
+    expect(task(after, 'a-project-set-it-up')).toMatchObject({
       name: 'Set it up',
       dependsOn: ['read-the-thing'],
-      workItemId: 'a-project',
+      storyId: 'a-project',
     })
-    expect(after.workItems.find((each) => each.id === 'a-project')?.notes).toBe('It is deployed')
+    expect(after.stories.find((each) => each.id === 'a-project')?.doneWhen).toBe('It is deployed')
   })
 
   it('makes the phase’s milestone wait on what ends before it, and leaves it when not', () => {
-    const milestone = item(example, 'phase-1-exam')
+    const milestone = task(example, 'phase-1-exam')
 
     const chained = run(project).after
-    expect(item(chained, 'phase-1-exam').dependsOn).toEqual([
+    expect(task(chained, 'phase-1-exam').dependsOn).toEqual([
       ...milestone.dependsOn,
       'a-project-ship-it',
     ])
 
     // The last drill falls after the milestone starts: waiting on it would move the exam.
     const drilled = run(practice).after
-    expect(item(drilled, 'phase-1-exam').dependsOn).toEqual(milestone.dependsOn)
+    expect(task(drilled, 'phase-1-exam').dependsOn).toEqual(milestone.dependsOn)
   })
 
   it('puts one practice block a week, at the end of the week', () => {
@@ -204,24 +204,29 @@ describe('generate', () => {
       ['2030-01-20', '2030-01-20'],
       ['2030-02-10', '2030-02-10'],
     ])
-    expect(placed.map((piece) => item(after, piece.id).name)).toEqual([
+    expect(placed.map((piece) => task(after, piece.id).name)).toEqual([
       'Drill — week 1',
       'Drill — week 2',
       'Drill — week 3',
     ])
-    expect(placed.every((piece) => item(after, piece.id).dependsOn.length === 0)).toBe(true)
+    expect(placed.every((piece) => task(after, piece.id).dependsOn.length === 0)).toBe(true)
   })
 
-  it('makes a single item, with no work item, when one is enough', () => {
+  it('makes a single task, in a story of its own, when one is enough', () => {
     const { placed, edits, after } = run({ ...course, hours: 3 })
     expect(placed).toHaveLength(1)
-    expect(edits.some((edit) => edit.op === 'createWorkItem')).toBe(false)
-    expect(item(after, 'a-course')).toMatchObject({ name: 'A course', workItemId: null })
+    expect(edits.filter((edit) => edit.op === 'createStory')).toHaveLength(1)
+    // The ids the migration gives a lone item: the task keeps the name.
+    expect(task(after, 'a-course')).toMatchObject({ name: 'A course', storyId: 'a-course-story' })
+    expect(after.stories.find((each) => each.id === 'a-course-story')).toMatchObject({
+      name: 'A course',
+      phase: 1,
+    })
   })
 
-  it('slots the new items into the backlog’s order by date', () => {
+  it('slots the new tasks into the backlog’s order by date', () => {
     const { after } = run(project)
-    const order = after.items
+    const order = after.tasks
       .filter((each) => each.phase === 1)
       .sort((a, b) => a.sortOrder - b.sortOrder)
       .map((each) => each.id)
@@ -242,12 +247,12 @@ describe('generate', () => {
     const undeclared = { ...example, roadmap: { ...example.roadmap, weeklyHours: { normal: 0 } } }
     expect(() => run(course, undeclared)).toThrow(EditError)
     expect(() => run({ ...course, after: 'nothing-like-it' })).toThrow(
-      'No item with id nothing-like-it',
+      'No task with id nothing-like-it',
     )
   })
 
   it('writes the history’s line', () => {
-    expect(run(course).summary).toBe('Generated A course: 5 items, 2030-01-07 to 2030-02-24')
+    expect(run(course).summary).toBe('Generated A course: 5 tasks, 2030-01-07 to 2030-02-24')
   })
 })
 

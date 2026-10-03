@@ -17,7 +17,7 @@ async function loaded() {
   return space
 }
 
-const rename: Edit = { op: 'updateItem', id: 'read-the-thing', fields: { name: 'Renamed' } }
+const rename: Edit = { op: 'updateTask', id: 'read-the-thing', fields: { name: 'Renamed' } }
 
 describe('a dry run', () => {
   it('says what an edit would change, and writes nothing', async () => {
@@ -25,19 +25,19 @@ describe('a dry run', () => {
     const preview = await previewIn(space, 'live', 1, (state) => applyEdits(state, [rename]))
 
     expect(preview.revision).toBe(1)
-    expect(preview.changes.items.changed).toEqual([{ id: 'read-the-thing', fields: ['name'] }])
+    expect(preview.changes.tasks.changed).toEqual([{ id: 'read-the-thing', fields: ['name'] }])
     expect(preview.introduced).toEqual([])
-    expect((await loadAppState(space)).items.find((item) => item.id === 'read-the-thing')?.name).toBe(
+    expect((await loadAppState(space)).tasks.find((task) => task.id === 'read-the-thing')?.name).toBe(
       'Read the thing',
     )
   })
 
-  it('says what moving an item’s dates would push', async () => {
+  it('says what moving a task’s dates would push', async () => {
     const space = await loaded()
     const moved = datesMoved('the-next-thing', '2030-02-18', '2030-02-24')
-    const preview = await previewIn(space, 'live', 1, (state) => ({ ...state, items: moved(state) }))
+    const preview = await previewIn(space, 'live', 1, (state) => ({ ...state, tasks: moved(state) }))
 
-    expect(preview.changes.items.changed.map((change) => change.id).sort()).toEqual([
+    expect(preview.changes.tasks.changed.map((change) => change.id).sort()).toEqual([
       'the-next-thing',
       'the-optional-thing',
     ])
@@ -58,7 +58,7 @@ describe('a dry run', () => {
     const space = await loaded()
     await startDraft(space)
     const preview = await previewIn(space, 'draft', 1, (state) => applyEdits(state, [rename]))
-    expect(preview.changes.items.changed).toHaveLength(1)
+    expect(preview.changes.tasks.changed).toHaveLength(1)
   })
 
   it('is refused from an old revision, as the write would be', async () => {

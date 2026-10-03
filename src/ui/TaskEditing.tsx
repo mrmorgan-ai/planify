@@ -1,20 +1,21 @@
 import { useState } from 'react'
 import { addDays, firstStudyDayFrom, maxDate } from '../core/dates'
-import { dependentsOf, hasProgress, newItemId, type Edit } from '../core/edits'
-import type { AppState, CivilDate, Item, PhaseNumber } from '../core/types'
+import { dependentsOf, hasProgress, newId, type Edit } from '../core/edits'
+import type { AppState, CivilDate, Task, PhaseNumber } from '../core/types'
 import { DatePicker } from './DatePicker'
-import { Field, ItemForm, blankDraft, draftOf, editsFor, fieldsOf } from './ItemForm'
+import { Field, TaskForm, blankDraft, draftOf, editsFor, fieldsOf } from './TaskForm'
 
 const STATE_WORD = { pending: 'pending', in_progress: 'in progress', done: 'done' } as const
 
 /**
- * A new item, in the phase being looked at. It starts on the first study day
- * after that phase's last item ends, which is where a new item most often goes,
- * and lasts a day until told otherwise. The id is picked here from the name, so
- * the row can be opened once it exists; the server refuses it if it was taken
- * in the meantime.
+ * A new task, in the phase being looked at: it starts as a step of the story
+ * there that ends last, and on the first study day after that phase's last task
+ * ends, which is where a new task most often goes, lasting a day until told
+ * otherwise. Choosing a story in another phase puts it in that phase. The id is
+ * picked here from the name, so the row can be opened once it exists; the
+ * server refuses it if it was taken in the meantime.
  */
-export function NewItemForm({
+export function NewTaskForm({
   state,
   phase,
   busy,
@@ -29,50 +30,29 @@ export function NewItemForm({
   onCreate: (edits: Edit[], id: string, phase: PhaseNumber) => void
   onCancel: () => void
 }) {
-  const [inPhase, setInPhase] = useState<PhaseNumber>(phase)
   const [start, setStart] = useState(() => nextFreeDay(state, phase))
   const [end, setEnd] = useState(start)
   const { roadmap } = state
 
   return (
-    <div className="new-item">
-      <h3>New item</h3>
-      <ItemForm
+    <div className="new-task">
+      <h3>New task</h3>
+      <TaskForm
         state={state}
         self={null}
-        initial={blankDraft()}
+        initial={blankDraft(latestStory(state, phase))}
         busy={busy}
         error={error}
-        submitLabel="Create item"
+        submitLabel="Create task"
         extra={
           <>
-            <Field label="Phase" htmlFor="new-item-phase">
-              <select
-                id="new-item-phase"
-                value={inPhase}
-                disabled={busy}
-                onChange={(event) => {
-                  const next = Number(event.target.value) as PhaseNumber
-                  const day = nextFreeDay(state, next)
-                  setInPhase(next)
-                  setStart(day)
-                  setEnd(day)
-                }}
-              >
-                {roadmap.phases.map((each) => (
-                  <option key={each.number} value={each.number}>
-                    Phase {each.number} · {each.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
             <Field label="Planned">
               <div className="form-dates">
                 <DatePicker
                   value={start}
                   min={roadmap.startDate || undefined}
                   disabled={busy}
-                  label="Planned start of the new item"
+                  label="Planned start of the new task"
                   onChange={(day) => {
                     setStart(day)
                     if (end < day) setEnd(day)
@@ -83,7 +63,7 @@ export function NewItemForm({
                   value={end}
                   min={start}
                   disabled={busy}
-                  label="Planned end of the new item"
+                  label="Planned end of the new task"
                   onChange={setEnd}
                 />
               </div>
@@ -93,15 +73,15 @@ export function NewItemForm({
         onCancel={onCancel}
         onSubmit={(draft) => {
           const fields = fieldsOf(draft)
-          const id = newItemId(fields.name, state)
+          const id = newId(fields.name, state)
+          const story = state.stories.find((each) => each.id === fields.storyId)
           onCreate(
             [
               {
-                op: 'createItem',
-                item: {
+                op: 'createTask',
+                task: {
                   ...fields,
                   id,
-                  phase: inPhase,
                   baselineStartDate: start,
                   baselineEndDate: end,
                   dependsOn: draft.dependsOn,
@@ -109,7 +89,7 @@ export function NewItemForm({
               },
             ],
             id,
-            inPhase,
+            story?.phase ?? phase,
           )
         }}
       />
@@ -118,19 +98,19 @@ export function NewItemForm({
 }
 
 /**
- * Deleting says what it does before it does it: who waited on the item and what
+ * Deleting says what it does before it does it: who waited on the task and what
  * they will wait on instead, and the progress that goes with it. A phase's
  * closing milestone is not offered at all — the phase has to close on something
  * else first.
  */
-export function DeleteItem({
+export function DeleteTask({
   state,
-  item,
+  task,
   busy,
   onDelete,
 }: {
   state: AppState
-  item: Item
+  task: Task
   busy: boolean
   onDelete: (edit: Edit) => void
 }) {
@@ -143,33 +123,33 @@ export function DeleteItem({
         disabled={busy}
         onClick={() => setAsking(true)}
       >
-        Delete item…
+        Delete task…
       </button>
     )
   }
 
-  const names = new Map(state.items.map((each) => [each.id, each.name]))
-  const dependents = dependentsOf(state.items, item.id)
-  const closes = state.roadmap.phases.find((phase) => phase.closingMilestoneId === item.id)
-  const progress = hasProgress(item)
-  const through = item.dependsOn.map((id) => names.get(id) ?? id)
+  const names = new Map(state.tasks.map((each) => [each.id, each.name]))
+  const dependents = dependentsOf(state.tasks, task.id)
+  const closes = state.roadmap.phases.find((phase) => phase.closingMilestoneId === task.id)
+  const progress = hasProgress(task)
+  const through = task.dependsOn.map((id) => names.get(id) ?? id)
 
   return (
-    <div className="delete-confirm" role="group" aria-label={`Delete ${item.name}`}>
+    <div className="delete-confirm" role="group" aria-label={`Delete ${task.name}`}>
       {closes ? (
         <p>
-          {item.name} closes phase {closes.number}, so it cannot be deleted until another item
+          {task.name} closes phase {closes.number}, so it cannot be deleted until another task
           closes that phase.
         </p>
       ) : (
         <>
           <p>
-            Delete <strong>{item.name}</strong>?
+            Delete <strong>{task.name}</strong>?
           </p>
           <ul>
             {dependents.length > 0 && (
               <li>
-                {dependents.length === 1 ? '1 item waits' : `${dependents.length} items wait`} on
+                {dependents.length === 1 ? '1 task waits' : `${dependents.length} tasks wait`} on
                 it: {dependents.map((each) => each.name).join(', ')}.{' '}
                 {through.length > 0
                   ? `${dependents.length === 1 ? 'It' : 'They'} will wait on ${through.join(', ')} instead.`
@@ -178,8 +158,8 @@ export function DeleteItem({
             )}
             {progress && (
               <li>
-                It is {STATE_WORD[item.state]}
-                {item.hoursDone > 0 ? ` with ${item.hoursDone}h logged` : ''}; that progress is
+                It is {STATE_WORD[task.state]}
+                {task.hoursDone > 0 ? ` with ${task.hoursDone}h logged` : ''}; that progress is
                 deleted with it.
               </li>
             )}
@@ -200,14 +180,14 @@ export function DeleteItem({
             disabled={busy}
             onClick={() =>
               onDelete({
-                op: 'deleteItem',
-                id: item.id,
+                op: 'deleteTask',
+                id: task.id,
                 rewire: dependents.length > 0,
                 discardProgress: progress,
               })
             }
           >
-            {busy ? 'Deleting…' : 'Delete item'}
+            {busy ? 'Deleting…' : 'Delete task'}
           </button>
         )}
       </div>
@@ -215,13 +195,28 @@ export function DeleteItem({
   )
 }
 
+/** The story of the phase whose tasks end last, or empty when the phase has none. */
+function latestStory(state: AppState, phase: PhaseNumber): string {
+  const inPhase = new Set(
+    state.stories.filter((story) => story.phase === phase).map((story) => story.id),
+  )
+  const last = state.tasks
+    .filter((task) => inPhase.has(task.storyId))
+    .reduce<Task | null>(
+      (latest, task) =>
+        latest === null || task.baselineEndDate > latest.baselineEndDate ? task : latest,
+      null,
+    )
+  return last?.storyId ?? [...inPhase][0] ?? ''
+}
+
 /** The first study day after the phase's last planned day, or where the plan starts. */
 function nextFreeDay(state: AppState, phase: PhaseNumber): CivilDate {
   const { roadmap, today } = state
-  const last = state.items
-    .filter((item) => item.phase === phase)
+  const last = state.tasks
+    .filter((task) => task.phase === phase)
     .reduce<CivilDate | null>(
-      (max, item) => (max === null || item.baselineEndDate > max ? item.baselineEndDate : max),
+      (max, task) => (max === null || task.baselineEndDate > max ? task.baselineEndDate : max),
       null,
     )
   const from = last === null ? maxDate(today, roadmap.startDate || today) : addDays(last, 1)
@@ -231,13 +226,14 @@ function nextFreeDay(state: AppState, phase: PhaseNumber): CivilDate {
 type Place = 'keep' | 'first' | `after:${string}`
 
 /**
- * An existing item's form, plus where it sits: its phase and its place in that
- * phase's order. A move is sent after the field edits, in the same write, so a
- * renamed item that also changes phase lands whole or not at all.
+ * An existing task's form, plus its place in its phase's order. A move is sent
+ * after the field edits, in the same write, so a renamed task that also moves
+ * lands whole or not at all. A task changes phase by changing story, and then
+ * goes last in its new phase, so the place applies only while it stays.
  */
-export function EditItemForm({
+export function EditTaskForm({
   state,
-  item,
+  task,
   busy,
   error,
   onSave,
@@ -245,66 +241,47 @@ export function EditItemForm({
   onCancel,
 }: {
   state: AppState
-  item: Item
+  task: Task
   busy: boolean
   error: string | null
-  /** `phase` is where the item ends up, so the view can follow it. */
+  /** `phase` is where the task ends up, so the view can follow it. */
   onSave: (edits: Edit[], phase: PhaseNumber) => void
   onDelete: (edit: Edit) => void
   onCancel: () => void
 }) {
-  const [phase, setPhase] = useState<PhaseNumber>(item.phase)
   const [place, setPlace] = useState<Place>('keep')
-  const others = state.items
-    .filter((each) => each.phase === phase && each.id !== item.id)
+  const others = state.tasks
+    .filter((each) => each.phase === task.phase && each.id !== task.id)
     .sort((a, b) => a.sortOrder - b.sortOrder)
+  const phaseOf = (storyId: string) =>
+    state.stories.find((story) => story.id === storyId)?.phase ?? task.phase
 
-  const move = (): Edit[] => {
-    if (phase === item.phase && place === 'keep') return []
+  const move = (phase: PhaseNumber): Edit[] => {
+    if (phase !== task.phase || place === 'keep') return []
     const at =
-      place === 'first'
-        ? 0
-        : place === 'keep'
-          ? others.length
-          : others.findIndex((each) => `after:${each.id}` === place) + 1
-    return [{ op: 'moveItem', id: item.id, phase, before: others[at]?.id ?? null }]
+      place === 'first' ? 0 : others.findIndex((each) => `after:${each.id}` === place) + 1
+    return [{ op: 'moveTask', id: task.id, before: others[at]?.id ?? null }]
   }
 
   return (
-    <ItemForm
+    <TaskForm
       state={state}
-      self={item.id}
-      initial={draftOf(item)}
+      self={task.id}
+      initial={draftOf(task)}
       busy={busy}
       error={error}
       submitLabel="Save"
       extra={
-        <Field label="Place" htmlFor={`place-${item.id}`}>
+        <Field label="Place" htmlFor={`place-${task.id}`}>
           <div className="form-place">
             <select
-              aria-label={`Phase of ${item.name}`}
-              value={phase}
-              disabled={busy}
-              onChange={(event) => {
-                const next = Number(event.target.value) as PhaseNumber
-                setPhase(next)
-                setPlace('keep')
-              }}
-            >
-              {state.roadmap.phases.map((each) => (
-                <option key={each.number} value={each.number}>
-                  Phase {each.number} · {each.name}
-                </option>
-              ))}
-            </select>
-            <select
-              id={`place-${item.id}`}
-              aria-label={`Place of ${item.name} in its phase`}
+              id={`place-${task.id}`}
+              aria-label={`Place of ${task.name} in its phase`}
               value={place}
               disabled={busy}
               onChange={(event) => setPlace(event.target.value as Place)}
             >
-              <option value="keep">{phase === item.phase ? 'Where it is' : 'Last'}</option>
+              <option value="keep">Where it is</option>
               <option value="first">First</option>
               {others.map((each) => (
                 <option key={each.id} value={`after:${each.id}`}>
@@ -315,9 +292,12 @@ export function EditItemForm({
           </div>
         </Field>
       }
-      danger={<DeleteItem state={state} item={item} busy={busy} onDelete={onDelete} />}
+      danger={<DeleteTask state={state} task={task} busy={busy} onDelete={onDelete} />}
       onCancel={onCancel}
-      onSubmit={(draft) => onSave([...editsFor(item, draft), ...move()], phase)}
+      onSubmit={(draft) => {
+        const phase = phaseOf(draft.storyId)
+        onSave([...editsFor(task, draft), ...move(phase)], phase)
+      }}
     />
   )
 }

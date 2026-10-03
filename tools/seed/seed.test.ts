@@ -16,8 +16,8 @@ describe.each(availableSeeds())('$label', ({ seed }) => {
   it('carries no progress', () => {
     const started = {
       ...content,
-      items: content.items.map((item) => ({
-        ...item,
+      tasks: content.tasks.map((task) => ({
+        ...task,
         state: 'done' as const,
         completedAt: '2030-01-08T10:00:00Z',
         hoursDone: 3,
@@ -26,8 +26,8 @@ describe.each(availableSeeds())('$label', ({ seed }) => {
       })),
     }
     const runtime = ['state', 'completedAt', 'hoursDone', 'projectedStartDate', 'projectedEndDate']
-    for (const item of toSeedFile(started).items) {
-      expect(Object.keys(item).filter((key) => runtime.includes(key))).toEqual([])
+    for (const task of toSeedFile(started).tasks) {
+      expect(Object.keys(task).filter((key) => runtime.includes(key))).toEqual([])
     }
   })
 })

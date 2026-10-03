@@ -10,9 +10,9 @@ import { loadTarget, mutateTarget, type Target } from './target'
 export type GeneratePreview = ImportPreview & { placed: Placed[] }
 
 /**
- * Runs the generator the apply runs, against the same revision, so the items
- * previewed are the items written. The backlog's order making room for them is
- * left out of the changes: every item after them moves down a place, and
+ * Runs the generator the apply runs, against the same revision, so the tasks
+ * previewed are the tasks written. The backlog's order making room for them is
+ * left out of the changes: every task after them moves down a place, and
  * listing each would bury what the generator actually adds.
  */
 export async function previewGenerate(
@@ -30,9 +30,9 @@ export async function previewGenerate(
     ...preview,
     changes: {
       ...changes,
-      items: {
-        ...changes.items,
-        changed: changes.items.changed.flatMap(({ id, fields }) => {
+      tasks: {
+        ...changes.tasks,
+        changed: changes.tasks.changed.flatMap(({ id, fields }) => {
           const made = fields.filter((field) => field !== 'sortOrder')
           return made.length > 0 ? [{ id, fields: made }] : []
         }),

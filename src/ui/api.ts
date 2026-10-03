@@ -49,32 +49,32 @@ export function fetchState(): Promise<AppState> {
 // Every write names the revision it was made from, so the server can refuse one
 // made from a copy another device has already changed.
 
-export function setItemState(id: string, state: State, revision: number): Promise<AppState> {
-  return call(`/api/items/${encodeURIComponent(id)}/state`, {
+export function setTaskState(id: string, state: State, revision: number): Promise<AppState> {
+  return call(`/api/tasks/${encodeURIComponent(id)}/state`, {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ state, revision }),
   })
 }
 
-/** Moves an item's plan, live or in the draft. The server recomputes every projection. */
-export function setItemDates(
+/** Moves a task's plan, live or in the draft. The server recomputes every projection. */
+export function setTaskDates(
   id: string,
   baselineStartDate: CivilDate,
   baselineEndDate: CivilDate,
   revision: number,
   draft = false,
 ): Promise<AppState> {
-  return call(`/api/items/${encodeURIComponent(id)}/dates`, {
+  return call(`/api/tasks/${encodeURIComponent(id)}/dates`, {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ baselineStartDate, baselineEndDate, revision, draft }),
   })
 }
 
-/** Declares hours spent. Progress only: the item's state does not move. */
-export function setItemHours(id: string, hours: number, revision: number): Promise<AppState> {
-  return call(`/api/items/${encodeURIComponent(id)}/hours`, {
+/** Declares hours spent. Progress only: the task's state does not move. */
+export function setTaskHours(id: string, hours: number, revision: number): Promise<AppState> {
+  return call(`/api/tasks/${encodeURIComponent(id)}/hours`, {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ hours, revision }),
@@ -82,7 +82,7 @@ export function setItemHours(id: string, hours: number, revision: number): Promi
 }
 
 /**
- * Moves every unfinished item so the plan restarts on this date. The server
+ * Moves every unfinished task so the plan restarts on this date. The server
  * keeps the plan it replaces, and returns the new world.
  */
 export function reschedule(restartDate: CivilDate, revision: number): Promise<AppState> {
@@ -115,7 +115,7 @@ export function previewImport(roadmap: unknown, revision: number): Promise<Impor
   })
 }
 
-/** Replaces the roadmap's content with the file's. Progress on kept items stays. */
+/** Replaces the roadmap's content with the file's. Progress on kept tasks stays. */
 export function importRoadmap(roadmap: unknown, revision: number): Promise<AppState> {
   return call('/api/import', {
     method: 'POST',
@@ -143,7 +143,7 @@ export function previewRestore(id: number, revision: number): Promise<ImportPrev
   })
 }
 
-/** Brings a version of the plan back. Progress on the items it keeps stays. */
+/** Brings a version of the plan back. Progress on the tasks it keeps stays. */
 export function restoreVersion(id: number, revision: number): Promise<AppState> {
   return call(`/api/versions/${id}/restore`, {
     method: 'POST',
@@ -155,7 +155,7 @@ export function restoreVersion(id: number, revision: number): Promise<AppState> 
 /** What a generator would add, placed, and what that does to the roadmap. */
 export type GeneratePreview = ImportPreview & { placed: Placed[] }
 
-/** The items a generator would add and where, without adding them. */
+/** The tasks a generator would add and where, without adding them. */
 export function previewGenerate(
   generator: GenerateRequest,
   revision: number,
@@ -169,7 +169,7 @@ export function previewGenerate(
 }
 
 /** Adds what a generator makes, placed where its preview said. */
-export function generateItems(
+export function generateTasks(
   generator: GenerateRequest,
   revision: number,
   draft = false,

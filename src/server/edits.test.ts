@@ -19,39 +19,38 @@ const edit = (space: Space, revision: number, edits: Edit[]) =>
 
 // The path POST /api/edits takes, against the real schema.
 describe('edits, written', () => {
-  it('lands a created item and a dependency on it as one write', async () => {
+  it('lands a created task and a dependency on it as one write', async () => {
     const space = await loaded()
     const state = await edit(space, 1, [
       {
-        op: 'createItem',
-        item: {
+        op: 'createTask',
+        task: {
           name: 'One more thing',
-          type: 'Paper',
-          phase: 2,
+          storyId: 'the-optional-thing-story',
           baselineStartDate: '2030-02-25',
           baselineEndDate: '2030-02-26',
           skills: ['Something else'],
           duration: '~2h',
         },
       },
-      { op: 'updateItem', id: 'the-optional-thing', fields: { notes: 'Now with a follow-up.' } },
+      { op: 'updateTask', id: 'the-optional-thing', fields: { notes: 'Now with a follow-up.' } },
     ])
 
     const stored = await loadAppState(space)
     expect(stored).toEqual(state)
     expect(stored.revision).toBe(2)
-    expect(stored.items.find((item) => item.id === 'one-more-thing')?.state).toBe('pending')
-    expect(stored.items.find((item) => item.id === 'the-optional-thing')?.notes).toBe(
+    expect(stored.tasks.find((task) => task.id === 'one-more-thing')?.state).toBe('pending')
+    expect(stored.tasks.find((task) => task.id === 'the-optional-thing')?.notes).toBe(
       'Now with a follow-up.',
     )
   })
 
-  it('deletes an item and rewires what waited on it', async () => {
+  it('deletes a task and rewires what waited on it', async () => {
     const space = await loaded()
-    await edit(space, 1, [{ op: 'deleteItem', id: 'the-next-thing', rewire: true }])
+    await edit(space, 1, [{ op: 'deleteTask', id: 'the-next-thing', rewire: true }])
     const stored = await loadAppState(space)
-    expect(stored.items.some((item) => item.id === 'the-next-thing')).toBe(false)
-    expect(stored.items.find((item) => item.id === 'the-optional-thing')?.dependsOn).toEqual([
+    expect(stored.tasks.some((task) => task.id === 'the-next-thing')).toBe(false)
+    expect(stored.tasks.find((task) => task.id === 'the-optional-thing')?.dependsOn).toEqual([
       'phase-1-exam',
     ])
   })
@@ -60,13 +59,13 @@ describe('edits, written', () => {
     const space = await loaded()
     await expect(
       edit(space, 1, [
-        { op: 'updateItem', id: 'the-optional-thing', fields: { notes: 'changed' } },
-        { op: 'deleteItem', id: 'the-next-thing' },
+        { op: 'updateTask', id: 'the-optional-thing', fields: { notes: 'changed' } },
+        { op: 'deleteTask', id: 'the-next-thing' },
       ]),
     ).rejects.toBeInstanceOf(EditError)
     const stored = await loadAppState(space)
     expect(stored.revision).toBe(1)
-    expect(stored.items.find((item) => item.id === 'the-optional-thing')?.notes).not.toBe('changed')
+    expect(stored.tasks.find((task) => task.id === 'the-optional-thing')?.notes).not.toBe('changed')
   })
 
   it('refuses a cycle as a rule it would break', async () => {
@@ -81,14 +80,14 @@ describe('edits, written', () => {
     const space = await loaded()
     await edit(space, 1, [
       { op: 'updatePhase', number: 1, fields: { closingMilestoneId: 'exam-prep' } },
-      { op: 'deleteItem', id: 'phase-1-exam', rewire: true },
+      { op: 'deleteTask', id: 'phase-1-exam', rewire: true },
     ])
     const stored = await loadAppState(space)
     expect(stored.roadmap.phases[0]?.closingMilestoneId).toBe('exam-prep')
-    expect(stored.items.some((item) => item.id === 'phase-1-exam')).toBe(false)
+    expect(stored.tasks.some((task) => task.id === 'phase-1-exam')).toBe(false)
   })
 
-  it('drops an axis while its skill moves to a new one, and deletes a work item', async () => {
+  it('drops an axis while its skill moves to a new one, and deletes an emptied story', async () => {
     const space = await loaded()
     await edit(space, 1, [
       {
@@ -96,12 +95,28 @@ describe('edits, written', () => {
         dimensions: ['New axis', 'First axis'],
         skills: { 'Something measurable': 'First axis', 'Something else': 'New axis' },
       },
-      { op: 'deleteWorkItem', id: 'the-project' },
+      { op: 'updateTask', id: 'read-the-thing', fields: { storyId: 'the-course' } },
+      { op: 'deleteStory', id: 'read-the-thing-story' },
     ])
     const stored = await loadAppState(space)
     expect(stored.roadmap.dimensions).toEqual(['New axis', 'First axis'])
     expect(stored.roadmap.skillDimension['Something else']).toBe('New axis')
-    expect(stored.workItems.some((workItem) => workItem.id === 'the-project')).toBe(false)
-    expect(stored.items.find((item) => item.id === 'build-part-1')?.workItemId).toBeNull()
+    expect(stored.stories.some((story) => story.id === 'read-the-thing-story')).toBe(false)
+    expect(stored.tasks.find((task) => task.id === 'read-the-thing')?.storyId).toBe('the-course')
+  })
+
+  it('moves a story to another phase, its tasks with it, and reads them back there', async () => {
+    const space = await loaded()
+    const state = await edit(space, 1, [
+      { op: 'createFeature', feature: { id: 'goal', name: 'A goal' } },
+      { op: 'updateStory', id: 'the-optional-thing-story', fields: { phase: 1, featureId: 'goal' } },
+    ])
+    const stored = await loadAppState(space)
+    // The database lists tasks by phase; the write keeps them in the order it had.
+    const byId = (tasks: typeof state.tasks) => [...tasks].sort((a, b) => a.id.localeCompare(b.id))
+    expect(byId(stored.tasks)).toEqual(byId(state.tasks))
+    expect(stored.stories).toEqual(state.stories)
+    expect(stored.features).toEqual([{ id: 'goal', name: 'A goal', type: null, link: null, notes: '' }])
+    expect(stored.tasks.find((task) => task.id === 'the-optional-thing')?.phase).toBe(1)
   })
 })
