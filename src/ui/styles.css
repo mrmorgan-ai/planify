@@ -1607,6 +1607,13 @@ a.button {
   color: var(--bad);
 }
 
+/* Notes are not problems: no colour that reads as one. */
+.plan-issues-toggle.only-notes {
+  border-color: var(--line);
+  background: none;
+  color: var(--muted);
+}
+
 .plan-issues-panel {
   position: absolute;
   top: calc(100% + 0.5rem);
@@ -1652,6 +1659,10 @@ a.button {
 
 .plan-issues-panel li.error {
   border-left-color: var(--bad);
+}
+
+.plan-issues-panel li.info {
+  border-left-color: var(--line);
 }
 
 .plan-issues-panel li a {
@@ -3031,6 +3042,18 @@ tr.part .name {
   padding-left: 1.9rem;
 }
 
+/* However long the notes run, the button keeps its size, centred on the row. */
+.unit-notes .notes {
+  flex: 1;
+  min-width: 0;
+}
+
+.unit-notes .button {
+  flex-shrink: 0;
+  align-self: center;
+  white-space: nowrap;
+}
+
 
 /* Small screens
    ----------------------------------------------------------------------------
@@ -3275,8 +3298,9 @@ tr.part .name {
     gap: 0.6rem;
   }
 
-  /* The detail spans the card: its first cell only exists to line up with the
-     state and type columns, which are no longer columns. */
+  /* The detail spans the card: in the backlog its first cell only exists to line
+     up with the state and type columns, which are no longer columns. A work
+     item's detail is a single cell, so it keeps it. */
   tr.detail {
     margin-top: -0.5rem;
     border-top: 0;
@@ -3284,8 +3308,12 @@ tr.part .name {
     border-top-right-radius: 0;
   }
 
-  tr.detail td:first-child {
+  table.items:not(.units) tr.detail td:first-child {
     display: none;
+  }
+
+  table.items tr.detail td {
+    flex: 1 0 100%;
   }
 
   .detail-line {

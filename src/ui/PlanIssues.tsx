@@ -7,7 +7,7 @@ import { validate, type Issue } from '../core/validate'
  * What the plan breaks, on every screen. Checked in the browser against the copy
  * it already holds — the validator is the same code the server runs — so it
  * costs no request and follows every change the moment it lands. Renders
- * nothing while the plan breaks no rule.
+ * nothing while the plan breaks no rule, and stays quiet while it has only notes.
  */
 export function PlanIssues({ state }: { state: AppState }) {
   const issues = useMemo(() => validate(state), [state])
@@ -35,23 +35,26 @@ export function PlanIssues({ state }: { state: AppState }) {
 
   const errors = issues.filter((issue) => issue.severity === 'error')
   const warnings = issues.filter((issue) => issue.severity === 'warning')
+  const notes = issues.filter((issue) => issue.severity === 'info')
+  const tone = errors.length > 0 ? 'has-errors' : warnings.length === 0 ? 'only-notes' : ''
 
   return (
     <div className="plan-issues" ref={root}>
       <button
         type="button"
-        className={`plan-issues-toggle ${errors.length > 0 ? 'has-errors' : ''}`}
+        className={`plan-issues-toggle ${tone}`}
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((current) => !current)}
       >
-        {summary(errors.length, warnings.length)}
+        {summary(errors.length, warnings.length, notes.length)}
       </button>
 
       {open && (
         <div className="plan-issues-panel" id={panelId} role="region" aria-label="Plan issues">
           <IssueList title="Errors" issues={errors} onFollow={() => setOpen(false)} />
           <IssueList title="Warnings" issues={warnings} onFollow={() => setOpen(false)} />
+          <IssueList title="Notes" issues={notes} onFollow={() => setOpen(false)} />
         </div>
       )}
     </div>
@@ -89,9 +92,11 @@ function IssueList({
   )
 }
 
-function summary(errors: number, warnings: number): string {
+/** Notes are named only when nothing else is: they never add to a count of problems. */
+function summary(errors: number, warnings: number, notes: number): string {
   const parts = []
   if (errors > 0) parts.push(`${errors} ${errors === 1 ? 'error' : 'errors'}`)
   if (warnings > 0) parts.push(`${warnings} ${warnings === 1 ? 'warning' : 'warnings'}`)
+  if (parts.length === 0) parts.push(`${notes} ${notes === 1 ? 'note' : 'notes'}`)
   return parts.join(' · ')
 }
