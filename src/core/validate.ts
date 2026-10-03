@@ -7,9 +7,11 @@ import { partsOf } from './workItems'
  * An error is data the app cannot run on, and a write carrying one is refused. A
  * warning is one of the plan's own conventions — a week over capacity, an item
  * longer than a week — shown but never blocking, because an edit in progress has
- * to be able to pass through a state that breaks one.
+ * to be able to pass through a state that breaks one. A note is a convention many
+ * plans follow but a sound plan may not — an optional item outside its phase's
+ * milestone, a work item with one part — so it is told, never counted as a problem.
  */
-export type Severity = 'error' | 'warning'
+export type Severity = 'error' | 'warning' | 'info'
 
 /** Every rule and how hard it is. The one place a rule's severity is decided. */
 export const RULES = {
@@ -35,15 +37,16 @@ export const RULES = {
   'phase-order': 'warning',
   'late-dependency': 'warning',
   'phase-gate': 'warning',
-  'milestone-coverage': 'warning',
   'project-chain': 'warning',
-  'single-part': 'warning',
   'overlapping-parts': 'warning',
   'done-when': 'warning',
   'no-estimate': 'warning',
   'over-capacity': 'warning',
   'unused-skill': 'warning',
   'empty-axis': 'warning',
+
+  'milestone-coverage': 'info',
+  'single-part': 'info',
 } as const satisfies Record<string, Severity>
 
 export type Rule = keyof typeof RULES
