@@ -938,6 +938,56 @@ tr.detail td {
   overflow-wrap: anywhere;
 }
 
+.skill-pack {
+  margin: 0 0 0.9rem;
+  font-size: 0.9rem;
+}
+
+.skill-pack summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.skill-pack-axis {
+  margin: 0.5rem 0 0;
+}
+
+.skill-pack-name {
+  flex: 0 0 100%;
+  color: var(--text);
+}
+
+.skill-pack .link-button {
+  align-self: center;
+  padding: 0;
+}
+
+.form-suggested {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+}
+
+.suggest-chip {
+  max-width: 100%;
+  padding: 0.1rem 0.45rem;
+  border: 1px dashed var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.suggest-chip:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
 .chip-remove {
   flex: none;
   width: 1.4rem;
@@ -1083,6 +1133,10 @@ tr.detail td {
 .generated-hours {
   color: var(--muted);
   white-space: nowrap;
+}
+
+.generated-skills {
+  color: var(--muted);
 }
 
 .generated-hours {

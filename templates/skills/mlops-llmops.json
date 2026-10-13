@@ -1,0 +1,690 @@
+{
+  "id": "mlops-llmops",
+  "name": "MLOps and LLM engineering",
+  "axes": [
+    "ML/DL fundamentals",
+    "Data and features",
+    "MLOps and CI/CD",
+    "Infra and orchestration",
+    "LLM engineering",
+    "Inference and serving"
+  ],
+  "skills": [
+    {
+      "id": "backpropagation",
+      "name": "Backpropagation",
+      "kind": "concept",
+      "axis": "ML/DL fundamentals",
+      "aliases": [
+        "backprop",
+        "autograd",
+        "micrograd",
+        "chain rule"
+      ]
+    },
+    {
+      "id": "pytorch",
+      "name": "PyTorch",
+      "kind": "tool",
+      "axis": "ML/DL fundamentals",
+      "aliases": [
+        "torch",
+        "PyTorch tensors",
+        "nn.Module",
+        "tensors"
+      ]
+    },
+    {
+      "id": "training-loops",
+      "name": "Training loops",
+      "kind": "practice",
+      "axis": "ML/DL fundamentals",
+      "aliases": [
+        "training loop",
+        "optimizers",
+        "AdamW",
+        "SGD",
+        "learning rate schedule"
+      ]
+    },
+    {
+      "id": "attention",
+      "name": "Attention",
+      "kind": "concept",
+      "axis": "ML/DL fundamentals",
+      "aliases": [
+        "self-attention",
+        "attention mechanism",
+        "multi-head attention"
+      ]
+    },
+    {
+      "id": "transformer-architecture",
+      "name": "Transformer architecture",
+      "kind": "concept",
+      "axis": "ML/DL fundamentals",
+      "aliases": [
+        "transformer",
+        "encoder-decoder",
+        "positional encoding"
+      ]
+    },
+    {
+      "id": "self-supervised-pretraining",
+      "name": "Self-supervised pretraining",
+      "kind": "concept",
+      "axis": "ML/DL fundamentals",
+      "aliases": [
+        "pretraining",
+        "masked language modeling",
+        "MLM",
+        "contrastive learning"
+      ]
+    },
+    {
+      "id": "boosted-trees",
+      "name": "Boosted trees",
+      "kind": "concept",
+      "axis": "ML/DL fundamentals",
+      "aliases": [
+        "XGBoost",
+        "LightGBM",
+        "CatBoost",
+        "gradient boosting"
+      ]
+    },
+    {
+      "id": "model-evaluation",
+      "name": "Model evaluation",
+      "kind": "practice",
+      "axis": "ML/DL fundamentals",
+      "aliases": [
+        "AUC",
+        "ROC",
+        "cross-validation",
+        "confusion matrix",
+        "precision and recall"
+      ]
+    },
+    {
+      "id": "probability-calibration",
+      "name": "Probability calibration",
+      "kind": "concept",
+      "axis": "ML/DL fundamentals",
+      "aliases": [
+        "calibration",
+        "Platt scaling",
+        "isotonic regression"
+      ]
+    },
+    {
+      "id": "model-explainability",
+      "name": "Model explainability",
+      "kind": "concept",
+      "axis": "ML/DL fundamentals",
+      "aliases": [
+        "SHAP",
+        "LIME",
+        "interpretability",
+        "feature importance"
+      ]
+    },
+    {
+      "id": "ml-system-design",
+      "name": "ML system design",
+      "kind": "practice",
+      "axis": "ML/DL fundamentals",
+      "aliases": [
+        "system design",
+        "ML design"
+      ]
+    },
+    {
+      "id": "data-pipelines",
+      "name": "Data pipelines",
+      "kind": "practice",
+      "axis": "Data and features",
+      "aliases": [
+        "data engineering",
+        "ETL",
+        "ELT",
+        "Spark",
+        "dbt"
+      ]
+    },
+    {
+      "id": "data-validation",
+      "name": "Data validation",
+      "kind": "practice",
+      "axis": "Data and features",
+      "aliases": [
+        "data quality",
+        "schema validation",
+        "Great Expectations",
+        "Pandera"
+      ]
+    },
+    {
+      "id": "training-data",
+      "name": "Training data",
+      "kind": "practice",
+      "axis": "Data and features",
+      "aliases": [
+        "dataset engineering",
+        "dataset curation",
+        "labeling",
+        "annotation"
+      ]
+    },
+    {
+      "id": "dataset-splits",
+      "name": "Dataset splits",
+      "kind": "concept",
+      "axis": "Data and features",
+      "aliases": [
+        "train test split",
+        "holdout",
+        "data leakage"
+      ]
+    },
+    {
+      "id": "feature-engineering",
+      "name": "Feature engineering",
+      "kind": "practice",
+      "axis": "Data and features",
+      "aliases": [
+        "feature pipelines",
+        "feature selection"
+      ]
+    },
+    {
+      "id": "feature-stores",
+      "name": "Feature stores",
+      "kind": "tool",
+      "axis": "Data and features",
+      "aliases": [
+        "Feast",
+        "feature store"
+      ]
+    },
+    {
+      "id": "data-versioning",
+      "name": "Data versioning",
+      "kind": "tool",
+      "axis": "Data and features",
+      "aliases": [
+        "DVC",
+        "lakeFS"
+      ]
+    },
+    {
+      "id": "experiment-tracking",
+      "name": "Experiment tracking",
+      "kind": "tool",
+      "axis": "MLOps and CI/CD",
+      "aliases": [
+        "MLflow",
+        "Weights and Biases",
+        "wandb"
+      ]
+    },
+    {
+      "id": "hyperparameter-tuning",
+      "name": "Hyperparameter tuning",
+      "kind": "practice",
+      "axis": "MLOps and CI/CD",
+      "aliases": [
+        "Ray Tune",
+        "Optuna",
+        "HPO",
+        "hyperparameter search"
+      ]
+    },
+    {
+      "id": "ci-cd",
+      "name": "CI/CD",
+      "kind": "practice",
+      "axis": "MLOps and CI/CD",
+      "aliases": [
+        "GitHub Actions",
+        "GitLab CI",
+        "continuous integration",
+        "continuous delivery"
+      ]
+    },
+    {
+      "id": "testing",
+      "name": "Testing",
+      "kind": "practice",
+      "axis": "MLOps and CI/CD",
+      "aliases": [
+        "pytest",
+        "unit tests",
+        "integration tests"
+      ]
+    },
+    {
+      "id": "infrastructure-as-code",
+      "name": "Infrastructure as code",
+      "kind": "practice",
+      "axis": "MLOps and CI/CD",
+      "aliases": [
+        "IaC",
+        "Terraform",
+        "CloudFormation",
+        "CDK",
+        "Pulumi"
+      ]
+    },
+    {
+      "id": "workflow-orchestration",
+      "name": "Workflow orchestration",
+      "kind": "tool",
+      "axis": "MLOps and CI/CD",
+      "aliases": [
+        "Airflow",
+        "Prefect",
+        "Dagster",
+        "Kubeflow Pipelines",
+        "Step Functions"
+      ]
+    },
+    {
+      "id": "model-registry",
+      "name": "Model registry",
+      "kind": "tool",
+      "axis": "MLOps and CI/CD",
+      "aliases": [
+        "model versioning"
+      ]
+    },
+    {
+      "id": "model-deployment",
+      "name": "Model deployment",
+      "kind": "practice",
+      "axis": "MLOps and CI/CD",
+      "aliases": [
+        "deployment",
+        "rollout",
+        "canary",
+        "blue-green",
+        "shadow deployment"
+      ]
+    },
+    {
+      "id": "model-monitoring",
+      "name": "Model monitoring",
+      "kind": "practice",
+      "axis": "MLOps and CI/CD",
+      "aliases": [
+        "drift",
+        "data drift",
+        "concept drift",
+        "Evidently"
+      ]
+    },
+    {
+      "id": "cloud-ml-services",
+      "name": "Cloud ML services",
+      "kind": "tool",
+      "axis": "MLOps and CI/CD",
+      "aliases": [
+        "AWS ML services",
+        "SageMaker",
+        "Vertex AI",
+        "Bedrock",
+        "Azure ML"
+      ]
+    },
+    {
+      "id": "docker",
+      "name": "Docker",
+      "kind": "tool",
+      "axis": "Infra and orchestration",
+      "aliases": [
+        "Dockerfile",
+        "containers",
+        "container image"
+      ]
+    },
+    {
+      "id": "container-registries",
+      "name": "Container registries",
+      "kind": "tool",
+      "axis": "Infra and orchestration",
+      "aliases": [
+        "ECR",
+        "AWS ECR",
+        "GHCR",
+        "Artifact Registry"
+      ]
+    },
+    {
+      "id": "kubernetes",
+      "name": "Kubernetes",
+      "kind": "tool",
+      "axis": "Infra and orchestration",
+      "aliases": [
+        "k8s",
+        "kubectl",
+        "Kubernetes architecture",
+        "Helm",
+        "EKS",
+        "GKE"
+      ]
+    },
+    {
+      "id": "managed-compute",
+      "name": "Managed compute",
+      "kind": "tool",
+      "axis": "Infra and orchestration",
+      "aliases": [
+        "ECS",
+        "AWS ECS",
+        "AWS Batch",
+        "Fargate",
+        "Cloud Run"
+      ]
+    },
+    {
+      "id": "gpu-architecture",
+      "name": "GPU architecture",
+      "kind": "concept",
+      "axis": "Infra and orchestration",
+      "aliases": [
+        "GPU",
+        "CUDA",
+        "VRAM"
+      ]
+    },
+    {
+      "id": "gpu-memory-management",
+      "name": "GPU memory management",
+      "kind": "concept",
+      "axis": "Infra and orchestration",
+      "aliases": [
+        "CUDA memory management",
+        "out of memory",
+        "OOM"
+      ]
+    },
+    {
+      "id": "gpu-sharing",
+      "name": "GPU sharing",
+      "kind": "tool",
+      "axis": "Infra and orchestration",
+      "aliases": [
+        "MIG",
+        "time-slicing",
+        "MPS"
+      ]
+    },
+    {
+      "id": "observability",
+      "name": "Observability",
+      "kind": "tool",
+      "axis": "Infra and orchestration",
+      "aliases": [
+        "Prometheus",
+        "Grafana",
+        "alerting",
+        "dashboards"
+      ]
+    },
+    {
+      "id": "load-balancing",
+      "name": "Load balancing",
+      "kind": "concept",
+      "axis": "Infra and orchestration",
+      "aliases": [
+        "load balancer",
+        "ingress",
+        "autoscaling"
+      ]
+    },
+    {
+      "id": "cloud-security",
+      "name": "Cloud security",
+      "kind": "practice",
+      "axis": "Infra and orchestration",
+      "aliases": [
+        "IAM",
+        "least privilege",
+        "secrets management"
+      ]
+    },
+    {
+      "id": "foundation-models",
+      "name": "Foundation models",
+      "kind": "concept",
+      "axis": "LLM engineering",
+      "aliases": [
+        "LLMs",
+        "large language models"
+      ]
+    },
+    {
+      "id": "tokenizers",
+      "name": "Tokenizers",
+      "kind": "concept",
+      "axis": "LLM engineering",
+      "aliases": [
+        "tokenizer",
+        "tokenization",
+        "BPE"
+      ]
+    },
+    {
+      "id": "hugging-face-transformers",
+      "name": "Hugging Face transformers",
+      "kind": "tool",
+      "axis": "LLM engineering",
+      "aliases": [
+        "Hugging Face",
+        "huggingface",
+        "HF transformers"
+      ]
+    },
+    {
+      "id": "prompt-engineering",
+      "name": "Prompt engineering",
+      "kind": "practice",
+      "axis": "LLM engineering",
+      "aliases": [
+        "prompting",
+        "prompts",
+        "few-shot"
+      ]
+    },
+    {
+      "id": "rag",
+      "name": "RAG",
+      "kind": "practice",
+      "axis": "LLM engineering",
+      "aliases": [
+        "retrieval-augmented generation",
+        "retrieval",
+        "vector database",
+        "embeddings"
+      ]
+    },
+    {
+      "id": "agents",
+      "name": "Agents",
+      "kind": "practice",
+      "axis": "LLM engineering",
+      "aliases": [
+        "tool use",
+        "function calling",
+        "agentic"
+      ]
+    },
+    {
+      "id": "fine-tuning",
+      "name": "Fine-tuning",
+      "kind": "practice",
+      "axis": "LLM engineering",
+      "aliases": [
+        "finetuning",
+        "fine tune",
+        "supervised fine-tuning",
+        "SFT",
+        "instruction tuning"
+      ]
+    },
+    {
+      "id": "peft",
+      "name": "PEFT",
+      "kind": "concept",
+      "axis": "LLM engineering",
+      "aliases": [
+        "LoRA",
+        "QLoRA",
+        "adapters",
+        "parameter-efficient fine-tuning"
+      ]
+    },
+    {
+      "id": "preference-alignment",
+      "name": "Preference alignment",
+      "kind": "concept",
+      "axis": "LLM engineering",
+      "aliases": [
+        "DPO",
+        "RLHF"
+      ]
+    },
+    {
+      "id": "llm-evaluation",
+      "name": "LLM evaluation",
+      "kind": "practice",
+      "axis": "LLM engineering",
+      "aliases": [
+        "evals",
+        "LLM evals",
+        "LLM-as-judge"
+      ]
+    },
+    {
+      "id": "guardrails",
+      "name": "Guardrails",
+      "kind": "practice",
+      "axis": "LLM engineering",
+      "aliases": [
+        "NeMo Guardrails",
+        "content filtering"
+      ]
+    },
+    {
+      "id": "quantization",
+      "name": "Quantization",
+      "kind": "concept",
+      "axis": "Inference and serving",
+      "aliases": [
+        "AWQ",
+        "GPTQ",
+        "GGUF",
+        "bitsandbytes",
+        "int8"
+      ]
+    },
+    {
+      "id": "model-compilation",
+      "name": "Model compilation",
+      "kind": "tool",
+      "axis": "Inference and serving",
+      "aliases": [
+        "ONNX",
+        "ONNX Runtime",
+        "torch.compile",
+        "TensorRT"
+      ]
+    },
+    {
+      "id": "kv-cache",
+      "name": "KV cache",
+      "kind": "concept",
+      "axis": "Inference and serving",
+      "aliases": [
+        "key-value cache",
+        "prefix caching",
+        "prompt caching"
+      ]
+    },
+    {
+      "id": "batching",
+      "name": "Batching",
+      "kind": "concept",
+      "axis": "Inference and serving",
+      "aliases": [
+        "dynamic batching",
+        "continuous batching"
+      ]
+    },
+    {
+      "id": "vllm",
+      "name": "vLLM",
+      "kind": "tool",
+      "axis": "Inference and serving",
+      "aliases": [
+        "PagedAttention"
+      ]
+    },
+    {
+      "id": "inference-servers",
+      "name": "Inference servers",
+      "kind": "tool",
+      "axis": "Inference and serving",
+      "aliases": [
+        "Triton",
+        "Triton Inference Server",
+        "TGI",
+        "Text Generation Inference",
+        "TorchServe",
+        "KServe"
+      ]
+    },
+    {
+      "id": "multi-lora-serving",
+      "name": "Multi-LoRA serving",
+      "kind": "practice",
+      "axis": "Inference and serving",
+      "aliases": [
+        "adapter serving"
+      ]
+    },
+    {
+      "id": "tensor-parallelism",
+      "name": "Tensor parallelism",
+      "kind": "concept",
+      "axis": "Inference and serving",
+      "aliases": [
+        "multi-GPU inference",
+        "model parallelism"
+      ]
+    },
+    {
+      "id": "latency-benchmarking",
+      "name": "Latency benchmarking",
+      "kind": "practice",
+      "axis": "Inference and serving",
+      "aliases": [
+        "latency",
+        "throughput",
+        "TTFT",
+        "load testing"
+      ]
+    },
+    {
+      "id": "profiling",
+      "name": "Profiling",
+      "kind": "practice",
+      "axis": "Inference and serving",
+      "aliases": [
+        "profiler",
+        "flame graph",
+        "py-spy"
+      ]
+    }
+  ]
+}

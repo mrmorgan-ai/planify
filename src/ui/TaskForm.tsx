@@ -1,6 +1,7 @@
 import { useId, useState, type ReactNode } from 'react'
 import type { Edit, TaskFields } from '../core/edits'
-import type { AppState, Task, Resource, Roadmap } from '../core/types'
+import { inheritedSkills, suggestSkills, type SkillSuggestion } from '../core/skills'
+import type { AppState, Task, Resource, Roadmap, RoadmapContent } from '../core/types'
 
 /** What the form holds while it is being edited: every field as its input shows it. */
 export type Draft = {
@@ -39,8 +40,15 @@ export function draftOf(task: Task, tasks: readonly Task[]): Draft {
   }
 }
 
-/** An empty form, for a task that does not exist yet, in the story it starts in. */
-export function blankDraft(storyId = ''): Draft {
+/**
+ * An empty form, for a task that does not exist yet, in the story it starts in
+ * and with the skills nearly all of that story's tasks carry, once the story
+ * has enough of them to say (see `inheritedSkills`).
+ */
+export function blankDraft(
+  storyId = '',
+  content?: Pick<RoadmapContent, 'tasks' | 'roadmap'>,
+): Draft {
   return {
     name: '',
     duration: '',
@@ -49,9 +57,27 @@ export function blankDraft(storyId = ''): Draft {
     link: '',
     resources: [],
     storyId,
-    skills: [],
+    skills: content && storyId !== '' ? inheritedSkills(storyId, content) : [],
     dependsOn: [],
     neededBy: [],
+  }
+}
+
+/**
+ * The draft moved to another story. A new task whose skills are still the ones
+ * its story gave it takes the new story's; skills a person chose, and those of
+ * a task that exists, are theirs and stay.
+ */
+export function inStory(
+  draft: Draft,
+  storyId: string,
+  content: Pick<RoadmapContent, 'tasks' | 'roadmap'>,
+  inherits: boolean,
+): Draft {
+  return {
+    ...draft,
+    storyId,
+    skills: inherits ? inheritedSkills(storyId, content) : draft.skills,
   }
 }
 
@@ -171,12 +197,18 @@ export function TaskForm({
   onCancel: () => void
 }) {
   const [draft, setDraft] = useState(initial)
+  /** Whether the skills are still the story's, for a new task: until one is chosen by hand. */
+  const [inherits, setInherits] = useState(self === null)
   const id = useId()
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((current) => ({ ...current, [key]: value }))
 
   const problems = problemsOf(draft)
   const { roadmap } = state
+  const suggested = suggestSkills(
+    { name: draft.name, storyId: draft.storyId, id: self, link: draft.link, notes: draft.notes },
+    state,
+  )
 
   return (
     <form
@@ -252,7 +284,9 @@ export function TaskForm({
           id={`${id}-story`}
           value={draft.storyId}
           disabled={busy}
-          onChange={(event) => set('storyId', event.target.value)}
+          onChange={(event) =>
+            setDraft((current) => inStory(current, event.target.value, state, inherits))
+          }
         >
           {draft.storyId === '' && <option value="">Choose the story it is a step of…</option>}
           {roadmap.phases.map((phase) => (
@@ -274,8 +308,12 @@ export function TaskForm({
         <SkillPicker
           roadmap={roadmap}
           skills={draft.skills}
+          suggested={suggested}
           disabled={busy}
-          onChange={(skills) => set('skills', skills)}
+          onChange={(skills) => {
+            setInherits(false)
+            set('skills', skills)
+          }}
         />
       </Field>
 
@@ -434,18 +472,25 @@ export function TaskPicker({
   )
 }
 
-/** The skills something feeds, picked from the radar's axes. */
+/**
+ * The skills something feeds, picked from the radar's axes. Those it probably
+ * feeds are offered below, each one click away and never added on their own.
+ */
 export function SkillPicker({
   roadmap,
   skills,
+  suggested = [],
   disabled,
   onChange,
 }: {
   roadmap: Roadmap
   skills: string[]
+  /** What `suggestSkills` found. Those already chosen are left out here. */
+  suggested?: readonly SkillSuggestion[]
   disabled: boolean
   onChange: (skills: string[]) => void
 }) {
+  const offered = suggested.filter(({ skill }) => !skills.includes(skill))
   return (
     <div className="form-list">
       <Chips
@@ -474,6 +519,24 @@ export function SkillPicker({
           </optgroup>
         ))}
       </select>
+      {offered.length > 0 && (
+        <div className="form-suggested">
+          <span className="faint">Suggested</span>
+          {offered.map(({ skill, reason }) => (
+            <button
+              key={skill}
+              type="button"
+              className="suggest-chip"
+              title={`${skill}: ${reason}`}
+              aria-label={`Add ${skill}, ${reason}`}
+              disabled={disabled}
+              onClick={() => onChange([...skills, skill])}
+            >
+              + {skill}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import { addDays, isBlackoutDay, isCivilDate, startOfWeek, studyDaysBetween } from './dates'
 import { estimatedHours, hoursByWeek, weekOf } from './hours'
+import { closestSkills } from './skills'
 import type { CivilDate, Task, PhaseNumber, RoadmapContent } from './types'
 import { tasksOf } from './stories'
 
@@ -546,6 +547,7 @@ function span(tasks: readonly Task[]): { start: CivilDate; end: CivilDate } | nu
 
 function checkSkills({ roadmap, tasks }: RoadmapContent, report: Report): void {
   const { dimensions, skillDimension } = roadmap
+  const mapped = Object.keys(skillDimension)
 
   for (const [skill, dimension] of Object.entries(skillDimension)) {
     if (!dimensions.includes(dimension)) {
@@ -556,14 +558,22 @@ function checkSkills({ roadmap, tasks }: RoadmapContent, report: Report): void {
   for (const task of tasks) {
     for (const skill of task.skills) {
       if (skillDimension[skill] === undefined) {
-        report('unmapped-skill', `${task.id} uses "${skill}", which is on no radar axis`, task.id)
+        // Whoever wrote it — a person in a file, an agent in an edit — is one
+        // name away from a write that lands, so the refusal names it.
+        const closest = closestSkills(skill, mapped)
+        report(
+          'unmapped-skill',
+          `${task.id} uses "${skill}", which is on no radar axis` +
+            (closest.length > 0 ? `; closest: ${closest.join(', ')}` : ''),
+          task.id,
+        )
       }
     }
   }
 
   // An unused skill sits in the radar's denominator forever, capping its axis.
   const used = new Set(tasks.flatMap((task) => task.skills))
-  for (const skill of Object.keys(skillDimension)) {
+  for (const skill of mapped) {
     if (!used.has(skill)) report('unused-skill', `"${skill}" is on the radar but no task covers it`)
   }
 

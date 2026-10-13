@@ -73,7 +73,7 @@ migrations/      database schema
 tools/seed/      seed validator, seed → SQL, and database → seed
 tools/roadmaps/  roadmaps and their members
 seed/            roadmap.example.json, the reference shape of a roadmap
-templates/       starter.json, what a new person's roadmap begins as
+templates/       starter.json, what a new person's roadmap begins as, and skills/, the skill packs
 ```
 
 `src/core/` is compiled both for the browser and for the Workers runtime, which
@@ -170,7 +170,7 @@ by severity, set per rule in its `RULES` table.
 - **Settings**: a timezone the runtime knows; links are https or empty.
 - **Dates**: at least one study day, ending on or after the start; never starting or ending inside a pause; never before the plan's start date.
 - **Graph**: dependencies exist, are not the task itself, are not repeated, and form no cycle; every task's story exists, and every story's feature.
-- **Skills**: every skill a task uses is on a radar axis that exists.
+- **Skills**: every skill a task uses is on a radar axis that exists. One that is not is answered with the mapped skills it most likely meant.
 
 **Warnings** — the plan's own conventions:
 
@@ -238,9 +238,38 @@ that week has free, so none is too long, starts in a pause or overfills a week.
 The tasks are steps of one new story and chained, and the phase's milestone is
 made to wait on them when they end before it.
 
-Nothing is written until the preview — the tasks with their dates, and the
-warnings the result has — is confirmed. It lands as one change, with its own
+Every new task feeds the skills chosen for the story. A project's task also
+feeds the mapped skills its own name mentions, so "Log the runs in MLflow"
+carries experiment tracking without the whole project being tagged with it.
+
+Nothing is written until the preview — the tasks with their dates and skills,
+and the warnings the result has — is confirmed. It lands as one change, with its own
 version in the history, so going back to before it undoes it and nothing else.
+
+## Skills
+
+A task feeds one or more skills, each on one axis of the radar. The axes and
+skills are the roadmap's own, edited in **Settings → Skills**.
+
+Choosing them is helped, never done for you. Under the skill picker of a task or
+a generator, **Suggested** lists the mapped skills it probably feeds, most
+likely first, each one click away and saying why on hover:
+
+- **Named in the task**, its description, its link or its story: by the skill's
+  own name, or by another name it goes by — "k8s" finds Kubernetes.
+- **On the story's other tasks**, when at least half of them carry it.
+
+A new task in a story with three or more tasks starts with the skills nearly all
+of them carry. They stay until one is added or removed by hand, and follow the
+task if its story is changed before that.
+
+The other names come from skill packs: files in `templates/skills/`, each an
+area's axes and skills, with every skill's kind (concept, tool or practice) and
+aliases. A tool and the concept behind it are one skill. **Settings → Skills**
+lists what a pack has that the map does not, to add one at a time or an axis at
+once, and `npm run roadmaps -- create … --pack <id>` starts a roadmap with a
+pack's map instead of the starter's. A pack only ever offers: a roadmap's map
+is changed by saving it.
 
 ## Agents
 
@@ -271,6 +300,7 @@ to connect.
 | GET | `/api/versions/:id` | One version as a seed file, naming the revision it was the plan at, for scripts |
 | POST | `/api/versions/:id/restore` | Bring a version back, keeping progress; `dryRun` previews it |
 | GET | `/api/issues` | Every rule the plan breaks; `?draft=1` for the draft's |
+| GET | `/api/skills/suggest` | The mapped skills a task probably feeds, from its `name`, `storyId`, `link` and `notes`, each with its axis and why; `?draft=1` reads the draft |
 | GET | `/api/health` | Liveness, with the caller's roadmap's task and phase counts |
 
 Every route acts on the caller's roadmap, as the middleware resolved it: see

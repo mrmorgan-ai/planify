@@ -1,5 +1,7 @@
 import { useMemo, useRef, useState, type DragEvent } from 'react'
+import { PACKS, missingFrom, type PackSkill } from '../core/catalog'
 import type { AppState } from '../core/types'
+import { keyOf } from '../core/words'
 import { Section, type Saver } from './RoadmapSettings'
 
 type AxisDraft = { key: string; name: string }
@@ -97,6 +99,21 @@ export function SkillsSettings({ state, saver }: { state: AppState; saver: Saver
     setAdding({ ...adding, [axis]: '' })
   }
 
+  /** Skills taken from a pack, each on the axis the pack keeps it on, made here if missing. */
+  function addFromPack(picked: readonly PackSkill[]) {
+    let nextAxes = axes
+    const added = picked.map((skill): SkillDraft => {
+      let axis = nextAxes.find((each) => keyOf(each.name) === keyOf(skill.axis))
+      if (!axis) {
+        axis = { key: `new:${created.current++}`, name: skill.axis }
+        nextAxes = [...nextAxes, axis]
+      }
+      return { key: `new:${created.current++}`, original: null, name: skill.name, axis: axis.key }
+    })
+    setAxes(nextAxes)
+    setSkills([...skills, ...added])
+  }
+
   function addAxis() {
     const name = newAxis.trim()
     if (name === '') return
@@ -149,6 +166,58 @@ export function SkillsSettings({ state, saver }: { state: AppState; saver: Saver
           {axes.length === 1 ? 'axis' : 'axes'}
         </span>
       </div>
+
+      {!filtering &&
+        PACKS.map((pack) => {
+          const missing = missingFrom(pack, map)
+          if (missing.length === 0) return null
+          return (
+            <details key={pack.id} className="skill-pack">
+              <summary>
+                From {pack.name} <span className="count">{missing.length} not on your map</span>
+              </summary>
+              {pack.axes.map((axis) => {
+                const onAxis = missing.filter((skill) => skill.axis === axis)
+                if (onAxis.length === 0) return null
+                return (
+                  <div key={axis} className="form-suggested skill-pack-axis">
+                    <span className="skill-pack-name">{axis}</span>
+                    {onAxis.map((skill) => (
+                      <button
+                        key={skill.id}
+                        type="button"
+                        className="suggest-chip"
+                        title={
+                          skill.aliases.length > 0
+                            ? `Also found as ${skill.aliases.join(', ')}`
+                            : undefined
+                        }
+                        disabled={saver.busy}
+                        onClick={() => addFromPack([skill])}
+                      >
+                        + {skill.name}
+                      </button>
+                    ))}
+                    {onAxis.length > 1 && (
+                      <button
+                        type="button"
+                        className="link-button"
+                        disabled={saver.busy}
+                        onClick={() => addFromPack(onAxis)}
+                      >
+                        Add all {onAxis.length}
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+              <p className="faint">
+                A skill no task covers holds its axis down on the radar, so take what the plan will
+                train. Nothing is saved until Save.
+              </p>
+            </details>
+          )
+        })}
 
       <div className="axis-cards">
         {axes.map((axis, index) => {

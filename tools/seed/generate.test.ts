@@ -183,6 +183,35 @@ describe('generate', () => {
     expect(after.stories.find((each) => each.id === 'a-project')?.doneWhen).toBe('It is deployed')
   })
 
+  it('gives a project’s task the skills its own name mentions, besides the project’s', () => {
+    const named = {
+      ...project,
+      tasks: [
+        { name: 'Set it up', hours: 2 },
+        { name: 'Try something else', hours: 4 },
+      ],
+    }
+    const { placed, after } = run(named)
+    expect(placed.map((piece) => piece.skills)).toEqual([
+      ['Something measurable'],
+      ['Something measurable', 'Something else'],
+    ])
+    expect(placed.map((piece) => task(after, piece.id).skills)).toEqual(
+      placed.map((piece) => piece.skills),
+    )
+    expect(newIssues(after).filter((issue) => issue.severity === 'error')).toEqual([])
+  })
+
+  it('gives every part of anything else the skills asked for, whatever its name mentions', () => {
+    const { placed } = run({ ...course, name: 'Something else, in depth' })
+    expect(placed.length).toBeGreaterThan(1)
+    expect(placed.every((piece) => piece.skills === skills)).toBe(true)
+
+    // A project of one task is named for the project: nothing of its own to read.
+    const single = { ...project, name: 'Something else', tasks: [{ name: 'All of it', hours: 2 }] }
+    expect(run(single).placed.map((piece) => piece.skills)).toEqual([skills])
+  })
+
   it('makes the phase’s milestone wait on what ends before it, and leaves it when not', () => {
     const milestone = task(example, 'phase-1-exam')
 

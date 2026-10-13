@@ -21,6 +21,23 @@ function principalOf(value) {
 }
 
 /**
+ * A template with a skill pack's axes and skills in place of its own: the map a
+ * roadmap in that area starts from. The template's tasks, if it has any, must
+ * use the pack's skills — the validator says so when the roadmap is read.
+ *
+ * @param {object} template
+ * @param {{ axes: string[], skills: Array<{ name: string, axis: string }> }} pack
+ * @returns {object}
+ */
+export function withPack(template, pack) {
+  return {
+    ...template,
+    dimensions: [...pack.axes],
+    skills: Object.fromEntries(pack.skills.map((skill) => [skill.name, skill.axis])),
+  }
+}
+
+/**
  * A new roadmap: its row, the settings every roadmap reads, the template's
  * content, and optionally its first member. The settings are the ones the
  * migrations gave the first roadmap; the template then sets its own.

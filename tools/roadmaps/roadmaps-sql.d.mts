@@ -7,6 +7,10 @@ export function createRoadmapSql(roadmap: {
   version?: string
   member?: string
 }): string[]
+export function withPack<T extends object>(
+  template: T,
+  pack: { axes: string[]; skills: Array<{ name: string; axis: string }> },
+): T & { dimensions: string[]; skills: Record<string, string> }
 export function addMemberSql(roadmapId: number, principal: string): string[]
 export function removeMemberSql(principal: string): string[]
 export function addDelegateSql(principal: string): string[]

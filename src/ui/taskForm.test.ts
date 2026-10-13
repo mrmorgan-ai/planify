@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { Task } from '../core/types'
-import { dependentIds, neededByEdits } from './TaskForm'
+import type { Roadmap, Task } from '../core/types'
+import { blankDraft, dependentIds, inStory, neededByEdits } from './TaskForm'
 
 function task(id: string, dependsOn: string[] = []): Task {
   return {
@@ -48,5 +48,48 @@ describe('Needed by', () => {
     expect(neededByEdits('new', tasks, ['a'])).toEqual([
       { op: 'setDependencies', id: 'a', dependsOn: ['new'] },
     ])
+  })
+})
+
+describe('the skills a new task starts with', () => {
+  const roadmap = {
+    dimensions: ['Axis'],
+    skillDimension: { Shared: 'Axis', Rare: 'Axis', Other: 'Axis' },
+  } as unknown as Roadmap
+  const in_ = (id: string, storyId: string, skills: string[]): Task => ({
+    ...task(id),
+    storyId,
+    skills,
+  })
+  const content = {
+    roadmap,
+    tasks: [
+      in_('a', 'course', ['Shared', 'Rare']),
+      in_('b', 'course', ['Shared']),
+      in_('c', 'course', ['Shared']),
+      in_('d', 'project', ['Other']),
+      in_('e', 'project', ['Other']),
+      in_('f', 'project', ['Other']),
+    ],
+  }
+
+  it('are the ones nearly all of its story’s tasks carry', () => {
+    expect(blankDraft('course', content).skills).toEqual(['Shared'])
+  })
+
+  it('are none without a story, or without the roadmap to read them from', () => {
+    expect(blankDraft('', content).skills).toEqual([])
+    expect(blankDraft('course').skills).toEqual([])
+  })
+
+  it('follow the task to another story while nobody has chosen any', () => {
+    const moved = inStory(blankDraft('course', content), 'project', content, true)
+    expect(moved).toMatchObject({ storyId: 'project', skills: ['Other'] })
+  })
+
+  it('stay as chosen once somebody has', () => {
+    const chosen = { ...blankDraft('course', content), skills: ['Rare'] }
+    const moved = inStory(chosen, 'project', content, false)
+    expect(moved).toMatchObject({ storyId: 'project', skills: ['Rare'] })
   })
 })
