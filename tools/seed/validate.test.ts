@@ -207,6 +207,28 @@ describe('a cycle', () => {
   })
 })
 
+describe('a skill on no axis', () => {
+  const messages = (skill: string) => {
+    const content = structuredClone(seedContent(readSeedFile(EXAMPLE_SEED)))
+    content.tasks.find((task) => task.id === 'read-the-thing')!.skills = [skill]
+    return validate(content)
+      .filter((issue) => issue.rule === 'unmapped-skill')
+      .map((issue) => issue.message)
+  }
+
+  it('is answered with the mapped skill it most likely meant', () => {
+    expect(messages('something measurables')).toEqual([
+      'read-the-thing uses "something measurables", which is on no radar axis; closest: Something measurable',
+    ])
+  })
+
+  it('is answered plainly when nothing mapped is close', () => {
+    expect(messages('Watercolour')).toEqual([
+      'read-the-thing uses "Watercolour", which is on no radar axis',
+    ])
+  })
+})
+
 describe('rules that read a type', () => {
   it('ask practice for an outcome only while its story says it is practice', () => {
     const content = structuredClone(seedContent(readSeedFile(EXAMPLE_SEED)))

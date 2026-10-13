@@ -44,7 +44,7 @@ export function NewTaskForm({
       <TaskForm
         state={state}
         self={null}
-        initial={blankDraft(story?.id ?? latestStory(state, phase))}
+        initial={blankDraft(story?.id ?? latestStory(state, phase), state)}
         busy={busy}
         error={error}
         submitLabel="Create task"

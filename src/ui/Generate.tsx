@@ -7,6 +7,7 @@ import {
   type GeneratorKind,
   type Placed,
 } from '../core/generate'
+import { suggestSkills } from '../core/skills'
 import type { AppState, CivilDate, PhaseNumber } from '../core/types'
 import { StaleStateError, previewGenerate, type GeneratePreview } from './api'
 import { ChangeReview, type ReviewWords } from './ChangeReview'
@@ -292,6 +293,9 @@ export function GeneratePanel({
           <SkillPicker
             roadmap={roadmap}
             skills={answers.skills}
+            // The story does not exist yet, so its name and link are all there is
+            // to read. A project's tasks are read one by one when they are placed.
+            suggested={suggestSkills({ name: answers.name, link: answers.link }, state)}
             disabled={busy}
             onChange={(skills) => set('skills', skills)}
           />
@@ -409,6 +413,7 @@ function PlacedList({ placed }: { placed: Placed[] }) {
         {placed.map((piece) => (
           <tr key={piece.id}>
             <td>{piece.name}</td>
+            <td className="generated-skills">{piece.skills.join(' · ')}</td>
             <td className="generated-when">{dateRange(piece.start, piece.end)}</td>
             <td className="generated-hours">{Math.round(piece.hours * 100) / 100}h</td>
           </tr>

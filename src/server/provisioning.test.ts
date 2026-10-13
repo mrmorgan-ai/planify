@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { PACKS } from '../core/catalog'
 import { applyEdits } from '../core/edits'
 import { parseSeed, seedContent } from '../core/seed'
 import { validate } from '../core/validate'
@@ -9,6 +10,7 @@ import {
   addMemberSql,
   createRoadmapSql,
   removeMemberSql,
+  withPack,
 } from '../../tools/roadmaps/roadmaps-sql.mjs'
 import { seedSql } from '../../tools/seed/seed-sql.mjs'
 import { loadAppState, mutateContent } from './repository'
@@ -26,6 +28,56 @@ describe('the starter template', () => {
   it('is a roadmap file that breaks no rule, so a new user can add tasks at once', () => {
     const issues = validate(seedContent(parseSeed(STARTER)))
     expect(issues.filter((issue) => issue.severity === 'error')).toEqual([])
+  })
+})
+
+describe.each(PACKS)('the starter template with the $id skills', (pack) => {
+  // The file the command reads, not the copy the app parsed: they must agree.
+  const file = JSON.parse(
+    readFileSync(new URL(`../../templates/skills/${pack.id}.json`, import.meta.url), 'utf8'),
+  ) as typeof pack
+
+  it('is the pack the app knows', () => {
+    expect(file).toEqual(pack)
+  })
+
+  it('is a roadmap file that breaks no rule', () => {
+    const issues = validate(seedContent(parseSeed(withPack(STARTER as object, file))))
+    expect(issues.filter((issue) => issue.severity === 'error')).toEqual([])
+  })
+
+  it('is read back with the pack’s axes and skills, and takes a task on one of them', async () => {
+    const found = sqliteD1()
+    found.sqlite.exec(
+      createRoadmapSql({
+        id: 2,
+        name: 'Second',
+        now: '2030-01-01T00:00:00Z',
+        template: withPack(STARTER as object, file),
+      }).join('\n'),
+    )
+    const second = { db: found.db, roadmapId: 2 }
+    const state = await loadAppState(second)
+    expect(state.roadmap.dimensions).toEqual(pack.axes)
+    expect(Object.keys(state.roadmap.skillDimension)).toHaveLength(pack.skills.length)
+
+    const [skill] = pack.skills
+    const after = await mutateContent(second, 0, (current) =>
+      applyEdits(current, [
+        { op: 'createStory', story: { id: 'a-story', name: 'A story', phase: 1 } },
+        {
+          op: 'createTask',
+          task: {
+            name: 'The first thing',
+            storyId: 'a-story',
+            baselineStartDate: '2030-01-07',
+            baselineEndDate: '2030-01-09',
+            skills: [skill!.name],
+          },
+        },
+      ]),
+    )
+    expect(after.tasks.map((task) => task.skills)).toEqual([[skill!.name]])
   })
 })
 

@@ -13,6 +13,7 @@ import { EditError, takenIds, unusedId } from './editing'
 import type { Edit } from './edits'
 import type { NewStory } from './structure'
 import { hoursByWeek } from './hours'
+import { namedSkills } from './skills'
 import type { CivilDate, Task, WorkType, PhaseNumber, RoadmapContent } from './types'
 
 // Generators turn a few answers — a course of 20 hours at 5 a week, a project in
@@ -34,6 +35,11 @@ export const COURSE_TYPES = ['Course', 'Book', 'Documentation'] as const satisfi
 /** Where the new tasks go, and what each of them feeds. */
 export type Placement = {
   phase: PhaseNumber
+  /**
+   * What every new task feeds. A project's task also feeds the mapped skills
+   * its own name mentions, so "Log the runs in MLflow" does not need the whole
+   * project tagged with experiment tracking to carry it.
+   */
   skills: string[]
   /** The first of them waits on this task, and starts after it ends. */
   after: string | null
@@ -93,6 +99,8 @@ export type Placed = {
   start: CivilDate
   end: CivilDate
   hours: number
+  /** What it feeds: the request's skills, and for a project's task the ones it names. */
+  skills: string[]
 }
 
 export type Generated = {
@@ -205,6 +213,7 @@ export function generate(
           name: slots.length > 1 ? slot.name : name,
           // "Deploy it" is a fine name inside its project and a poor id outside it.
           idFrom: slots.length > 1 ? `${name} ${slot.name}` : name,
+          ownName: slots.length > 1,
           chained: true,
         }),
       )
@@ -246,6 +255,7 @@ export function generate(
   const storyId = groupId ?? unusedId(`${name} story`, taken)
   taken.add(storyId)
 
+  const mapped = Object.keys(roadmap.skillDimension)
   const placed: Placed[] = []
   const edits: Edit[] = [
     { op: 'createStory', story: { ...story, id: storyId, name, phase: phase.number } },
@@ -253,13 +263,16 @@ export function generate(
   pieces.forEach((piece, index) => {
     const id = ids[index]!
     const before = placed[index - 1]
+    const skills = piece.ownName
+      ? [...new Set([...request.skills, ...namedSkills(piece.name, mapped)])]
+      : request.skills
     edits.push({
       op: 'createTask',
       task: {
         id,
         name: piece.name,
         storyId,
-        skills: request.skills,
+        skills,
         baselineStartDate: piece.start,
         baselineEndDate: piece.end,
         dependsOn: piece.chained && before ? [before.id] : first,
@@ -267,7 +280,14 @@ export function generate(
         doneWhen: piece.doneWhen ?? '',
       },
     })
-    placed.push({ id, name: piece.name, start: piece.start, end: piece.end, hours: piece.hours })
+    placed.push({
+      id,
+      name: piece.name,
+      start: piece.start,
+      end: piece.end,
+      hours: piece.hours,
+      skills,
+    })
   })
 
   edits.push(...inPlanOrder(tasks, phase.number, placed))
@@ -287,6 +307,11 @@ type Piece = Slot & {
   name: string
   /** What its id is made from, when not its name: a task's, with its project's. */
   idFrom?: string
+  /**
+   * The name is the person's own words for this task, not the story's with a
+   * number: only then does what it mentions say something about this task alone.
+   */
+  ownName?: boolean
   hours: number
   /** Waits on the piece before it, rather than on what the whole thing waits on. */
   chained: boolean

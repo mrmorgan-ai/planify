@@ -8,6 +8,7 @@ import {
   createRoadmapSql,
   removeDelegateSql,
   removeMemberSql,
+  withPack,
 } from './roadmaps-sql.mjs'
 
 // Roadmaps, and who reaches them. Every person has one roadmap; a service
@@ -17,6 +18,7 @@ import {
 //   node tools/roadmaps/roadmaps.mjs --local  list
 //   node tools/roadmaps/roadmaps.mjs --remote create "Their roadmap" --member them@example.com
 //   node tools/roadmaps/roadmaps.mjs --remote create "Their roadmap" --template templates/starter.json
+//   node tools/roadmaps/roadmaps.mjs --remote create "Their roadmap" --pack mlops-llmops
 //   node tools/roadmaps/roadmaps.mjs --remote add-member 2 them@example.com
 //   node tools/roadmaps/roadmaps.mjs --remote remove-member them@example.com
 //   node tools/roadmaps/roadmaps.mjs --remote add-delegate <the MCP server's client id>
@@ -26,14 +28,15 @@ import {
 // `--remote --env preview create "Tester" --member tester@example.com`.
 //
 // `create` fills the roadmap from templates/starter.json unless --template names
-// another file, or --empty asks for none. Until the first member is ever added,
+// another file, or --empty asks for none. --pack gives it the axes and skills of
+// templates/skills/<pack>.json in place of the template's own. Until the first member is ever added,
 // whoever Access lets in reaches roadmap 1; from then on only members reach
 // anything, for good, so add yourself before anyone else — and before letting
 // anyone new past Access.
 
 const USAGE = `Usage: node tools/roadmaps/roadmaps.mjs --local|--remote [--env preview] <command>
   list
-  create <name> [--template <file> | --empty] [--member <principal>]
+  create <name> [--template <file> | --empty] [--pack <skill pack>] [--member <principal>]
   add-member <roadmap id> <principal>
   remove-member <principal>
   add-delegate <principal>
@@ -122,8 +125,10 @@ switch (command) {
     const empty = flag('--empty')
     const templatePath = option('--template') ?? (empty ? undefined : 'templates/starter.json')
     const member = option('--member')
+    const packId = option('--pack')
     const name = args.shift()
     if (!name) fail(USAGE)
+    if (packId !== undefined && empty) fail('--pack fills a template, so it cannot go with --empty')
 
     let template
     let version
@@ -132,7 +137,16 @@ switch (command) {
       if (!existsSync(path)) fail(`${templatePath} not found`)
       const raw = readFileSync(path, 'utf8')
       template = JSON.parse(raw)
-      version = createHash('sha256').update(raw).digest('hex').slice(0, 12)
+      let packRaw = ''
+      if (packId !== undefined) {
+        const packPath = new URL(`templates/skills/${packId}.json`, root)
+        if (!/^[a-z0-9-]+$/.test(packId) || !existsSync(packPath)) {
+          fail(`No skill pack ${packId} in templates/skills/`)
+        }
+        packRaw = readFileSync(packPath, 'utf8')
+        template = withPack(template, JSON.parse(packRaw))
+      }
+      version = createHash('sha256').update(raw).update(packRaw).digest('hex').slice(0, 12)
     }
 
     const wasEmpty = member !== undefined && noMembersYet()
@@ -143,6 +157,7 @@ switch (command) {
     )
     console.log(
       `\nroadmap ${id} "${name}"${templatePath ? ` from ${templatePath}` : ', empty'}` +
+        `${packId ? `, with the ${packId} skills` : ''}` +
         `${member ? `, for ${member}` : ''}`,
     )
     warnIfFirst(wasEmpty, member)
