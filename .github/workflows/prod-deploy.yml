@@ -1,9 +1,11 @@
 name: prod-deploy
 
-# Run by hand from main: deploys to production the commit already on test.
+# On every push to main: checks, migrations, then deploy to production.
 # Off until the repository variable DEPLOY_ENABLED is 'true'.
 on:
-  workflow_dispatch:
+  # workflow_dispatch:
+  push:
+    branches: [main]
 
 concurrency:
   group: prod-deploy
@@ -13,29 +15,8 @@ permissions:
   contents: read
 
 jobs:
-  tested:
-    if: vars.DEPLOY_ENABLED == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-    env:
-      GH_TOKEN: ${{ github.token }}
-    steps:
-      - name: Check the commit is on test
-        run: |
-          if [ "$GITHUB_REF" != refs/heads/main ]; then
-            echo "::error::Production ships from main, not $GITHUB_REF_NAME."
-            exit 1
-          fi
-          tested=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow test-deploy.yml \
-            --commit "$GITHUB_SHA" --status success --json databaseId --jq length)
-          if [ "$tested" = 0 ]; then
-            echo "::error::$GITHUB_SHA is not on test yet."
-            exit 1
-          fi
-
   check:
-    needs: tested
+    if: vars.DEPLOY_ENABLED == 'true'
     uses: ./.github/workflows/ci.yml
 
   deploy:

@@ -1,10 +1,11 @@
 name: test-deploy
 
-# On every push to main: checks, migrations, then deploy to test.
+# Run by hand: checks, migrations, then deploy to test.
 # Off until the repository variable DEPLOY_ENABLED is 'true'.
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
+  # push:
+  #   branches: [main]
 
 concurrency:
   group: test-deploy
