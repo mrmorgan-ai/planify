@@ -116,6 +116,7 @@ export function PlanSettings({ state, saver }: { state: AppState; saver: Saver }
           <span>Starts on</span>
           <DatePicker
             value={draft.startDate}
+            today={state.today}
             disabled={saver.busy}
             label="The day the plan starts"
             onChange={(startDate) => setDraft({ ...draft, startDate })}
@@ -335,6 +336,7 @@ export function PausesSettings({ state, saver }: { state: AppState; saver: Saver
             <div className="form-dates">
               <DatePicker
                 value={blackout.from}
+                today={state.today}
                 disabled={saver.busy}
                 label={`First day of pause ${index + 1}`}
                 onChange={(from) =>
@@ -347,6 +349,7 @@ export function PausesSettings({ state, saver }: { state: AppState; saver: Saver
               <span className="faint">to</span>
               <DatePicker
                 value={blackout.to}
+                today={state.today}
                 min={blackout.from}
                 disabled={saver.busy}
                 label={`Last day of pause ${index + 1}`}

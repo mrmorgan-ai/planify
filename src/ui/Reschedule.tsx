@@ -155,6 +155,7 @@ export function RescheduleDialog({
         <div className="reschedule-date">
           <DatePicker
             value={restart}
+            today={today}
             min={earliest}
             label="Restart the plan in the week of"
             onChange={setRestart}

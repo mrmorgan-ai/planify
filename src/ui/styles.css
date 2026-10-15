@@ -14,6 +14,8 @@
   --warn: #fb923c;
   --running: #fbbf24;
   --accent: #7c9cf6;
+  /* Today in a calendar: a brighter blue than the accent, which marks the pick. */
+  --today: #38bdf8;
   /* The Gantt's frozen name column. Read back by the chart, which has to size
      its scrolling track around it. */
   --gantt-names: 336px;
@@ -542,6 +544,15 @@ tr.done a {
 
 .date-day.selected {
   background: var(--accent);
+  color: var(--bg);
+}
+
+.date-day.today {
+  color: var(--today);
+  border-color: var(--today);
+}
+
+.date-day.today.selected {
   color: var(--bg);
 }
 
@@ -1084,6 +1095,11 @@ tr.detail td {
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--panel);
+}
+
+/* Under its story's row the form is already set apart by the row's panel. */
+tr.new-task-row .new-task {
+  margin: 0.4rem 0 0;
 }
 
 .new-task h3 {

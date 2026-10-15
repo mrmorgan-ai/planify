@@ -256,6 +256,7 @@ export function GeneratePanel({
               {answers.examOnDay && (
                 <DatePicker
                   value={answers.examDate}
+                  today={state.today}
                   min={answers.from}
                   disabled={busy}
                   label="Day of the exam"
@@ -347,6 +348,7 @@ export function GeneratePanel({
           <div className="form-dates">
             <DatePicker
               value={answers.from}
+              today={state.today}
               min={state.today}
               disabled={busy}
               label="Earliest day the new tasks can start"
