@@ -14,23 +14,26 @@ const GUTTER = 8
  * drawn here, from the same `startOfWeek` the board and the Gantt count in.
  *
  * The panel is positioned against the viewport rather than its cell, so the
- * table's own scrolling cannot clip it.
+ * table's own scrolling cannot clip it. It opens on today's month, with today
+ * in its own blue, so the chosen day can be read against where the plan stands now.
  */
 export function DatePicker({
   value,
+  today,
   min,
   disabled,
   label,
   onChange,
 }: {
   value: CivilDate
+  today: CivilDate
   min?: CivilDate
   disabled?: boolean
   label: string
   onChange: (date: CivilDate) => void
 }) {
   const [open, setOpen] = useState(false)
-  const [month, setMonth] = useState(value.slice(0, 7))
+  const [month, setMonth] = useState(today.slice(0, 7))
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null)
   const trigger = useRef<HTMLButtonElement>(null)
   const panel = useRef<HTMLDivElement>(null)
@@ -88,7 +91,7 @@ export function DatePicker({
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => {
-          setMonth(value.slice(0, 7))
+          setMonth(today.slice(0, 7))
           setOpen(!open)
         }}
       >
@@ -140,6 +143,7 @@ export function DatePicker({
               const classes = ['date-day']
               if (outside) classes.push('outside')
               if (date === value) classes.push('selected')
+              if (date === today) classes.push('today')
               return (
                 <button
                   key={date}
@@ -148,6 +152,7 @@ export function DatePicker({
                   disabled={blocked}
                   aria-label={date}
                   aria-pressed={date === value}
+                  aria-current={date === today ? 'date' : undefined}
                   onClick={() => {
                     onChange(date)
                     setOpen(false)

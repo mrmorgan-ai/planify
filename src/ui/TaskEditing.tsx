@@ -8,10 +8,10 @@ import { Field, TaskForm, blankDraft, draftOf, editsFor, fieldsOf, neededByEdits
 const STATE_WORD = { pending: 'pending', in_progress: 'in progress', done: 'done' } as const
 
 /**
- * A new task, in the phase being looked at: it starts as a step of the story
- * there that ends last, and on the first study day after that phase's last task
- * ends, which is where a new task most often goes, lasting a day until told
- * otherwise. Choosing a story in another phase puts it in that phase. The id is
+ * A new task, asked for from its story: it starts as a step of that story, on
+ * the first study day after the story's phase's last task ends, which is where a
+ * new task most often goes, lasting a day until told otherwise. Choosing a story
+ * in another phase puts it in that phase. The id is
  * picked here from the name, so the row can be opened once it exists; the
  * server refuses it if it was taken in the meantime.
  */
@@ -26,8 +26,8 @@ export function NewTaskForm({
 }: {
   state: AppState
   phase: PhaseNumber
-  /** The story it starts as a step of, when it was asked for from one. */
-  storyId?: string
+  /** The story it was asked for from, and starts as a step of. */
+  storyId: string
   busy: boolean
   error: string | null
   onCreate: (edits: Edit[], id: string, phase: PhaseNumber) => void
@@ -40,11 +40,11 @@ export function NewTaskForm({
 
   return (
     <div className="new-task">
-      <h3>{story ? `New task in ${story.name}` : 'New task'}</h3>
+      <h3>New task in {story?.name ?? storyId}</h3>
       <TaskForm
         state={state}
         self={null}
-        initial={blankDraft(story?.id ?? latestStory(state, phase), state)}
+        initial={blankDraft(storyId, state)}
         busy={busy}
         error={error}
         submitLabel="Create task"
@@ -54,6 +54,7 @@ export function NewTaskForm({
               <div className="form-dates">
                 <DatePicker
                   value={start}
+                  today={state.today}
                   min={roadmap.startDate || undefined}
                   disabled={busy}
                   label="Planned start of the new task"
@@ -65,6 +66,7 @@ export function NewTaskForm({
                 <span className="faint">to</span>
                 <DatePicker
                   value={end}
+                  today={state.today}
                   min={start}
                   disabled={busy}
                   label="Planned end of the new task"
@@ -198,21 +200,6 @@ export function DeleteTask({
       </div>
     </div>
   )
-}
-
-/** The story of the phase whose tasks end last, or empty when the phase has none. */
-function latestStory(state: AppState, phase: PhaseNumber): string {
-  const inPhase = new Set(
-    state.stories.filter((story) => story.phase === phase).map((story) => story.id),
-  )
-  const last = state.tasks
-    .filter((task) => inPhase.has(task.storyId))
-    .reduce<Task | null>(
-      (latest, task) =>
-        latest === null || task.baselineEndDate > latest.baselineEndDate ? task : latest,
-      null,
-    )
-  return last?.storyId ?? [...inPhase][0] ?? ''
 }
 
 /** The first study day after the phase's last planned day, or where the plan starts. */

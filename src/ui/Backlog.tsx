@@ -70,7 +70,7 @@ export function Backlog({
   const [editing, setEditing] = useState<string | null>(null)
   const [editingTask, setEditingTask] = useState<string | null>(null)
   /** The new-task form, and the story it was asked for from, when it was. */
-  const [creating, setCreating] = useState<{ storyId?: string } | null>(null)
+  const [creating, setCreating] = useState<{ storyId: string } | null>(null)
   const [creatingStory, setCreatingStory] = useState(false)
   const [generating, setGenerating] = useState(false)
   /**
@@ -127,7 +127,13 @@ export function Backlog({
       shown: entry.tasks.filter((task) => matchesFilter(task, filter, state.today)),
     }))
     // An empty story only shows unfiltered: no filter can pick a task it lacks.
-    .filter((entry) => entry.shown.length > 0 || (filter === 'all' && entry.tasks.length === 0))
+    // The story a task is being added to stays, since its form sits under it.
+    .filter(
+      (entry) =>
+        entry.shown.length > 0 ||
+        (filter === 'all' && entry.tasks.length === 0) ||
+        entry.story.id === creating?.storyId,
+    )
 
   const names = new Map(state.tasks.map((task) => [task.id, task.name]))
   const featureName = new Map(state.features.map((feature) => [feature.id, feature.name]))
@@ -140,7 +146,12 @@ export function Backlog({
         phases={state.roadmap.phases}
         tasks={state.tasks}
         selected={phase}
-        onSelect={setPhase}
+        onSelect={(next) => {
+          setPhase(next)
+          // The new-task form sits under its story, so it closes when the story leaves view.
+          const story = state.stories.find((each) => each.id === creating?.storyId)
+          if (story && next !== null && story.phase !== next) setCreating(null)
+        }}
       />
 
       <div className="tasks-pane">
@@ -174,18 +185,6 @@ export function Backlog({
             }}
           >
             + New story
-          </button>
-          <button
-            type="button"
-            className="button"
-            disabled={noStories || creatingStory || creating !== null || generating}
-            title={noStories ? 'A task is a step of a story: create a story first' : undefined}
-            onClick={() => {
-              setRefused(null)
-              setCreating({})
-            }}
-          >
-            + New task
           </button>
           <button
             type="button"
@@ -248,27 +247,6 @@ export function Backlog({
               }}
             />
           </div>
-        )}
-
-        {creating && (
-          <NewTaskForm
-            key={creating.storyId ?? 'any'}
-            state={state}
-            phase={where}
-            storyId={creating.storyId}
-            busy={pendingId === 'new'}
-            error={refused === 'new' ? error : null}
-            onCancel={() => setCreating(null)}
-            onCreate={async (edits, id, into) => {
-              if (!(await save('new', edits))) return
-              setCreating(null)
-              setPhase(into)
-              setFilter('all')
-              const created = edits.find((each) => each.op === 'createTask')
-              if (created?.op === 'createTask') unfold(created.task.storyId)
-              setExpanded(id)
-            }}
-          />
         )}
 
         {entries.length === 0 ? (
@@ -388,6 +366,29 @@ export function Backlog({
                     </tr>
                   )}
 
+                  {creating?.storyId === story.id && (
+                    <NewTaskRow>
+                      <NewTaskForm
+                        key={story.id}
+                        state={state}
+                        phase={where}
+                        storyId={story.id}
+                        busy={pendingId === 'new'}
+                        error={refused === 'new' ? error : null}
+                        onCancel={() => setCreating(null)}
+                        onCreate={async (edits, id, into) => {
+                          if (!(await save('new', edits))) return
+                          setCreating(null)
+                          setPhase(into)
+                          setFilter('all')
+                          const created = edits.find((each) => each.op === 'createTask')
+                          if (created?.op === 'createTask') unfold(created.task.storyId)
+                          setExpanded(id)
+                        }}
+                      />
+                    </NewTaskRow>
+                  )}
+
                   {open &&
                     shown.map((task) => (
                       <Row
@@ -448,6 +449,24 @@ export function Backlog({
         )}
       </div>
     </section>
+  )
+}
+
+/**
+ * The new-task form's row, right under the story it adds to. It scrolls into
+ * view only when it opened off screen, as it does for a story just created.
+ */
+function NewTaskRow({ children }: { children: ReactNode }) {
+  const row = useRef<HTMLTableRowElement>(null)
+  useEffect(() => {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    row.current?.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' })
+  }, [])
+  return (
+    <tr ref={row} className="detail new-task-row">
+      <td colSpan={2} />
+      <td colSpan={5}>{children}</td>
+    </tr>
   )
 }
 
@@ -718,7 +737,8 @@ function Row({
   onSaveDates: (start: CivilDate, end: CivilDate) => void
 }) {
   const late = isOverdue(task, today)
-  const slipped = hasSlipped(task)
+  // A finished task's slip is history, not a warning: its dates are what happened.
+  const slipped = task.state !== 'done' && hasSlipped(task)
   const row = useRef<HTMLTableRowElement>(null)
   useEffect(() => {
     if (arrived) scrollToRow(row.current)
@@ -778,6 +798,7 @@ function Row({
         {editing ? (
           <DateEditor
             task={task}
+            today={today}
             floor={floor}
             blackouts={blackouts}
             busy={busy}
@@ -851,6 +872,7 @@ function Row({
  */
 function DateEditor({
   task,
+  today,
   floor,
   blackouts,
   busy,
@@ -858,6 +880,7 @@ function DateEditor({
   onCancel,
 }: {
   task: Task
+  today: CivilDate
   floor: CivilDate | ''
   blackouts: readonly Blackout[]
   busy: boolean
@@ -879,6 +902,7 @@ function DateEditor({
       <td className="col-date">
         <DatePicker
           value={start}
+          today={today}
           min={floor || undefined}
           disabled={busy}
           label={`Planned start of ${task.name}`}
@@ -889,6 +913,7 @@ function DateEditor({
       <td className="col-date">
         <DatePicker
           value={end}
+          today={today}
           min={start}
           disabled={busy}
           label={`Planned end of ${task.name}`}
