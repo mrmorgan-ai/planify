@@ -2143,6 +2143,8 @@ a.button {
 
 .column.collapsed {
   min-height: 0;
+  /* Folded is folded: it keeps to its head rather than stretching to the others. */
+  align-self: start;
 }
 
 .column.collapsed .column-head,
@@ -2192,7 +2194,9 @@ a.button {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.9rem;
-  align-items: start;
+  /* Every column as tall as the longest, so a short one is still a drop target
+     all the way down, wherever the card is let go beside it. */
+  align-items: stretch;
 }
 
 .column {
