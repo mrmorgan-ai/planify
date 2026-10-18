@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { MAX_PHASES } from '../../src/core/constants'
 import { applyEdits, parseEdits, type Edit } from '../../src/core/edits'
 import { seedContent } from '../../src/core/seed'
 import type { Task, RoadmapContent } from '../../src/core/types'
@@ -121,15 +122,20 @@ describe('phases', () => {
     expect(errors(after)).toEqual([])
   })
 
-  it('adds a phase after the last, up to six, and removes only an empty last one', () => {
+  it('adds a phase after the last, up to the cap, and removes only an empty last one', () => {
     const added = apply([{ op: 'addPhase', name: 'Third phase' }])
     expect(added.roadmap.phases.at(-1)).toEqual({ number: 3, name: 'Third phase', closingMilestoneId: null })
     expect(apply([{ op: 'removePhase', number: 3 }], added).roadmap.phases).toHaveLength(2)
 
     expect(() => apply([{ op: 'removePhase', number: 1 }], added)).toThrow(/Only the last phase/)
     expect(() => apply([{ op: 'removePhase', number: 2 }])).toThrow(/still has 2 stories/)
-    const six = apply(['3', '4', '5', '6'].map((n) => ({ op: 'addPhase', name: `Phase ${n}` }) as Edit))
-    expect(() => apply([{ op: 'addPhase', name: 'Seventh' }], six)).toThrow(/at most 6 phases/)
+    const full = apply(
+      Array.from({ length: MAX_PHASES - 2 }, (_, n) => ({ op: 'addPhase', name: `Phase ${n + 3}` }) as Edit),
+    )
+    expect(full.roadmap.phases).toHaveLength(MAX_PHASES)
+    expect(() => apply([{ op: 'addPhase', name: 'One too many' }], full)).toThrow(
+      new RegExp(`at most ${MAX_PHASES} phases`),
+    )
   })
 })
 

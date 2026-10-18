@@ -4,7 +4,12 @@ import type { WorkType, PhaseNumber, State } from './types'
 // phase names, non-study periods, radar axes, the skill map, the timezone — is
 // content: it lives in the database and never in this repository.
 
-export const PHASE_NUMBERS: readonly PhaseNumber[] = [1, 2, 3, 4, 5, 6] as const
+/** The most phases a roadmap may have. The database only asks for a positive number. */
+export const MAX_PHASES = 20
+
+export function isPhaseNumber(value: unknown): value is PhaseNumber {
+  return Number.isInteger(value) && (value as number) >= 1 && (value as number) <= MAX_PHASES
+}
 
 export const STATES: readonly State[] = ['pending', 'in_progress', 'done'] as const
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { MAX_PHASES } from '../core/constants'
 import type { Task } from '../core/types'
 import {
   fromFeature,
@@ -106,7 +107,7 @@ describe('stories', () => {
 
   it('refuses a story type or phase the schema should never have allowed', () => {
     expect(() => toStory(storyRow({ type: 'Podcast' }))).toThrow(/unknown type/)
-    expect(() => toStory(storyRow({ phase: 9 }))).toThrow(/out-of-range phase/)
+    expect(() => toStory(storyRow({ phase: MAX_PHASES + 1 }))).toThrow(/out-of-range phase/)
   })
 })
 
@@ -116,8 +117,13 @@ describe('toPhase', () => {
     expect(phase.closingMilestoneId).toBeNull()
   })
 
-  it('refuses a phase number outside 1-6', () => {
+  it('refuses a phase number outside 1 to the cap', () => {
     expect(() => toPhase({ number: 0, name: 'Zero', closing_milestone_id: null })).toThrow()
+    expect(() => toPhase({ number: MAX_PHASES + 1, name: 'Past', closing_milestone_id: null })).toThrow()
+  })
+
+  it('reads a phase past the sixth', () => {
+    expect(toPhase({ number: 13, name: 'Move', closing_milestone_id: null }).number).toBe(13)
   })
 })
 

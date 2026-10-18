@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
+import { MAX_PHASES } from '../core/constants'
 import { addDays } from '../core/dates'
 import type { Edit } from '../core/edits'
 import { keepStudyDays } from '../core/structure'
@@ -249,7 +250,7 @@ export function PhasesSettings({ state, saver }: { state: AppState; saver: Saver
           </li>
         ))}
       </ol>
-      {roadmap.phases.length < 6 && edits.length === 0 && (
+      {roadmap.phases.length < MAX_PHASES && edits.length === 0 && (
         <div className="settings-add">
           <input
             aria-label="Name of the new phase"
