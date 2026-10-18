@@ -1,4 +1,4 @@
-import { PHASE_NUMBERS } from './constants'
+import { MAX_PHASES } from './constants'
 import { addStudyDays, isCivilDate, shiftStudyDays, studyDaysBetween } from './dates'
 import { EditError, newId, takenIds } from './editing'
 import { parseBlackout, parseFeature, parseStory } from './seed'
@@ -299,8 +299,8 @@ export function applyStructureEdit(
     case 'addPhase': {
       const last = Math.max(0, ...roadmap.phases.map((phase) => phase.number))
       const number = last + 1
-      if (!PHASE_NUMBERS.includes(number as PhaseNumber)) {
-        throw new EditError(`A roadmap has at most ${PHASE_NUMBERS.length} phases`)
+      if (number > MAX_PHASES) {
+        throw new EditError(`A roadmap has at most ${MAX_PHASES} phases`)
       }
       const phase = { number: number as PhaseNumber, name: edit.name, closingMilestoneId: null }
       return { ...content, roadmap: { ...roadmap, phases: [...roadmap.phases, phase] } }

@@ -335,8 +335,8 @@ The same list takes the roadmap's structure. A story can be created, edited or
 deleted — giving it another phase moves every one of its tasks there, and it can
 only be deleted once it has no tasks. A feature can be created, edited or
 deleted; deleting one leaves its stories serving none. A phase can be renamed or
-given another closing milestone, and phases are added after the last one, up to
-six; only a last phase with no stories can be removed. Pauses are replaced as a
+given another closing milestone, and phases are added after the last one, up to twenty;
+only a last phase with no stories can be removed. Pauses are replaced as a
 list, and with `keepStudyDays` every unfinished task keeps its study day of the
 plan, so a new pause pushes what comes after it. The time zone, start date and
 weekly capacity are set together, and the skill map is replaced whole, with

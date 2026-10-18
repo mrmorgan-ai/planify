@@ -1,4 +1,4 @@
-import { WORK_TYPES, PHASE_NUMBERS } from './constants'
+import { WORK_TYPES, MAX_PHASES, isPhaseNumber } from './constants'
 import { isCivilDate } from './dates'
 import type {
   Blackout,
@@ -112,7 +112,7 @@ export function asTasks(seed: Pick<SeedFile, 'stories' | 'tasks'>): Task[] {
   const phaseOf = new Map(seed.stories.map((story) => [story.id, story.phase]))
   return seed.tasks.map((task) => ({
     ...task,
-    phase: phaseOf.get(task.storyId) ?? PHASE_NUMBERS[0]!,
+    phase: phaseOf.get(task.storyId) ?? 1,
     projectedStartDate: task.baselineStartDate,
     projectedEndDate: task.baselineEndDate,
     state: 'pending',
@@ -226,8 +226,8 @@ function partsIn(instant: Date, timeZone: string): (type: Intl.DateTimeFormatPar
 function parsePhase(entry: unknown, index: number): Phase {
   const value = requireObject(entry, `phases[${index}]`)
   const number = value.number
-  if (typeof number !== 'number' || !PHASE_NUMBERS.includes(number as PhaseNumber)) {
-    throw new Error(`phases[${index}].number must be 1-6`)
+  if (!isPhaseNumber(number)) {
+    throw new Error(`phases[${index}].number must be a whole number from 1 to ${MAX_PHASES}`)
   }
   const milestone = value.closingMilestoneId
   if (milestone !== null && typeof milestone !== 'string') {
@@ -247,8 +247,8 @@ export function parseStory(entry: unknown, at: string): Story {
   const where = `${at} (${id})`
 
   const phase = value.phase
-  if (typeof phase !== 'number' || !PHASE_NUMBERS.includes(phase as PhaseNumber)) {
-    throw new Error(`${where}.phase must be 1-6`)
+  if (!isPhaseNumber(phase)) {
+    throw new Error(`${where}.phase must be a whole number from 1 to ${MAX_PHASES}`)
   }
 
   const featureId = value.featureId ?? null

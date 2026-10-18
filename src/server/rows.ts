@@ -1,4 +1,4 @@
-import { WORK_TYPES, PHASE_NUMBERS, STATES } from '../core/constants'
+import { WORK_TYPES, isPhaseNumber, STATES } from '../core/constants'
 import type {
   Blackout,
   Dimension,
@@ -97,7 +97,7 @@ export function toTask(row: TaskRow, phase: PhaseNumber): Task {
 
 export function toStory(row: StoryRow): Story {
   const type = typeOf(row.type, `Story ${row.id}`)
-  if (!PHASE_NUMBERS.includes(row.phase as PhaseNumber)) {
+  if (!isPhaseNumber(row.phase)) {
     throw new Error(`Story ${row.id} has an out-of-range phase in the database: ${row.phase}`)
   }
   return {
@@ -125,7 +125,7 @@ export function toFeature(row: FeatureRow): Feature {
 }
 
 export function toPhase(row: PhaseRow): Phase {
-  if (!PHASE_NUMBERS.includes(row.number as PhaseNumber)) {
+  if (!isPhaseNumber(row.number)) {
     throw new Error(`Phase ${row.number} is out of range`)
   }
   return {

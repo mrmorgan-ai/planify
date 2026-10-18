@@ -30,7 +30,8 @@ export type WorkType =
   /** Exam guides, practice questions and practice exams — kept apart from the exam. */
   | 'Exam prep'
 
-export type PhaseNumber = 1 | 2 | 3 | 4 | 5 | 6
+/** A phase's place in the plan, from 1 up to MAX_PHASES (constants.ts). */
+export type PhaseNumber = number
 
 /**
  * A radar axis. Deliberately a plain string: the axes are roadmap content and

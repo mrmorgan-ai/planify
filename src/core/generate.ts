@@ -1,4 +1,4 @@
-import { PHASE_NUMBERS } from './constants'
+import { isPhaseNumber } from './constants'
 import {
   addDays,
   firstStudyDayFrom,
@@ -527,7 +527,7 @@ export function parseGenerateRequest(raw: unknown): GenerateRequest {
     throw new EditError(`generator.kind must be one of ${GENERATOR_KINDS.join(', ')}`)
   }
   const phase = value.phase
-  if (!(PHASE_NUMBERS as readonly unknown[]).includes(phase)) {
+  if (!isPhaseNumber(phase)) {
     throw new EditError('generator.phase must be a phase number')
   }
   const skills = value.skills
